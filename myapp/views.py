@@ -214,6 +214,8 @@ class DistrictViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
 
 
+
+
 class DepartmentOfficerViewSet(viewsets.ModelViewSet):
     """
     CRUD ViewSet for Department Officers / Nodal Officers.
