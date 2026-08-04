@@ -42,7 +42,6 @@ temp_*
 *.qpj
 *.sbn
 *.sbx
-*.zip
 
 # IDE & Code Editor Settings
 .vscode/
