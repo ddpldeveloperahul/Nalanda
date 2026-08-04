@@ -1,0 +1,1509 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NDISP Citizen Portal - Facilities Search & Asset Management</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+    <style>
+        :root {
+            --bg-body: #f8fafc;
+            --bg-sidebar: #ffffff;
+            --bg-card: #ffffff;
+            --border-color: #e2e8f0;
+            --border-focus: #3b82f6;
+            --text-main: #0f172a;
+            --text-secondary: #475569;
+            --text-muted: #94a3b8;
+            --accent-blue: #2563eb;
+            --accent-blue-hover: #1d4ed8;
+            --accent-light: #eff6ff;
+            --sidebar-width: 260px;
+
+            /* Status Colors */
+            --status-active-bg: #dcfce7;
+            --status-active-text: #166534;
+            --status-inactive-bg: #fee2e2;
+            --status-inactive-text: #991b1b;
+            --status-maint-bg: #ffedd5;
+            --status-maint-text: #9a3412;
+            --status-closed-bg: #f1f5f9;
+            --status-closed-text: #475569;
+
+            /* Category Pill Colors */
+            --cat-govt: #475569;
+            --cat-community: #9333ea;
+            --cat-school: #2563eb;
+            --cat-hospital: #dc2626;
+            --cat-water: #0891b2;
+            --cat-solar: #d97706;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* App Top Navbar */
+        .top-navbar {
+            height: 56px;
+            background: #ffffff;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 1.25rem;
+            z-index: 100;
+        }
+
+        .nav-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .brand-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            color: var(--text-main);
+        }
+
+        .brand-logo-icon {
+            width: 32px;
+            height: 32px;
+            background: var(--accent-blue);
+            color: white;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+
+        .brand-logo-text {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 700;
+            font-size: 1.1rem;
+            letter-spacing: -0.5px;
+        }
+
+        .brand-logo-tag {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-weight: 400;
+            margin-left: 4px;
+        }
+
+        .global-search {
+            position: relative;
+            width: 360px;
+        }
+
+        .global-search input {
+            width: 100%;
+            background: #f1f5f9;
+            border: 1px solid transparent;
+            padding: 7px 12px 7px 36px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        .global-search input:focus {
+            background: #ffffff;
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .global-search i {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        .shortcut-badge {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #e2e8f0;
+            color: var(--text-secondary);
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .user-badge {
+            background: #f1f5f9;
+            border: 1px solid var(--border-color);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .nav-icon-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 1px solid var(--border-color);
+            background: #ffffff;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .nav-icon-btn:hover {
+            background: #f8fafc;
+            color: var(--text-main);
+        }
+
+        /* Main Layout */
+        .app-layout {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        .sidebar-nav {
+            width: var(--sidebar-width);
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 1rem 0.75rem;
+            overflow-y: auto;
+        }
+
+        .nav-group-label {
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: var(--text-muted);
+            margin: 1.25rem 0.75rem 0.5rem 0.75rem;
+        }
+
+        .nav-group-label:first-child {
+            margin-top: 0.25rem;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            border-radius: 8px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.88rem;
+            font-weight: 500;
+            transition: all 0.15s;
+            cursor: pointer;
+            margin-bottom: 2px;
+        }
+
+        .nav-item:hover {
+            background: #f1f5f9;
+            color: var(--text-main);
+        }
+
+        .nav-item.active {
+            background: var(--accent-light);
+            color: var(--accent-blue);
+            font-weight: 600;
+        }
+
+        .nav-item-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .nav-item i {
+            font-size: 1rem;
+            width: 20px;
+            text-align: center;
+        }
+
+        .sidebar-footer {
+            border-top: 1px solid var(--border-color);
+            padding-top: 0.75rem;
+            margin-top: 1rem;
+        }
+
+        .system-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            padding: 6px 12px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #22c55e;
+            border-radius: 50%;
+            box-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
+        }
+
+        /* Content Area */
+        .content-area {
+            flex: 1;
+            background: #f8fafc;
+            padding: 1.5rem 2rem;
+            overflow-y: auto;
+        }
+
+        /* Page Header / Toolbar */
+        .page-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.25rem;
+        }
+
+        .page-title-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .results-count {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .toolbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--accent-blue);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-blue-hover);
+        }
+
+        .btn-secondary {
+            background: #ffffff;
+            border-color: var(--border-color);
+            color: var(--text-main);
+        }
+
+        .btn-secondary:hover {
+            background: #f1f5f9;
+        }
+
+        /* Table Card Container */
+        .table-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+        }
+
+        .table-controls {
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .table-search-box {
+            position: relative;
+            flex: 1;
+            max-width: 400px;
+        }
+
+        .table-search-box input {
+            width: 100%;
+            padding: 8px 12px 8px 36px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 0.88rem;
+            outline: none;
+        }
+
+        .table-search-box input:focus {
+            border-color: var(--accent-blue);
+        }
+
+        .table-search-box i {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+        }
+
+        .table-filters {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .select-filter {
+            padding: 7px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 0.85rem;
+            background: #ffffff;
+            color: var(--text-main);
+            outline: none;
+            cursor: pointer;
+        }
+
+        /* Data Table */
+        .data-table-wrapper {
+            overflow-x: auto;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 0.88rem;
+        }
+
+        .data-table th {
+            background: #f8fafc;
+            padding: 12px 16px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid var(--border-color);
+            user-select: none;
+        }
+
+        .data-table td {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-main);
+            vertical-align: middle;
+        }
+
+        .data-table tbody tr {
+            transition: background 0.15s;
+        }
+
+        .data-table tbody tr:hover {
+            background: #f8fafc;
+        }
+
+        .facility-name-cell {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 600;
+        }
+
+        .facility-icon {
+            width: 34px;
+            height: 34px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.95rem;
+        }
+
+        /* Category Badges */
+        .cat-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: white;
+            text-transform: uppercase;
+        }
+
+        .cat-badge.hospital {
+            background: #dc2626;
+        }
+
+        .cat-badge.school {
+            background: #2563eb;
+        }
+
+        .cat-badge.water {
+            background: #0891b2;
+        }
+
+        .cat-badge.community {
+            background: #9333ea;
+        }
+
+        .cat-badge.govt {
+            background: #475569;
+        }
+
+        .cat-badge.solar {
+            background: #d97706;
+        }
+
+        /* Status Pills */
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 10px;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            border: 1px solid transparent;
+        }
+
+        .status-pill.active {
+            background: var(--status-active-bg);
+            color: var(--status-active-text);
+            border-color: #bbf7d0;
+        }
+
+        .status-pill.inactive {
+            background: var(--status-inactive-bg);
+            color: var(--status-inactive-text);
+            border-color: #fecaca;
+        }
+
+        .status-pill.maintenance {
+            background: var(--status-maint-bg);
+            color: var(--status-maint-text);
+            border-color: #fed7aa;
+        }
+
+        .status-pill.closed {
+            background: var(--status-closed-bg);
+            color: var(--status-closed-text);
+            border-color: #e2e8f0;
+        }
+
+        /* Action Buttons */
+        .action-btn-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .action-icon-btn {
+            width: 30px;
+            height: 30px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background: #ffffff;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.15s;
+        }
+
+        .action-icon-btn:hover {
+            border-color: var(--accent-blue);
+            color: var(--accent-blue);
+            background: var(--accent-light);
+        }
+
+        .action-icon-btn.delete:hover {
+            border-color: #dc2626;
+            color: #dc2626;
+            background: #fef2f2;
+        }
+
+        /* Table Pagination */
+        .table-pagination {
+            padding: 0.88rem 1.25rem;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+        }
+
+        .page-buttons {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .page-num {
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .page-num.active {
+            background: var(--accent-blue);
+            color: white;
+            border-color: var(--accent-blue);
+        }
+
+        /* Modal Backdrop & Dialog */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(15, 23, 42, 0.5);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+
+        .modal-card {
+            background: #ffffff;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 520px;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            overflow: hidden;
+            animation: modalSlideUp 0.25s ease-out;
+        }
+
+        @keyframes modalSlideUp {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-card-header {
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-card-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .btn-modal-close {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 1.1rem;
+        }
+
+        .btn-modal-close:hover {
+            color: var(--text-main);
+        }
+
+        .modal-card-body {
+            padding: 1.25rem;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 4px;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 0.88rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .form-control:focus {
+            border-color: var(--accent-blue);
+        }
+
+        .form-row {
+            display: flex;
+            gap: 12px;
+        }
+
+        .form-row .form-group {
+            flex: 1;
+        }
+
+        .modal-card-footer {
+            padding: 1rem 1.25rem;
+            border-top: 1px solid var(--border-color);
+            background: #f8fafc;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        /* Map Container in Modal */
+        #facility-map-modal-container {
+            width: 100%;
+            height: 220px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            margin-top: 10px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Top Navbar -->
+    <header class="top-navbar">
+        <div class="nav-left">
+            <a href="/facilities/search/" class="brand-logo">
+                <div class="brand-logo-icon">N</div>
+                <div class="brand-logo-text">NDISP <span class="brand-logo-tag">Citizen Portal</span></div>
+            </a>
+            <div class="global-search">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="top-search-input" placeholder="Search facilities, schemes, tourism...">
+                <span class="shortcut-badge">Ctrl+K</span>
+            </div>
+        </div>
+
+        <div class="nav-right">
+            <button class="nav-icon-btn" title="Toggle Language"><i class="fa-solid fa-language"></i></button>
+            <div class="user-badge">
+                <i class="fa-solid fa-user-shield" style="color: var(--accent-blue);"></i>
+                <span>Citizen</span>
+            </div>
+            <button class="nav-icon-btn" title="Notifications"><i class="fa-solid fa-bell"></i></button>
+            <button class="nav-icon-btn" title="User Profile"><i class="fa-solid fa-circle-user"></i></button>
+        </div>
+    </header>
+
+    <!-- App Layout -->
+    <div class="app-layout">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar-nav">
+            <div>
+                <div class="nav-group-label">Main</div>
+                <a href="/" class="nav-item">
+                    <div class="nav-item-left"><i class="fa-solid fa-house"></i> Home</div>
+                </a>
+                <a href="/" class="nav-item">
+                    <div class="nav-item-left"><i class="fa-solid fa-chart-pie"></i> Dashboard</div>
+                </a>
+                <a href="/map/" class="nav-item">
+                    <div class="nav-item-left"><i class="fa-solid fa-map-location-dot"></i> Explore Map</div>
+                </a>
+                <a href="/facilities/search/" class="nav-item">
+                    <div class="nav-item-left"><i class="fa-solid fa-magnifying-glass"></i> Search</div>
+                </a>
+
+                <div class="nav-group-label">Services</div>
+                <a href="/facilities/search/" class="nav-item active">
+                    <div class="nav-item-left"><i class="fa-solid fa-building-columns"></i> Facilities</div>
+                    <i class="fa-solid fa-chevron-down" style="font-size: 0.7rem;"></i>
+                </a>
+                <div style="padding-left: 20px;">
+                    <a href="/facilities/search/" class="nav-item active" style="font-size: 0.82rem;">
+                        <div class="nav-item-left"><i class="fa-solid fa-list-check"></i> Search Facilities</div>
+                    </a>
+                    <a href="/map/" class="nav-item" style="font-size: 0.82rem;">
+                        <div class="nav-item-left"><i class="fa-solid fa-map"></i> Map View</div>
+                    </a>
+                </div>
+                <a href="#" class="nav-item">
+                    <div class="nav-item-left"><i class="fa-solid fa-hand-holding-heart"></i> Schemes</div>
+                </a>
+                <a href="#" class="nav-item">
+                    <div class="nav-item-left"><i class="fa-solid fa-triangle-exclamation"></i> Grievances</div>
+                </a>
+            </div>
+
+            <div class="sidebar-footer">
+                <a href="#" class="nav-item">
+                    <div class="nav-item-left"><i class="fa-solid fa-gear"></i> Settings</div>
+                </a>
+                <a href="#" class="nav-item">
+                    <div class="nav-item-left"><i class="fa-solid fa-circle-question"></i> Help</div>
+                </a>
+                <div class="system-status">
+                    <div class="status-dot"></div>
+                    <span>Online v0.1.0-dev</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="content-area">
+            <!-- Toolbar -->
+            <div class="page-toolbar">
+                <div class="page-title-group">
+                    <div class="results-count" id="results-counter">Showing 0 of 0 facilities</div>
+                </div>
+                <div class="toolbar-actions">
+                    <button class="btn btn-secondary" onclick="exportGeoJSON()"><i class="fa-solid fa-download"></i>
+                        Export GeoJSON</button>
+                    <button class="btn btn-primary" onclick="openCreateFacilityModal()"><i class="fa-solid fa-plus"></i>
+                        Add Facility</button>
+                </div>
+            </div>
+
+            <!-- Table Card -->
+            <div class="table-card">
+                <!-- Controls -->
+                <div class="table-controls">
+                    <div class="table-search-box">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input type="text" id="facility-search-input"
+                            placeholder="Search facilities by name or keyword...">
+                    </div>
+                    <div class="table-filters">
+                        <select class="select-filter" id="filter-category" onchange="fetchFacilities()">
+                            <option value="">All Categories</option>
+                        </select>
+                        <select class="select-filter" id="filter-department" onchange="fetchFacilities()">
+                            <option value="">All Departments</option>
+                        </select>
+                        <select class="select-filter" id="filter-district" onchange="fetchFacilities()">
+                            <option value="">All Districts</option>
+                        </select>
+                        <select class="select-filter" id="filter-hazard" onchange="fetchFacilities()">
+                            <option value="">Hazard Safety (All)</option>
+                            <option value="true">Hazard Safe Only</option>
+                            <option value="false">Unsafe / Flagged</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Data Table -->
+                <div class="data-table-wrapper">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;"><input type="checkbox" id="chk-select-all"></th>
+                                <th>NAME</th>
+                                <th>TYPE</th>
+                                <th>DISTRICT</th>
+                                <th>STATUS</th>
+                                <th>HAZARD SAFE</th>
+                                <th>ACTIONS</th>
+                            </tr>
+                        </thead>
+                        <tbody id="facilities-table-body">
+                            <!-- Populated via API -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Table Pagination -->
+                <div class="table-pagination">
+                    <div>Rows per page: <strong>10</strong></div>
+                    <div class="page-buttons" id="pagination-buttons">
+                        <button class="page-num active">1</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Create / Edit Facility Modal -->
+    <div class="modal-overlay" id="facility-form-modal">
+        <div class="modal-card">
+            <div class="modal-card-header">
+                <div class="modal-card-title" id="form-modal-title">Add New Facility</div>
+                <button class="btn-modal-close" onclick="closeFormModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-card-body">
+                <form id="facility-form">
+                    <input type="hidden" id="form-facility-id">
+                    <div class="form-group">
+                        <label class="form-label">Facility Name *</label>
+                        <input type="text" id="form-name" class="form-control" required
+                            placeholder="e.g. Asthawan Sub-Divisional Hospital">
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Department *</label>
+                            <select id="form-department" class="form-control" required>
+                                <option value="">Select Department</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Category *</label>
+                            <select id="form-category" class="form-control" required onchange="onCategoryChange()">
+                                <option value="">Select Category</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">District *</label>
+                            <select id="form-district" class="form-control" required>
+                                <option value="1">Nalanda</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Hazard Safe?</label>
+                            <select id="form-hazard-safe" class="form-control">
+                                <option value="true">Yes (Safe)</option>
+                                <option value="false">No / Flagged</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Longitude (X)</label>
+                            <input type="number" step="any" id="form-lng" class="form-control" placeholder="85.5234">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Latitude (Y)</label>
+                            <input type="number" step="any" id="form-lat" class="form-control" placeholder="25.2105">
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Fields Container based on Category field_schema -->
+                    <div id="dynamic-schema-fields-container"></div>
+                </form>
+            </div>
+            <div class="modal-card-footer">
+                <button class="btn btn-secondary" onclick="closeFormModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="submitFacilityForm()"><i class="fa-solid fa-floppy-disk"></i>
+                    Save Facility</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Facility Details Modal -->
+    <div class="modal-overlay" id="facility-detail-modal">
+        <div class="modal-card" style="max-width: 440px;">
+            <div class="modal-card-header">
+                <div class="modal-card-title" id="detail-modal-title">Facility Details</div>
+                <button class="btn-modal-close" onclick="closeDetailModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-card-body">
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;"
+                    id="detail-badges-container">
+                    <span class="cat-badge hospital" id="detail-cat-badge">Hospital</span>
+                    <span class="status-pill active" id="detail-status-pill">Active</span>
+                </div>
+
+                <div style="font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 12px;">
+                    <div><i class="fa-solid fa-location-dot" style="color: var(--accent-blue); width: 16px;"></i> <span
+                            id="detail-district-text">Nalanda, Bihar</span></div>
+                    <div style="margin-top:4px;"><i class="fa-solid fa-phone"
+                            style="color: var(--text-muted); width: 16px;"></i> <span
+                            id="detail-phone-text">+91-7168154522</span></div>
+                </div>
+
+                <div style="border-top:1px solid var(--border-color); padding-top:10px; margin-top:10px;">
+                    <div style="font-size:0.8rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">
+                        Dynamic Attributes</div>
+                    <div id="detail-attributes-container" style="font-size:0.85rem; margin-top:6px;"></div>
+                </div>
+
+                <div id="facility-map-modal-container"></div>
+            </div>
+            <div class="modal-card-footer" style="justify-content: space-between;">
+                <button class="btn btn-secondary" onclick="openHistoryModal()"><i
+                        class="fa-solid fa-clock-rotate-left"></i> History</button>
+                <button class="btn btn-primary" onclick="openInMapExplorer()"><i
+                        class="fa-solid fa-map-location-dot"></i> Open in Map Explorer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- History Timeline Modal -->
+    <div class="modal-overlay" id="facility-history-modal">
+        <div class="modal-card" style="max-width: 480px;">
+            <div class="modal-card-header">
+                <div class="modal-card-title"><i class="fa-solid fa-clock-rotate-left"></i> Version History (SCD Type 2)
+                </div>
+                <button class="btn-modal-close" onclick="closeHistoryModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-card-body" id="history-timeline-body">
+                <!-- Populated dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+    <script>
+        let facilitiesList = [];
+        let categoriesList = [];
+        let departmentsList = [];
+        let currentDetailFacility = null;
+        let detailModalMap = null;
+
+        // On DOM Loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            loadInitialData();
+
+            // Realtime search listener
+            document.getElementById('facility-search-input').addEventListener('input', debounce(fetchFacilities, 300));
+        });
+
+        function debounce(func, wait) {
+            let timeout;
+            return function (...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), wait);
+            };
+        }
+
+        let districtsList = [];
+
+        async function loadInitialData() {
+            await Promise.all([fetchCategories(), fetchDepartments(), fetchDistricts()]);
+            await fetchFacilities();
+        }
+
+        async function fetchDistricts() {
+            try {
+                const res = await fetch('/api/districts/');
+                districtsList = await res.json();
+
+                const filterSelect = document.getElementById('filter-district');
+                const formSelect = document.getElementById('form-district');
+
+                filterSelect.innerHTML = '<option value="">All Districts (38)</option>';
+                formSelect.innerHTML = '<option value="">Select District *</option>';
+
+                districtsList.forEach(d => {
+                    filterSelect.innerHTML += `<option value="${d.id}">${d.name}</option>`;
+                    formSelect.innerHTML += `<option value="${d.id}" ${d.name === 'Nalanda' ? 'selected' : ''}>${d.name}</option>`;
+                });
+            } catch (err) {
+                console.error("Error fetching districts:", err);
+            }
+        }
+
+        async function fetchCategories() {
+            try {
+                const res = await fetch('/api/asset-categories/');
+                categoriesList = await res.json();
+
+                const filterSelect = document.getElementById('filter-category');
+                const formSelect = document.getElementById('form-category');
+
+                filterSelect.innerHTML = '<option value="">All 52 GIS Catalog Layers</option>';
+                formSelect.innerHTML = '<option value="">Select Category / Layer</option>';
+
+                // Group categories by gis_category or department
+                const grouped = {};
+                categoriesList.forEach(cat => {
+                    const group = cat.gis_category || cat.department_name || 'General Layers';
+                    if (!grouped[group]) grouped[group] = [];
+                    grouped[group].push(cat);
+                });
+
+                for (const [groupName, cats] of Object.entries(grouped)) {
+                    let optGroupFilter = `<optgroup label="${groupName}">`;
+                    let optGroupForm = `<optgroup label="${groupName}">`;
+
+                    cats.forEach(cat => {
+                        const countLabel = cat.feature_count ? ` (${cat.feature_count})` : '';
+                        optGroupFilter += `<option value="${cat.id}">${cat.name}${countLabel}</option>`;
+                        optGroupForm += `<option value="${cat.id}">${cat.name}</option>`;
+                    });
+
+                    optGroupFilter += `</optgroup>`;
+                    optGroupForm += `</optgroup>`;
+
+                    filterSelect.innerHTML += optGroupFilter;
+                    formSelect.innerHTML += optGroupForm;
+                }
+            } catch (err) {
+                console.error("Error fetching categories:", err);
+            }
+        }
+
+        async function fetchDepartments() {
+            try {
+                const res = await fetch('/api/departments/');
+                departmentsList = await res.json();
+
+                const filterSelect = document.getElementById('filter-department');
+                const formSelect = document.getElementById('form-department');
+
+                departmentsList.forEach(dept => {
+                    filterSelect.innerHTML += `<option value="${dept.id}">${dept.name}</option>`;
+                    formSelect.innerHTML += `<option value="${dept.id}">${dept.name}</option>`;
+                });
+            } catch (err) {
+                console.error("Error fetching departments:", err);
+            }
+        }
+
+        async function fetchFacilities() {
+            const search = document.getElementById('facility-search-input').value;
+            const category = document.getElementById('filter-category').value;
+            const department = document.getElementById('filter-department').value;
+            const district = document.getElementById('filter-district').value;
+            const hazard = document.getElementById('filter-hazard').value;
+
+            let url = `/api/facilities/?`;
+            if (search) url += `search=${encodeURIComponent(search)}&`;
+            if (category) url += `category=${category}&`;
+            if (department) url += `department=${department}&`;
+            if (district) url += `district=${district}&`;
+            if (hazard) url += `hazard_safe=${hazard}&`;
+
+            try {
+                const res = await fetch(url);
+                facilitiesList = await res.json();
+                renderTable(facilitiesList);
+            } catch (err) {
+                console.error("Error fetching facilities:", err);
+            }
+        }
+
+        function renderTable(data) {
+            const tbody = document.getElementById('facilities-table-body');
+            tbody.innerHTML = '';
+
+            document.getElementById('results-counter').innerText = `Showing ${data.length} facilities`;
+
+            if (data.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">No facilities found. Click "+ Add Facility" to create one.</td></tr>`;
+                return;
+            }
+
+            data.forEach(item => {
+                const catName = item.category_name || 'General';
+                const catClass = getCategoryClass(catName);
+                const iconClass = getCategoryIcon(catName);
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><input type="checkbox" class="chk-item" value="${item.id}"></td>
+                    <td>
+                        <div class="facility-name-cell">
+                            <div class="facility-icon" style="background:${getCategoryColor(catName)};">
+                                <i class="fa-solid ${iconClass}"></i>
+                            </div>
+                            <div>
+                                <div>${item.name}</div>
+                                <div style="font-size:0.75rem; color:var(--text-muted); font-weight:400;">ID: #${item.id}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td><span class="cat-badge ${catClass}">${catName}</span></td>
+                    <td>${item.district_name || 'Nalanda'}</td>
+                    <td><span class="status-pill active">Active</span></td>
+                    <td>
+                        ${item.hazard_safe
+                        ? '<span style="color:#166534; font-weight:600;"><i class="fa-solid fa-circle-check"></i> Safe</span>'
+                        : '<span style="color:#dc2626; font-weight:600;"><i class="fa-solid fa-triangle-exclamation"></i> Flagged</span>'}
+                    </td>
+                    <td>
+                        <div class="action-btn-group">
+                            <button class="action-icon-btn" title="View Details" onclick="viewFacilityDetails(${item.id})"><i class="fa-solid fa-eye"></i></button>
+                            <button class="action-icon-btn" title="Edit Facility" onclick="openEditFacilityModal(${item.id})"><i class="fa-solid fa-pen"></i></button>
+                            <button class="action-icon-btn delete" title="Delete Facility" onclick="deleteFacility(${item.id})"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function getCategoryClass(name) {
+            name = name.toLowerCase();
+            if (name.includes('hospital') || name.includes('health')) return 'hospital';
+            if (name.includes('school') || name.includes('education')) return 'school';
+            if (name.includes('water')) return 'water';
+            if (name.includes('solar')) return 'solar';
+            if (name.includes('community')) return 'community';
+            return 'govt';
+        }
+
+        function getCategoryIcon(name) {
+            name = name.toLowerCase();
+            if (name.includes('hospital')) return 'fa-hospital';
+            if (name.includes('school')) return 'fa-graduation-cap';
+            if (name.includes('water')) return 'fa-droplet';
+            if (name.includes('solar')) return 'fa-solar-panel';
+            if (name.includes('community')) return 'fa-users';
+            return 'fa-building';
+        }
+
+        function getCategoryColor(name) {
+            name = name.toLowerCase();
+            if (name.includes('hospital')) return '#dc2626';
+            if (name.includes('school')) return '#2563eb';
+            if (name.includes('water')) return '#0891b2';
+            if (name.includes('solar')) return '#d97706';
+            if (name.includes('community')) return '#9333ea';
+            return '#475569';
+        }
+
+        // Form Modal Logic
+        function openCreateFacilityModal() {
+            document.getElementById('form-facility-id').value = '';
+            document.getElementById('form-modal-title').innerText = 'Add New Facility';
+            document.getElementById('facility-form').reset();
+            document.getElementById('dynamic-schema-fields-container').innerHTML = '';
+            document.getElementById('facility-form-modal').style.display = 'flex';
+        }
+
+        function openEditFacilityModal(id) {
+            const item = facilitiesList.find(f => f.id === id);
+            if (!item) return;
+
+            document.getElementById('form-facility-id').value = item.id;
+            document.getElementById('form-modal-title').innerText = `Edit Facility: ${item.name}`;
+            document.getElementById('form-name').value = item.name;
+            document.getElementById('form-department').value = item.department || '';
+            document.getElementById('form-category').value = item.category || '';
+            document.getElementById('form-hazard-safe').value = item.hazard_safe ? 'true' : 'false';
+
+            if (item.geom_geojson && item.geom_geojson.coordinates) {
+                document.getElementById('form-lng').value = item.geom_geojson.coordinates[0];
+                document.getElementById('form-lat').value = item.geom_geojson.coordinates[1];
+            }
+
+            onCategoryChange(item.attributes);
+            document.getElementById('facility-form-modal').style.display = 'flex';
+        }
+
+        function closeFormModal() {
+            document.getElementById('facility-form-modal').style.display = 'none';
+        }
+
+        function onCategoryChange(existingAttributes = {}) {
+            const catId = document.getElementById('form-category').value;
+            const container = document.getElementById('dynamic-schema-fields-container');
+            container.innerHTML = '';
+
+            const selectedCat = categoriesList.find(c => c.id == catId);
+            if (!selectedCat || !selectedCat.field_schema || !selectedCat.field_schema.properties) return;
+
+            const props = selectedCat.field_schema.properties;
+            container.innerHTML = `<div style="font-size:0.8rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin:12px 0 8px 0;">Category Dynamic Fields</div>`;
+
+            for (const [key, fieldDef] of Object.entries(props)) {
+                const labelText = fieldDef.title || key;
+                const value = existingAttributes[key] !== undefined ? existingAttributes[key] : (fieldDef.default || '');
+
+                const formGrp = document.createElement('div');
+                formGrp.className = 'form-group';
+
+                if (fieldDef.type === 'boolean') {
+                    formGrp.innerHTML = `
+                        <label class="form-label">${labelText}</label>
+                        <select class="form-control dynamic-attr-input" data-key="${key}">
+                            <option value="true" ${value === true ? 'selected' : ''}>Yes</option>
+                            <option value="false" ${value === false ? 'selected' : ''}>No</option>
+                        </select>
+                    `;
+                } else if (fieldDef.choices) {
+                    let options = fieldDef.choices.map(c => `<option value="${c}" ${value === c ? 'selected' : ''}>${c}</option>`).join('');
+                    formGrp.innerHTML = `
+                        <label class="form-label">${labelText}</label>
+                        <select class="form-control dynamic-attr-input" data-key="${key}">${options}</select>
+                    `;
+                } else {
+                    formGrp.innerHTML = `
+                        <label class="form-label">${labelText}</label>
+                        <input type="${fieldDef.type === 'integer' ? 'number' : 'text'}" class="form-control dynamic-attr-input" data-key="${key}" value="${value}">
+                    `;
+                }
+                container.appendChild(formGrp);
+            }
+        }
+
+        async function submitFacilityForm() {
+            const id = document.getElementById('form-facility-id').value;
+            const name = document.getElementById('form-name').value;
+            const department = document.getElementById('form-department').value;
+            const category = document.getElementById('form-category').value;
+            const district = document.getElementById('form-district').value;
+            const hazardSafe = document.getElementById('form-hazard-safe').value === 'true';
+            const lng = parseFloat(document.getElementById('form-lng').value) || 85.5143;
+            const lat = parseFloat(document.getElementById('form-lat').value) || 25.1968;
+
+            if (!name || !department || !category) {
+                alert("Please fill in required fields.");
+                return;
+            }
+
+            // Gather dynamic attributes
+            const attributes = {};
+            document.querySelectorAll('.dynamic-attr-input').forEach(input => {
+                const key = input.dataset.key;
+                let val = input.value;
+                if (input.type === 'number') val = Number(val);
+                if (val === 'true') val = true;
+                if (val === 'false') val = false;
+                attributes[key] = val;
+            });
+
+            const payload = {
+                name,
+                department: parseInt(department),
+                category: parseInt(category),
+                district: parseInt(district),
+                hazard_safe: hazardSafe,
+                geom: {
+                    type: "Point",
+                    coordinates: [lng, lat]
+                },
+                attributes
+            };
+
+            const url = id ? `/api/facilities/${id}/` : `/api/facilities/`;
+            const method = id ? 'PUT' : 'POST';
+            try {
+                const res = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (res.ok) {
+                    closeFormModal();
+                    await fetchFacilities();
+                } else {
+                    const err = await res.json();
+                    alert("Error saving facility: " + JSON.stringify(err));
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function deleteFacility(id) {
+            if (!confirm("Are you sure you want to delete this facility?")) return;
+            try {
+                const res = await fetch(`/api/facilities/${id}/`, { method: 'DELETE' });
+                if (res.ok) fetchFacilities();
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function extractCenterCoords(geom) {
+            if (!geom) return null;
+            if (geom.type === 'Point' && Array.isArray(geom.coordinates) && geom.coordinates.length >= 2) {
+                return { lng: parseFloat(geom.coordinates[0]), lat: parseFloat(geom.coordinates[1]) };
+            }
+            function findFirstPair(coords) {
+                if (!Array.isArray(coords) || coords.length === 0) return null;
+                if (coords.length >= 2 && typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+                    return { lng: parseFloat(coords[0]), lat: parseFloat(coords[1]) };
+                }
+                for (let child of coords) {
+                    let res = findFirstPair(child);
+                    if (res) return res;
+                }
+                return null;
+            }
+            return findFirstPair(geom.coordinates);
+        }
+
+        // View Details Modal
+        function viewFacilityDetails(id) {
+            const item = facilitiesList.find(f => f.id === id);
+            if (!item) return;
+            currentDetailFacility = item;
+
+            document.getElementById('detail-modal-title').innerText = item.name;
+            const catName = item.category_name || 'General';
+            document.getElementById('detail-cat-badge').innerText = catName;
+            document.getElementById('detail-cat-badge').className = `cat-badge ${getCategoryClass(catName)}`;
+
+            const attrsDiv = document.getElementById('detail-attributes-container');
+            attrsDiv.innerHTML = '';
+            for (const [k, v] of Object.entries(item.attributes || {})) {
+                attrsDiv.innerHTML += `<div style="display:flex; justify-content:space-between; padding:3px 0; border-bottom:1px dashed #e2e8f0;">
+                    <span style="color:var(--text-secondary);">${k}:</span>
+                    <strong style="color:var(--text-main);">${v}</strong>
+                </div>`;
+            }
+
+            document.getElementById('facility-detail-modal').style.display = 'flex';
+
+            // Leaflet Mini Map inside modal
+            setTimeout(() => {
+                const center = extractCenterCoords(item.geom_geojson);
+                const lat = center ? center.lat : 25.1968;
+                const lng = center ? center.lng : 85.5143;
+
+                if (detailModalMap) detailModalMap.remove();
+
+                detailModalMap = L.map('facility-map-modal-container', { zoomControl: false }).setView([lat, lng], 13);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(detailModalMap);
+
+                if (item.geom_geojson && (item.geom_geojson.type === 'Polygon' || item.geom_geojson.type === 'MultiPolygon')) {
+                    try {
+                        L.geoJSON(item.geom_geojson, {
+                            style: { color: '#ef4444', weight: 2, fillColor: '#ef4444', fillOpacity: 0.3 }
+                        }).addTo(detailModalMap);
+                    } catch (e) { }
+                }
+
+                L.marker([lat, lng]).addTo(detailModalMap).bindPopup(`<b>${item.name}</b>`).openPopup();
+            }, 200);
+        }
+
+        function closeDetailModal() {
+            document.getElementById('facility-detail-modal').style.display = 'none';
+        }
+
+        // History Modal
+        async function openHistoryModal() {
+            if (!currentDetailFacility) return;
+            const container = document.getElementById('history-timeline-body');
+            container.innerHTML = '<div style="text-align:center; padding:1rem;">Loading history...</div>';
+            document.getElementById('facility-history-modal').style.display = 'flex';
+
+            try {
+                const res = await fetch(`/api/facilities/${currentDetailFacility.id}/history/`);
+                const historyList = await res.json();
+
+                container.innerHTML = '';
+                if (historyList.length === 0) {
+                    container.innerHTML = '<div style="text-align:center; color:var(--text-muted); padding:1rem;">No previous version records found.</div>';
+                    return;
+                }
+
+                historyList.forEach(rec => {
+                    const snap = rec.snapshot || {};
+                    container.innerHTML += `
+                        <div style="border-left:2px solid var(--accent-blue); padding-left:12px; margin-bottom:14px; position:relative;">
+                            <div style="font-size:0.75rem; font-weight:700; color:var(--accent-blue);">${new Date(rec.valid_from).toLocaleString()}</div>
+                            <div style="font-size:0.85rem; font-weight:600; margin-top:2px;">Name: ${snap.name || '-'}</div>
+                            <div style="font-size:0.8rem; color:var(--text-secondary);">Department: ${snap.department_name || '-'}</div>
+                        </div>
+                    `;
+                });
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function closeHistoryModal() {
+            document.getElementById('facility-history-modal').style.display = 'none';
+        }
+
+        // function exportGeoJSON() {
+        //     window.open('/api/facilities/geojson/', '_blank');
+        // }
+
+        function openInMapExplorer() {
+            if (!currentDetailFacility) return;
+            const f = currentDetailFacility;
+            const center = extractCenterCoords(f.geom_geojson);
+            const lat = center ? center.lat : 25.1968;
+            const lng = center ? center.lng : 85.5143;
+            const layerName = f.layer_name || (f.category_name ? f.category_name.replace(/ /g, '_') : '');
+            window.location.href = `/map/?facility_id=${f.id}&lat=${lat}&lng=${lng}&name=${encodeURIComponent(f.name)}&layer=${encodeURIComponent(layerName)}`;
+        }
+    </script>
+</body>
+
+</html>

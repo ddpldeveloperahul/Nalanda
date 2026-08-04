@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nalanda District GIS Portal - DPMS Shapefile Viewer</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+    <style>
+        :root {
+            --bg-primary: #0f172a;
+            --bg-surface: #1e293b;
+            --bg-card: rgba(30, 41, 59, 0.85);
+            --border-color: #334155;
+            --accent-color: #38bdf8;
+            --accent-hover: #0284c7;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --sidebar-width: 380px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Top Header */
+        header {
+            height: 60px;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 1.5rem;
+            z-index: 1000;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .brand-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #0284c7, #38bdf8);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.2rem;
+            box-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
+        }
+
+        .brand-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, #ffffff, #38bdf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .brand-subtitle {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .header-stats {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .stat-badge {
+            background: rgba(51, 65, 85, 0.5);
+            border: 1px solid var(--border-color);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stat-badge strong {
+            color: var(--accent-color);
+        }
+
+        /* App Container */
+        .app-container {
+            display: flex;
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--bg-surface);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            z-index: 900;
+            transition: transform 0.3s ease;
+        }
+
+        .sidebar-header {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .search-box {
+            position: relative;
+            width: 100%;
+        }
+
+        .search-box input {
+            width: 100%;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            padding: 10px 12px 10px 38px;
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .search-box input:focus {
+            border-color: var(--accent-color);
+        }
+
+        .search-box i {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+        }
+
+        .sidebar-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-action {
+            flex: 1;
+            background: rgba(51, 65, 85, 0.4);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .btn-action:hover {
+            background: var(--accent-color);
+            color: #000;
+            border-color: var(--accent-color);
+        }
+
+        .layers-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0.75rem;
+        }
+
+        /* Category Accordion */
+        .category-group {
+            margin-bottom: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+            background: rgba(15, 23, 42, 0.4);
+        }
+
+        .category-header {
+            padding: 10px 14px;
+            background: rgba(30, 41, 59, 0.9);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-weight: 600;
+            font-size: 0.88rem;
+            color: var(--text-primary);
+            user-select: none;
+            border-bottom: 1px solid transparent;
+            transition: background 0.2s;
+        }
+
+        .category-header:hover {
+            background: #334155;
+        }
+
+        .category-header.active {
+            border-bottom-color: var(--border-color);
+            color: var(--accent-color);
+        }
+
+        .category-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .category-count {
+            background: rgba(51, 65, 85, 0.8);
+            color: var(--text-secondary);
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.75rem;
+            font-weight: 400;
+        }
+
+        .layer-list {
+            display: none;
+            padding: 6px;
+        }
+
+        .category-group.open .layer-list {
+            display: block;
+        }
+
+        .layer-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 10px;
+            border-radius: 6px;
+            margin-bottom: 4px;
+            transition: background 0.2s;
+            cursor: pointer;
+        }
+
+        .layer-item:hover {
+            background: rgba(51, 65, 85, 0.4);
+        }
+
+        .layer-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .layer-checkbox {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--accent-color);
+            cursor: pointer;
+        }
+
+        .layer-label {
+            font-size: 0.85rem;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .layer-badge {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            background: rgba(15, 23, 42, 0.6);
+            padding: 2px 6px;
+            border-radius: 4px;
+            border: 1px solid rgba(51, 65, 85, 0.4);
+        }
+
+        .spinner {
+            display: none;
+            width: 14px;
+            height: 14px;
+            border: 2px solid var(--text-muted);
+            border-top-color: var(--accent-color);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes markerPulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.8); }
+            70% { transform: scale(1.2); box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        .custom-facility-marker-pulse {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .custom-facility-marker-pulse div {
+            animation: markerPulse 1.5s infinite;
+        }
+
+        /* Map Workspace */
+        #map {
+            flex: 1;
+            height: 100%;
+            width: 100%;
+            background: #0f172a;
+        }
+
+        /* Map Overlays */
+        .basemap-control {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            z-index: 800;
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 6px;
+            display: flex;
+            gap: 6px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+        }
+
+        .basemap-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .basemap-btn.active,
+        .basemap-btn:hover {
+            background: var(--accent-color);
+            color: #0f172a;
+        }
+
+        /* Custom Feature Info Modal */
+        .feature-info-modal {
+            position: absolute;
+            bottom: 25px;
+            right: 25px;
+            width: 360px;
+            max-height: 400px;
+            background: var(--bg-card);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            z-index: 850;
+            display: none;
+            flex-direction: column;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+        }
+
+        .modal-header {
+            padding: 12px 16px;
+            background: rgba(15, 23, 42, 0.9);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--accent-color);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-close {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        .btn-close:hover {
+            color: var(--text-primary);
+        }
+
+        .modal-body {
+            padding: 12px 16px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .prop-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.82rem;
+        }
+
+        .prop-table tr {
+            border-bottom: 1px solid rgba(51, 65, 85, 0.4);
+        }
+
+        .prop-table th {
+            text-align: left;
+            padding: 6px 4px;
+            color: var(--text-secondary);
+            font-weight: 500;
+            width: 40%;
+        }
+
+        .prop-table td {
+            padding: 6px 4px;
+            color: var(--text-primary);
+            word-break: break-word;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Header -->
+    <header>
+        <div class="brand-container">
+            <div class="brand-icon">
+                <i class="fa-solid fa-map-location-dot"></i>
+            </div>
+            <div>
+                <div class="brand-title">NALANDA GIS PORTAL</div>
+                <div class="brand-subtitle">DPMS Thematic Spatial Layer Infrastructure</div>
+            </div>
+        </div>
+
+        <div class="header-stats">
+            <div class="stat-badge">
+                <i class="fa-solid fa-layer-group" style="color: var(--accent-color);"></i>
+                <span>Layers: <strong id="total-layers-count">0</strong></span>
+            </div>
+            <div class="stat-badge">
+                <i class="fa-solid fa-draw-polygon" style="color: #4ade80;"></i>
+                <span>Active Layers: <strong id="active-layers-count">0</strong></span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="search-box">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" id="search-layers" placeholder="Search layers (e.g. Hospital, Block)...">
+                </div>
+                <div class="sidebar-actions">
+                    <button class="btn-action" id="btn-show-defaults">
+                        <i class="fa-solid fa-eye"></i> Default Layers
+                    </button>
+                    <button class="btn-action" id="btn-clear-all">
+                        <i class="fa-solid fa-eye-slash"></i> Clear Map
+                    </button>
+                </div>
+            </div>
+
+            <div class="layers-content" id="layers-accordion">
+                <!-- Dynamic categories loaded here -->
+            </div>
+        </aside>
+
+        <!-- Map View -->
+        <div id="map"></div>
+
+        <!-- Basemap Control Floating Widget -->
+        <div class="basemap-control">
+            <button class="basemap-btn active" data-basemap="osm">OSM Standard</button>
+            <button class="basemap-btn" data-basemap="satellite">ESRI Satellite</button>
+            <button class="basemap-btn" data-basemap="cartodark">Carto Dark</button>
+        </div>
+
+        <!-- Feature Info Floating Modal -->
+        <div class="feature-info-modal" id="feature-modal">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <i class="fa-solid fa-circle-info"></i>
+                    <span id="modal-feature-name">Feature Attributes</span>
+                </div>
+                <button class="btn-close" onclick="closeFeatureModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <table class="prop-table" id="prop-table-body">
+                    <!-- Populated dynamically -->
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+    <script>
+        // Category Icons & Color Mapping
+        const CATEGORY_STYLES = {
+            "Administrative & Boundaries": { color: "#38bdf8", fill: "#38bdf8", icon: "fa-map" },
+            "Health & Medical": { color: "#ef4444", fill: "#ef4444", icon: "fa-hospital" },
+            "Education": { color: "#eab308", fill: "#eab308", icon: "fa-graduation-cap" },
+            "Transportation": { color: "#f97316", fill: "#f97316", icon: "fa-road" },
+            "Hydrology & Water": { color: "#06b6d4", fill: "#06b6d4", icon: "fa-droplet" },
+            "Environment & Land Use": { color: "#22c55e", fill: "#22c55e", icon: "fa-tree" },
+            "Hazards & Climate": { color: "#d946ef", fill: "#d946ef", icon: "fa-triangle-exclamation" },
+            "Civic & Infrastructure": { color: "#a855f7", fill: "#a855f7", icon: "fa-building" },
+            "Demographics & Admin": { color: "#818cf8", fill: "#818cf8", icon: "fa-users" }
+        };
+
+        // Initialize Map
+        const map = L.map('map', {
+            center: [25.1968, 85.5143], // Nalanda District Center
+            zoom: 10,
+            zoomControl: false
+        });
+
+        L.control.zoom({ position: 'topleft' }).addTo(map);
+
+        // Tile Layers
+        const basemaps = {
+            osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '© OpenStreetMap contributors'
+            }),
+            satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                maxZoom: 19,
+                attribution: 'Tiles © Esri'
+            }),
+            cartodark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                maxZoom: 19,
+                attribution: '© CARTO'
+            })
+        };
+
+        let currentBasemap = basemaps.cartodark.addTo(map);
+
+        // Basemap switcher logic
+        document.querySelectorAll('.basemap-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.basemap-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+
+                const chosen = btn.dataset.basemap;
+                map.removeLayer(currentBasemap);
+                currentBasemap = basemaps[chosen].addTo(map);
+            });
+        });
+
+        // Store loaded leaflet layer instances
+        const loadedGeoJSONLayers = {};
+
+        // Fetch GIS Catalog & Build Sidebar Accordion
+        async function loadGisCatalog() {
+            try {
+                const response = await fetch('/api/gis/catalog/');
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    document.getElementById('total-layers-count').innerText = data.total_layers;
+                    renderSidebarCategories(data.categories);
+
+                    // Auto-load District and Block boundaries as default
+                    toggleLayer('District_boundary', true);
+                    toggleLayer('Block_boundary', true);
+                }
+            } catch (err) {
+                console.error("Failed to load GIS catalog:", err);
+            }
+        }
+
+        function renderSidebarCategories(categories) {
+            const container = document.getElementById('layers-accordion');
+            container.innerHTML = '';
+
+            let categoryIdx = 0;
+            for (const [catName, layers] of Object.entries(categories)) {
+                const style = CATEGORY_STYLES[catName] || { color: '#94a3b8', icon: 'fa-layer-group' };
+
+                const groupDiv = document.createElement('div');
+                groupDiv.className = `category-group ${categoryIdx === 0 ? 'open' : ''}`;
+                categoryIdx++;
+
+                const headerDiv = document.createElement('div');
+                headerDiv.className = 'category-header';
+                headerDiv.innerHTML = `
+                    <div class="category-title">
+                        <i class="fa-solid ${style.icon}" style="color: ${style.color}"></i>
+                        <span>${catName}</span>
+                    </div>
+                    <div class="category-count">${layers.length}</div>
+                `;
+
+                headerDiv.addEventListener('click', () => {
+                    groupDiv.classList.toggle('open');
+                });
+
+                const listDiv = document.createElement('div');
+                listDiv.className = 'layer-list';
+
+                layers.forEach(layer => {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'layer-item';
+                    itemDiv.dataset.layerName = layer.layer_name;
+
+                    itemDiv.innerHTML = `
+                        <div class="layer-left">
+                            <input type="checkbox" class="layer-checkbox" id="chk-${layer.layer_name}">
+                            <label for="chk-${layer.layer_name}" class="layer-label" title="${layer.display_name}">${layer.display_name}</label>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <span class="layer-badge">${layer.feature_count}</span>
+                            <div class="spinner" id="spinner-${layer.layer_name}"></div>
+                        </div>
+                    `;
+
+                    const chk = itemDiv.querySelector('.layer-checkbox');
+                    chk.addEventListener('change', (e) => {
+                        toggleLayer(layer.layer_name, e.target.checked);
+                    });
+
+                    listDiv.appendChild(itemDiv);
+                });
+
+                groupDiv.appendChild(headerDiv);
+                groupDiv.appendChild(listDiv);
+                container.appendChild(groupDiv);
+            }
+        }
+
+        // Toggle Layer on Map
+        async function toggleLayer(layerName, shouldShow) {
+            const chk = document.getElementById(`chk-${layerName}`);
+            const spinner = document.getElementById(`spinner-${layerName}`);
+            if (chk) chk.checked = shouldShow;
+
+            if (shouldShow) {
+                if (loadedGeoJSONLayers[layerName]) {
+                    map.addLayer(loadedGeoJSONLayers[layerName]);
+                    updateActiveCount();
+                    return;
+                }
+
+                // Fetch GeoJSON from server
+                if (spinner) spinner.style.display = 'block';
+
+                try {
+                    const response = await fetch(`/api/gis/layers/${layerName}/`);
+                    if (!response.ok) throw new Error("Layer not found");
+                    const geojsonData = await response.json();
+
+                    const catStyle = CATEGORY_STYLES[geojsonData.category] || { color: '#38bdf8', fill: '#38bdf8' };
+
+                    const leafletLayer = L.geoJSON(geojsonData, {
+                        style: function (feature) {
+                            return {
+                                color: catStyle.color,
+                                weight: layerName.includes('boundary') ? 2.5 : 1.5,
+                                opacity: 0.9,
+                                fillColor: catStyle.fill,
+                                fillOpacity: layerName.includes('boundary') ? 0.08 : 0.4
+                            };
+                        },
+                        pointToLayer: function (feature, latlng) {
+                            return L.circleMarker(latlng, {
+                                radius: 6,
+                                fillColor: catStyle.color,
+                                color: "#ffffff",
+                                weight: 1,
+                                opacity: 1,
+                                fillOpacity: 0.85
+                            });
+                        },
+                        onEachFeature: function (feature, layer) {
+                            layer.on('click', (e) => {
+                                showFeatureInfo(feature);
+                                L.DomEvent.stopPropagation(e);
+                            });
+                        }
+                    });
+
+                    loadedGeoJSONLayers[layerName] = leafletLayer;
+                    map.addLayer(leafletLayer);
+
+                    // Auto-fit bounds for boundary layers
+                    if (layerName === 'District_boundary' || layerName === 'Block_boundary') {
+                        try {
+                            map.fitBounds(leafletLayer.getBounds(), { padding: [20, 20] });
+                        } catch (e) { }
+                    }
+
+                } catch (err) {
+                    console.error(`Error loading layer ${layerName}:`, err);
+                    if (chk) chk.checked = false;
+                } finally {
+                    if (spinner) spinner.style.display = 'none';
+                }
+            } else {
+                if (loadedGeoJSONLayers[layerName]) {
+                    map.removeLayer(loadedGeoJSONLayers[layerName]);
+                }
+            }
+            updateActiveCount();
+        }
+
+        function updateActiveCount() {
+            let active = 0;
+            for (const name in loadedGeoJSONLayers) {
+                if (map.hasLayer(loadedGeoJSONLayers[name])) {
+                    active++;
+                }
+            }
+            document.getElementById('active-layers-count').innerText = active;
+        }
+
+        // Show Feature Info Modal
+        function showFeatureInfo(feature) {
+            const modal = document.getElementById('feature-modal');
+            const titleEl = document.getElementById('modal-feature-name');
+            const tbody = document.getElementById('prop-table-body');
+
+            const props = feature.properties || {};
+            titleEl.innerText = props.feature_name || props.NAME || props.layer_name || "Feature Details";
+
+            tbody.innerHTML = '';
+            for (const [key, val] of Object.entries(props)) {
+                if (key === 'feature_name' || key === 'layer_name') continue;
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <th>${key}</th>
+                    <td>${val !== null && val !== undefined ? val : '-'}</td>
+                `;
+                tbody.appendChild(tr);
+            }
+
+            modal.style.display = 'flex';
+        }
+
+        function closeFeatureModal() {
+            document.getElementById('feature-modal').style.display = 'none';
+        }
+
+        // Search Filter
+        document.getElementById('search-layers').addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase();
+            document.querySelectorAll('.layer-item').forEach(item => {
+                const text = item.querySelector('.layer-label').innerText.toLowerCase();
+                if (text.includes(term)) {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        });
+
+        // Quick Actions
+        document.getElementById('btn-show-defaults').addEventListener('click', () => {
+            toggleLayer('District_boundary', true);
+            toggleLayer('Block_boundary', true);
+            toggleLayer('Hospital', true);
+            toggleLayer('River', true);
+        });
+
+        document.getElementById('btn-clear-all').addEventListener('click', () => {
+            for (const name in loadedGeoJSONLayers) {
+                toggleLayer(name, false);
+            }
+        });
+
+        async function checkUrlParamsAndHighlight() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const facilityId = urlParams.get('facility_id');
+            const lat = parseFloat(urlParams.get('lat'));
+            const lng = parseFloat(urlParams.get('lng'));
+            const name = urlParams.get('name');
+            const layer = urlParams.get('layer');
+
+            if (layer) {
+                toggleLayer(layer, true);
+            }
+
+            if (!isNaN(lat) && !isNaN(lng)) {
+                map.setView([lat, lng], 15);
+
+                const icon = L.divIcon({
+                    className: 'custom-facility-marker-pulse',
+                    html: `<div style="background:#ef4444; width:18px; height:18px; border-radius:50%; border:3px solid #ffffff; box-shadow:0 0 15px #ef4444;"></div>`,
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10]
+                });
+
+                const marker = L.marker([lat, lng], { icon: icon }).addTo(map);
+                marker.bindPopup(`
+                    <div style="font-family:'Inter',sans-serif; padding:4px;">
+                        <h4 style="margin:0 0 4px 0; color:#0f172a; font-size:0.95rem; font-weight:700;">${name || 'Selected Facility'}</h4>
+                        <p style="margin:0; font-size:0.8rem; color:#64748b;">Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}</p>
+                        ${facilityId ? `<p style="margin:4px 0 0 0; font-size:0.75rem; color:#3b82f6; font-weight:600;">Facility ID: #${facilityId}</p>` : ''}
+                    </div>
+                `).openPopup();
+            }
+        }
+
+        // Load on ready
+        loadGisCatalog().then(() => {
+            checkUrlParamsAndHighlight();
+        });
+    </script>
+</body>
+
+</html>
