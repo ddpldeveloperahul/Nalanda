@@ -1,0 +1,63 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Caches and local runtime data
+.cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.log
+
+# Django & Environment configs
+.env
+.env.*
+!.env.example
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Django Static & Media files
+/staticfiles/
+/static_root/
+/media/
+
+# Virtual Environments
+venv/
+env/
+ENV/
+.venv/
+
+# GIS Temporary / Data Uploads
+temp_*
+*.geojson
+*.shp
+*.shx
+*.dbf
+*.prj
+*.cpg
+*.qpj
+*.sbn
+*.sbx
+*.zip
+
+# IDE & Code Editor Settings
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+
+# Operating System files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Agent / Tooling Caches
+.gemini/
+.agents/
