@@ -1064,6 +1064,19 @@
             return headers;
         }
 
+        async function fetchPublicApi(url) {
+            const headers = getAuthHeaders();
+            let res = await fetch(url, { headers });
+            if (res.status === 401 && localStorage.getItem('ndis_access_token')) {
+                console.warn("Expired or invalid JWT token in localStorage. Retrying public fetch without token...");
+                localStorage.removeItem('ndis_access_token');
+                localStorage.removeItem('ndis_refresh_token');
+                localStorage.removeItem('ndis_user');
+                res = await fetch(url);
+            }
+            return res;
+        }
+
         let districtsList = [];
 
         async function loadInitialData() {
@@ -1073,9 +1086,10 @@
 
         async function fetchDistricts() {
             try {
-                const res = await fetch('/api/districts/', { headers: getAuthHeaders() });
+                const res = await fetchPublicApi('/api/districts/');
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                districtsList = await res.json();
+                const data = await res.json();
+                districtsList = Array.isArray(data) ? data : (data.results || []);
 
                 const filterSelect = document.getElementById('filter-district');
                 const formSelect = document.getElementById('form-district');
@@ -1094,9 +1108,10 @@
 
         async function fetchCategories() {
             try {
-                const res = await fetch('/api/asset-categories/', { headers: getAuthHeaders() });
+                const res = await fetchPublicApi('/api/asset-categories/');
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                categoriesList = await res.json();
+                const data = await res.json();
+                categoriesList = Array.isArray(data) ? data : (data.results || []);
 
                 const filterSelect = document.getElementById('filter-category');
                 const formSelect = document.getElementById('form-category');
@@ -1135,12 +1150,16 @@
 
         async function fetchDepartments() {
             try {
-                const res = await fetch('/api/departments/', { headers: getAuthHeaders() });
+                const res = await fetchPublicApi('/api/departments/');
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                departmentsList = await res.json();
+                const data = await res.json();
+                departmentsList = Array.isArray(data) ? data : (data.results || []);
 
                 const filterSelect = document.getElementById('filter-department');
                 const formSelect = document.getElementById('form-department');
+
+                filterSelect.innerHTML = '<option value="">All Departments</option>';
+                formSelect.innerHTML = '<option value="">Select Line Department (If applicable)</option>';
 
                 departmentsList.forEach(dept => {
                     filterSelect.innerHTML += `<option value="${dept.id}">${dept.name}</option>`;
@@ -1166,11 +1185,8 @@
             if (hazard) url += `hazard_safe=${hazard}&`;
 
             try {
-                const res = await fetch(url, { headers: getAuthHeaders() });
+                const res = await fetchPublicApi(url);
                 if (!res.ok) {
-                    if (res.status === 401) {
-                        console.warn("Unauthorized: Session expired or invalid token.");
-                    }
                     facilitiesList = [];
                 } else {
                     facilitiesList = await res.json();

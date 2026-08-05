@@ -1,796 +1,287 @@
-# NDIS & Nalanda GIS Portal - Backend API Integration Guide
+# NDIS & Nalanda GIS Portal - Enterprise Backend API & System Guide
 
-Welcome to the **Nalanda District Information System (NDIS) & GIS Portal** API documentation. This comprehensive guide details all backend endpoints, data models, request/response formats, authentication flows, shapefile file upload mechanisms, facility management modules, and frontend integration guidelines for developers building frontend or mobile applications.
+Welcome to the **Nalanda District Information System (NDIS) & GIS Portal** complete architecture and REST API documentation. This platform powers spatial governance, thematic GIS infrastructure layer management, facilities directory sync, and an end-to-end multi-role **Complaint Management & Infrastructure Grievance System** for Bihar district administration.
 
 ---
 
-## Table of Contents
+## 📋 Table of Contents
 
 1. [Architecture & System Overview](#1-architecture--system-overview)
-2. [Base URL & Request Headers](#2-base-url--request-headers)
-3. [Authentication & User Management Module](#3-authentication--user-management-module)
-4. [Governance & Department Management Module](#4-governance--department-management-module)
-   - [4.1 Departments API](#41-departments-api)
-   - [4.2 Department Officers API](#42-department-officers-api)
-   - [4.3 Asset Categories API](#43-asset-categories-api)
-5. [Geospatial & Shapefile Management Module](#5-geospatial--shapefile-management-module)
-   - [5.1 Categorized Layer Catalog API](#51-categorized-layer-catalog-api)
-   - [5.2 GeoJSON Layer Vector API](#52-geojson-layer-vector-api)
-   - [5.3 Dynamic Shapefile / GeoJSON File Upload API](#53-dynamic-shapefile--geojson-file-upload-api)
-   - [5.4 GIS Catalog CRUD API](#54-gis-catalog-crud-api)
-   - [5.5 GIS Spatial Feature CRUD API](#55-gis-spatial-feature-crud-api)
-6. [Facility & Infrastructure Management Module](#6-facility--infrastructure-management-module)
-   - [6.1 Facility Listing & Filtering API](#61-facility-listing--filtering-api)
-   - [6.2 Facility CRUD API](#62-facility-crud-api)
-   - [6.3 GeoJSON Facility Export API](#63-geojson-facility-export-api)
-   - [6.4 Bulk GIS Layer Sync API](#64-bulk-gis-layer-sync-api)
-   - [6.5 Facility Version History & Audit Log (SCD Type 2)](#65-facility-version-history--audit-log-scd-type-2)
-7. [Web Portals & Interactive Dashboards](#7-web-portals--interactive-dashboards)
-   - [7.1 Interactive GIS Map Portal](#71-interactive-gis-map-portal)
-   - [7.2 Facility Search & Management UI Portal](#72-facility-search--management-ui-portal)
-8. [Error Handling & HTTP Status Codes](#8-error-handling--http-status-codes)
-9. [Frontend & Leaflet.js Integration Quickstart](#9-frontend--leafletjs-integration-quickstart)
+2. [Quickstart & Deployment Guide](#2-quickstart--deployment-guide)
+3. [Official 10 System Fixed Roles](#3-official-10-system-fixed-roles)
+4. [Authentication & JWT Token Security](#4-authentication--jwt-token-security)
+5. [Complaint Management & Auto-Routing System](#5-complaint-management--auto-routing-system)
+   - [5.1 Workflow State Machine](#51-workflow-state-machine)
+   - [5.2 Auto-Routing Engine & SLA Targets](#52-auto-routing-engine--sla-targets)
+   - [5.3 Geotagged Evidence Verification](#53-geotagged-evidence-verification)
+   - [5.4 Spatial GIS & Nearest Facility Calculations](#54-spatial-gis--nearest-facility-calculations)
+   - [5.5 Complaint API Endpoints](#55-complaint-api-endpoints)
+6. [Executive Analytics Dashboards & Notifications](#6-executive-analytics-dashboards--notifications)
+7. [Geospatial & Shapefile Management Module](#7-geospatial--shapefile-management-module)
+8. [Facilities Directory & SCD Type 2 Audit Module](#8-facilities-directory--scd-type-2-audit-module)
+9. [Django Admin Panel Integration](#9-django-admin-panel-integration)
+10. [Web UI Portals](#10-web-ui-portals)
+11. [Complete REST API Reference Table](#11-complete-rest-api-reference-table)
 
 ---
 
 ## 1. Architecture & System Overview
 
-- **Framework:** Django 5.2 (Python 3.10) & Django REST Framework (DRF)
-- **Database:** PostgreSQL with PostGIS extension (Fallback to JSONB spatial storage)
-- **GIS Engine:** GeoPandas, Shapely, PyProj (Automatic WGS84 `EPSG:4326` projection & 2D conversion)
-- **Environment Diagnostics:** Automatic PROJ_LIB / GDAL environment configuration for Windows & Linux
-- **Authentication:** JWT (JSON Web Tokens via `rest_framework_simplejwt`)
-- **Map Frontend:** Leaflet.js with OpenStreetMap, ESRI Satellite, and Carto Dark tiles
+- **Backend Framework:** Django 4.2+ (Python 3.10) & Django REST Framework (DRF)
+- **Database Engine:** PostgreSQL 15+ with PostGIS Extension (fallback to JSONB spatial fields if GDAL binaries are absent)
+- **GIS Processing:** GeoPandas, Shapely, PyProj (automatic EPSG:4326 WGS84 reprojection and 3D to 2D geometry flattening)
+- **Authentication Security:** JWT (`rest_framework_simplejwt`) with 30-minute access token lifetime, token rotation, and blacklisting via `token_blacklist`
+- **UI System:** Glassmorphism Vanilla CSS3, HTML5, Leaflet.js with OpenStreetMap, ESRI Satellite, and Carto Dark basemaps
 
 ---
 
-## 2. Base URL & Request Headers
+## 2. Quickstart & Deployment Guide
 
-- **Development Base URL:** `http://127.0.0.1:8000`
-- **API Prefix:** `/api/`
+### 2.1 Virtual Environment & Requirements
+```bash
+# 1. Clone repository & enter workspace directory
+cd e:/Nalanda/ndis
 
-### Common Headers
+# 2. Create Python virtual environment
+python -m venv venv
+venv\Scripts\activate  # Windows
 
-- **For Standard JSON Requests:**
-  ```http
-  Content-Type: application/json
-  Accept: application/json
-  ```
-- **For Authenticated Endpoints:**
-  ```http
-  Authorization: Bearer <your_access_token>
-  ```
-- **For File Uploads (Shapefile Zip / GeoJSON):**
-  ```http
-  Content-Type: multipart/form-data
-  ```
+# 3. Install dependencies
+pip install -r requirements.txt
+```
+
+### 2.2 Database Migration & Seeding
+```bash
+# 1. Run database migrations
+python manage.py migrate
+
+# 2. Seed 10 Fixed System Roles & Defect Categories
+python manage.py seed_complaint_categories
+
+# 3. Ingest GIS Shapefiles & Sync 8,334 Facilities (Optional)
+python import_layer.py
+
+# 4. Start local development server
+python manage.py runserver
+```
 
 ---
 
-## 3. Authentication & User Management Module
+## 3. Official 10 System Fixed Roles
 
-Path prefix: `/api/auth/`
+The system enforces 10 fixed roles with defined scope levels across citizens, department staff, and district administrators:
 
-### 3.1 User Registration (Signup)
-Registers a new user account (Citizens, Field Engineers, Department Officers, Admins).
+| # | Role Name | Role Code | Scope Level | Access Scope & Permissions |
+| :---: | :--- | :--- | :--- | :--- |
+| **1** | **Citizen** | `CITIZEN` | `SELF` | Public grievance submission, view own complaints, reopen, submit 1-5 star ratings |
+| **2** | **District Collector** | `DISTRICT_COLLECTOR` | `DISTRICT` | District command center, SLA leaderboards, executive oversight |
+| **3** | **District Magistrate (DM)** | `DISTRICT_MAGISTRATE` | `DISTRICT` | District Magistrate approvals, executive override, proposal review |
+| **4** | **Additional District Magistrate (ADM)** | `ADM` | `DISTRICT` | Delegated administrative oversight & sector grievance monitoring |
+| **5** | **Department Head** | `DEPARTMENT_HEAD` | `DEPARTMENT` | Line department queue management, officer tasking, resource allocation |
+| **6** | **Department Officer** | `DEPARTMENT_OFFICER` | `DEPARTMENT` | Manage assigned complaints queue, schedule inspections, resolve tickets |
+| **7** | **Executive / Assistant Engineer** | `EXECUTIVE_ENGINEER` | `DEPARTMENT` | Assistant/Executive Engineer job execution & material inspection logging |
+| **8** | **Field Inspector / Junior Engineer** | `FIELD_INSPECTOR` | `DEPARTMENT` | Field inspector mobile PWA, site geotag verification & evidence upload |
+| **9** | **Field Supervisor** | `FIELD_SUPERVISOR` | `DEPARTMENT` | Field operations supervision & inspection report verification |
+| **10** | **State Admin** | `STATE_ADMIN` | `STATE` | State-level cross-district KPI comparison & radar analytics |
 
+---
+
+## 4. Authentication & JWT Token Security
+
+Path Prefix: `/api/auth/`
+
+### 4.1 Signup API
 - **Endpoint:** `POST /api/auth/signup/`
-- **Authentication:** None (Public)
 - **Request Body:**
   ```json
   {
-    "username": "rahul_officer",
-    "email": "rahul.officer@bihar.gov.in",
-    "password": "SecurePassword123",
-    "confirm_password": "SecurePassword123",
-    "first_name": "Rahul",
-    "last_name": "Kumar",
-    "phone": "+919876543210",
-    "designation": "Executive Engineer",
-    "role": "DEPARTMENT_OFFICER",
-    "department": 1,
-    "district": 1,
-    "state": 1
+    "username": "sunita_devi",
+    "email": "sunita.devi@bihar.gov.in",
+    "password": "SecurePassword123!",
+    "confirm_password": "SecurePassword123!",
+    "first_name": "Sunita",
+    "last_name": "Devi",
+    "phone": "+919835210492",
+    "role": "CITIZEN"
   }
   ```
-- **Response (`201 Created`):**
-  ```json
-  {
-    "message": "User registered successfully.",
-    "user": {
-      "id": 5,
-      "username": "rahul_officer",
-      "email": "rahul.officer@bihar.gov.in",
-      "first_name": "Rahul",
-      "last_name": "Kumar",
-      "designation": "Executive Engineer",
-      "role": 2,
-      "role_info": { "name": "Department Officer", "code": "DEPARTMENT_OFFICER" },
-      "department_name": "Health Department"
-    },
-    "tokens": {
-      "access": "eyJhbGciOiJIUzI1NiIsIn...",
-      "refresh": "eyJhbGciOiJIUzI1NiIsIn..."
-    }
-  }
-  ```
+- **Response (`201 Created`):** Returns user profile & JWT access/refresh tokens.
 
----
-
-### 3.2 User Login
-Authenticates a user with `username` or `email` and password, returning JWT access & refresh tokens.
-
+### 4.2 Login API
 - **Endpoint:** `POST /api/auth/login/`
-- **Authentication:** None (Public)
-- **Request Body:**
+- **Request Body:** Supports Username **OR** Email.
   ```json
   {
-    "username": "rahul_officer",
-    "password": "SecurePassword123"
-  }
-  ```
-- **Response (`200 OK`):**
-  ```json
-  {
-    "message": "Login successful.",
-    "user": {
-      "id": 5,
-      "username": "rahul_officer",
-      "email": "rahul.officer@bihar.gov.in",
-      "first_name": "Rahul",
-      "last_name": "Kumar",
-      "role_info": { "code": "DEPARTMENT_OFFICER", "name": "Department Officer" }
-    },
-    "tokens": {
-      "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6...",
-      "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6..."
-    }
+    "username": "sunita_devi",
+    "password": "SecurePassword123!"
   }
   ```
 
----
-
-### 3.3 JWT Token Refresh
-Refreshes an expired JWT access token using a valid refresh token.
-
+### 4.3 Token Refresh API
 - **Endpoint:** `POST /api/auth/token/refresh/`
-- **Authentication:** None (Public)
-- **Request Body:**
+- **Request Body:** `{"refresh": "<refresh_token>"}`
+
+---
+
+## 5. Complaint Management & Auto-Routing System
+
+Path Prefix: `/api/complaints/`
+
+### 5.1 Workflow State Machine
+$$\text{SUBMITTED} \longrightarrow \text{ASSIGNED} \longrightarrow \text{ACCEPTED} \longrightarrow \text{INSPECTION\_STARTED} \longrightarrow \text{EVIDENCE\_UPLOADED} \longrightarrow \text{RESOLVED} \longrightarrow \text{CITIZEN\_VERIFICATION} \longrightarrow \text{CLOSED}$$
+
+*(Special transitions supported: `REOPENED`, `TRANSFERRED`, `ESCALATED`, `REJECTED`).*
+
+### 5.2 Auto-Routing Engine & SLA Targets
+Defect Category automatically routes tickets to responsible line departments and SLA deadlines:
+- **`Broken Handpump / Borewell Defect`** $\rightarrow$ Water Resources Department (SLA: 24h)
+- **`Piped Water Leakage / Contamination`** $\rightarrow$ Water Resources Department (SLA: 12h)
+- **`Garbage Accumulation / Sanitation`** $\rightarrow$ Urban Development & Infra (SLA: 24h)
+- **`Non-Functional Street Light`** $\rightarrow$ Urban Development & Infra (SLA: 48h)
+- **`Transformer Failure / Power Outage`** $\rightarrow$ Public Works & Transport Dept (SLA: 6h)
+- **`Hospital Staff / Oxygen / Facility Issue`** $\rightarrow$ Health Department (SLA: 12h)
+- **`School Infrastructure / Roof / Sanitation`** $\rightarrow$ Education Department (SLA: 48h)
+- **`Road Potholes / Damaged Bridge`** $\rightarrow$ Public Works & Transport Dept (SLA: 72h)
+
+### 5.3 Geotagged Evidence Verification
+When photos/videos are uploaded via `POST /api/complaints/{id}/upload-evidence/`:
+- Photo EXIF coordinates are checked against the complaint pin location.
+- Distance is computed: if distance $\le 100\text{m}$, `is_geotag_verified = True`.
+
+### 5.4 Spatial GIS & Nearest Facility Calculations
+For every dropped pin location (`latitude, longitude`):
+- GeoDjango Point geometry (`geom`) is auto-created.
+- PostGIS calculates nearest spatial facility (e.g. *Primary Health Centre, Islampur [203m away]*) and sets `nearest_facility_distance_m`.
+
+### 5.5 Complaint API Endpoints
+
+#### Create Complaint (Submit Ticket)
+- **Endpoint:** `POST /api/complaints/`
+- **Request Body (JSON / Multipart):**
   ```json
   {
-    "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6..."
-  }
-  ```
-- **Response (`200 OK`):**
-  ```json
-  {
-    "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6..."
-  }
-  ```
-
----
-
-### 3.4 User Profile Inspection
-Retrieves current authenticated user's profile details.
-
-- **Endpoint:** `GET /api/auth/me/`
-- **Authentication:** Required (`Bearer <access_token>`)
-- **Response (`200 OK`):** Returns complete user profile JSON.
-
----
-
-## 4. Governance & Department Management Module
-
-Manage Line Departments, Department Nodal Officers, and Asset Categories.
-
-### 4.1 Departments API
-
-Base Route: `/api/departments/`
-
-| Action | HTTP Method | Endpoint | Query Parameters | Description |
-|---|---|---|---|---|
-| **List** | `GET` | `/api/departments/` | `?search=Health` | Search/list departments |
-| **Create** | `POST` | `/api/departments/` | - | Create line department |
-| **Retrieve** | `GET` | `/api/departments/{id}/` | - | Get department details |
-| **Update** | `PUT`/`PATCH` | `/api/departments/{id}/` | - | Modify department |
-| **Delete** | `DELETE` | `/api/departments/{id}/` | - | Remove department |
-
-#### POST Request Body Example:
-```json
-{
-  "name": "Renewable Energy Department",
-  "description": "Department responsible for Solar & Clean Energy Initiatives"
-}
-```
-
----
-
-### 4.2 Department Officers API
-
-Base Route: `/api/department-officers/`
-
-| Action | HTTP Method | Endpoint | Query Parameters | Description |
-|---|---|---|---|---|
-| **List** | `GET` | `/api/department-officers/` | `?search=Rahul` or `?department=1` | Filter/search department officers |
-| **Create** | `POST` | `/api/department-officers/` | - | Add a new department officer |
-| **Retrieve** | `GET` | `/api/department-officers/{id}/` | - | Officer details |
-| **Update** | `PUT`/`PATCH` | `/api/department-officers/{id}/` | - | Modify officer record |
-| **Delete** | `DELETE` | `/api/department-officers/{id}/` | - | Remove officer record |
-
-#### POST Request Body Example:
-```json
-{
-  "name": "Er. Rahul Kumar",
-  "designation": "Executive Engineer",
-  "department": 1,
-  "email": "rahul.kumar@bihar.gov.in",
-  "contact": "+91 9876543210",
-  "user": null
-}
-```
-
----
-
-### 4.3 Asset Categories API
-
-Base Route: `/api/asset-categories/`
-
-| Action | HTTP Method | Endpoint | Query Parameters | Description |
-|---|---|---|---|---|
-| **List** | `GET` | `/api/asset-categories/` | `?search=Solar` or `?department=1` | Filter asset categories |
-| **Create** | `POST` | `/api/asset-categories/` | - | Create category with JSON schema |
-| **Retrieve** | `GET` | `/api/asset-categories/{id}/` | - | Get category & field schema |
-| **Update** | `PUT`/`PATCH` | `/api/asset-categories/{id}/` | - | Modify asset category |
-| **Delete** | `DELETE` | `/api/asset-categories/{id}/` | - | Remove category |
-
-#### POST Request Body Examples:
-
-**1. Basic Category (Empty Schema):**
-```json
-{
-  "department": 1,
-  "name": "Hospital",
-  "field_schema": {}
-}
-```
-
-**2. Dynamic Schema Category (Custom Fields):**
-```json
-{
-  "department": 1,
-  "name": "Hospital",
-  "field_schema": {
-    "hospital_name": {
-      "type": "string",
-      "required": true
-    },
-    "hospital_type": {
-      "type": "choice",
-      "choices": [
-        "Government",
-        "Private"
-      ]
-    },
-    "beds": {
-      "type": "integer"
-    },
-    "contact_number": {
-      "type": "string"
-    }
-  }
-}
-```
-
----
-
-## 5. Geospatial & Shapefile Management Module
-
-All GIS layers, shapefile ingestion engines, vector tile streams, and spatial feature APIs.
-
-### 5.1 Categorized Layer Catalog API
-Fetches all published GIS layers grouped by thematic categories with feature counts for map sidebar rendering.
-
-- **Endpoint:** `GET /api/gis/catalog/`
-- **Authentication:** None (Public Map Access)
-- **Response (`200 OK`):**
-  ```json
-  {
-    "status": "success",
-    "total_layers": 52,
-    "categories": {
-      "Administrative & Boundaries": [
-        {
-          "id": 1,
-          "layer_name": "District_boundary",
-          "display_name": "District boundary",
-          "category": "Administrative & Boundaries",
-          "geometry_type": "Polygon",
-          "feature_count": 1
-        },
-        {
-          "id": 2,
-          "layer_name": "Block_boundary",
-          "display_name": "Block boundary",
-          "category": "Administrative & Boundaries",
-          "geometry_type": "Polygon",
-          "feature_count": 20
-        }
-      ],
-      "Health & Medical": [
-        {
-          "id": 3,
-          "layer_name": "Hospital",
-          "display_name": "Hospital",
-          "category": "Health & Medical",
-          "geometry_type": "Point",
-          "feature_count": 7
-        }
-      ]
-    }
-  }
-  ```
-
----
-
-### 5.2 GeoJSON Layer Vector API
-Serves complete WGS84 (`EPSG:4326`) GeoJSON `FeatureCollection` for a requested layer to render directly on Leaflet / OpenLayers maps.
-
-- **Endpoint:** `GET /api/gis/layers/{layer_name}/`
-- **Example:** `GET /api/gis/layers/Block_boundary/`
-- **Response (`200 OK`):**
-  ```json
-  {
-    "type": "FeatureCollection",
-    "layer_name": "Block_boundary",
-    "category": "Administrative & Boundaries",
-    "geometry_type": "Polygon",
-    "feature_count": 20,
-    "features": [
-      {
-        "type": "Feature",
-        "id": "2",
-        "properties": {
-          "Block_Name": "Asthawan",
-          "District_N": "Nalanda",
-          "State_UT_N": "Bihar",
-          "Block_Area": 140.26,
-          "feature_name": "Asthawan",
-          "layer_name": "Block_boundary"
-        },
-        "geometry": {
-          "type": "Polygon",
-          "coordinates": [[[85.602, 25.215], [85.612, 25.225], ...]]
-        }
-      }
-    ]
-  }
-  ```
-
----
-
-### 5.3 Dynamic Shapefile / GeoJSON File Upload API
-Ingests single or multi-layer Shapefile `.zip` archives or `.geojson` files.
-- Automatically unzips archives.
-- Auto-detects single or multiple shapefiles inside the zip.
-- Reprojects Web Mercator (`EPSG:3857`) or any local projection to WGS84 (`EPSG:4326`).
-- Converts 3D/Z geometries to 2D for PostGIS compatibility.
-- Smart auto-categorization (e.g. `Hospital.shp` -> `Health & Medical`, `School.shp` -> `Education`).
-
-- **Endpoint:** `POST /api/gis/upload-layer/`
-- **Content-Type:** `multipart/form-data`
-- **Form Data Fields:**
-  - `layer_name` *(Text, Optional)*: Custom layer name (e.g. `Solar_Power_Plants`). Optional if zip contains multiple shapefiles.
-  - `category` *(Text, Optional)*: Category name (e.g. `Renewable Energy`). Defaults to smart detection or `Custom Uploads`.
-  - `file` *(File, Required)*: `.zip` shapefile archive or `.geojson` file.
-
-- **Response (`201 Created`):**
-  ```json
-  {
-    "message": "Successfully imported 2 layer(s) with 87 total features.",
-    "imported_layers_count": 2,
-    "total_features_imported": 87,
-    "layers": [
-      {
-        "id": 55,
-        "layer_name": "Hospital",
-        "display_name": "Hospital",
-        "geometry_type": "Point",
-        "category": "Health & Medical",
-        "feature_count": 7
-      },
-      {
-        "id": 56,
-        "layer_name": "School",
-        "display_name": "School",
-        "geometry_type": "Point",
-        "category": "Education",
-        "feature_count": 80
-      }
-    ]
-  }
-  ```
-
----
-
-### 5.4 GIS Catalog CRUD API
-
-Base Route: `/api/gis/catalog-crud/`
-
-| Action | HTTP Method | Endpoint | Query Parameters | Description |
-|---|---|---|---|---|
-| **List** | `GET` | `/api/gis/catalog-crud/` | `?search=Health` or `?category=Health` | Filter & search catalog layers |
-| **Create** | `POST` | `/api/gis/catalog-crud/` | - | Create layer catalog entry manually |
-| **Retrieve** | `GET` | `/api/gis/catalog-crud/{id}/` | - | Layer catalog entry details |
-| **Update** | `PUT`/`PATCH` | `/api/gis/catalog-crud/{id}/` | - | Modify layer metadata |
-| **Delete** | `DELETE` | `/api/gis/catalog-crud/{id}/` | - | Delete layer catalog entry and associated features |
-
----
-
-### 5.5 GIS Spatial Feature CRUD API
-
-Base Route: `/api/gis/features/`
-
-| Action | HTTP Method | Endpoint | Query Parameters | Description |
-|---|---|---|---|---|
-| **List** | `GET` | `/api/gis/features/` | `?catalog_entry={id}` | Filter features by catalog layer ID |
-| **Create** | `POST` | `/api/gis/features/` | - | Add an individual spatial feature |
-| **Retrieve** | `GET` | `/api/gis/features/{id}/` | - | Spatial feature details |
-| **Update** | `PUT`/`PATCH` | `/api/gis/features/{id}/` | - | Update attributes or GeoJSON geometry |
-| **Delete** | `DELETE` | `/api/gis/features/{id}/` | - | Remove spatial feature |
-
-#### POST Request Body Example:
-```json
-{
-  "catalog_entry": 3,
-  "feature_id": "HOSP-01",
-  "name": "Sadar Hospital Bihar Sharif",
-  "properties": {
-    "type": "Government District Hospital",
-    "capacity_beds": 300,
-    "contact": "+91 6112 234567"
-  },
-  "geom_geojson": {
-    "type": "Point",
-    "coordinates": [85.5143, 25.1968]
-  }
-}
-```
-
----
-
-## 6. Facility & Infrastructure Management Module
-
-Manage physical assets and infrastructure facilities (Hospitals, Schools, Banks, Churches, Solar Power Sites, Waterbodies, etc.) with spatial coordinates, dynamic custom attributes, and SCD Type 2 audit version history.
-
-Base Route: `/api/facilities/`
-
-### 6.1 Facility Listing & Filtering API
-
-Supports rich search across facility names, dynamic JSON attributes, administrative boundaries, categories, GIS catalog layers, and hazard safety flags.
-
-- **Endpoint:** `GET /api/facilities/`
-- **Query Parameters:**
-
-| Parameter | Type | Example Value | Description |
-|---|---|---|---|
-| `search` | String | `?search=hospital` | Global search across name, attributes, and tags |
-| `district` | Integer | `?district=1` | Filter by District ID |
-| `department` | Integer | `?department=2` | Filter by Department ID |
-| `category` | Integer | `?category=3` | Filter by Asset Category ID |
-| `catalog_entry` | Integer | `?catalog_entry=15` | Filter by GIS Layer Catalog ID |
-| `hazard_safe` | Boolean | `?hazard_safe=true` | Filter by hazard safety compliance (`true`/`false`) |
-
-#### Common Search Filter Examples:
-```http
-GET /api/facilities/?search=hospital
-GET /api/facilities/?search=bank
-GET /api/facilities/?search=school
-GET /api/facilities/?district=1
-GET /api/facilities/?department=2
-GET /api/facilities/?category=3
-GET /api/facilities/?catalog_entry=15
-GET /api/facilities/?hazard_safe=true
-```
-
-#### Response (`200 OK`):
-```json
-[
-  {
-    "id": 102,
-    "name": "Sadar Hospital Bihar Sharif",
+    "title": "Broken Handpump at Rajgir Ward 02",
+    "description": "Submersible motor burnt out. Over 400 households without potable water.",
+    "category": 1,
+    "latitude": 25.02911,
+    "longitude": 85.42816,
     "district": 1,
-    "district_name": "Nalanda",
-    "department": 2,
-    "department_name": "Health Department",
-    "category": 3,
-    "category_name": "Hospital",
-    "catalog_entry": 15,
-    "layer_name": "Hospital",
-    "gis_feature": 450,
-    "attributes": {
-      "beds": 300,
-      "hospital_type": "Government",
-      "emergency": "24x7"
-    },
-    "geom": {
-      "type": "Point",
-      "coordinates": [85.5143, 25.1968]
-    },
-    "hazard_safe": true,
-    "created_at": "2026-08-03T10:15:30Z",
-    "updated_at": "2026-08-03T10:15:30Z"
-  }
-]
-```
-
----
-
-### 6.2 Facility CRUD API
-
-| Action | HTTP Method | Endpoint | Description |
-|---|---|---|---|
-| **List** | `GET` | `/api/facilities/` | List and search facilities |
-| **Create** | `POST` | `/api/facilities/` | Create a new facility record |
-| **Retrieve** | `GET` | `/api/facilities/{id}/` | Retrieve facility details |
-| **Update** | `PUT`/`PATCH` | `/api/facilities/{id}/` | Update facility (Triggers automatic snapshot version in `FacilityHistory`) |
-| **Delete** | `DELETE` | `/api/facilities/{id}/` | Delete facility record |
-
-#### POST Request Body Example:
-```json
-{
-  "name": "Primary Health Centre Asthawan",
-  "district": 1,
-  "department": 2,
-  "category": 3,
-  "catalog_entry": 15,
-  "attributes": {
-    "hospital_type": "Government PHC",
-    "beds": 30,
-    "contact": "+91 6112 245678"
-  },
-  "geom": {
-    "type": "Point",
-    "coordinates": [85.602, 25.215]
-  },
-  "hazard_safe": true
-}
-```
-
----
-
-### 6.3 GeoJSON Facility Export API
-
-Exports all facilities matching current query filters as a standardized GeoJSON `FeatureCollection` for mapping frameworks.
-
-- **Endpoint:** `GET /api/facilities/geojson/`
-- **Query Parameters:** Accepts all filtering parameters (`search`, `district`, `department`, `category`, `catalog_entry`, `hazard_safe`).
-- **Example:** `GET /api/facilities/geojson/?category=3&hazard_safe=true`
-- **Response (`200 OK`):**
-  ```json
-  {
-    "type": "FeatureCollection",
-    "features": [
-      {
-        "type": "Feature",
-        "id": 102,
-        "properties": {
-          "name": "Sadar Hospital Bihar Sharif",
-          "category": "Hospital",
-          "department": "Health Department",
-          "district": "Nalanda",
-          "hazard_safe": true,
-          "attributes": {
-            "beds": 300,
-            "hospital_type": "Government"
-          }
-        },
-        "geometry": {
-          "type": "Point",
-          "coordinates": [85.5143, 25.1968]
-        }
-      }
-    ]
+    "block": 1,
+    "village_ward": 2,
+    "citizen_name": "Sunita Devi",
+    "citizen_phone": "+919835210492"
   }
   ```
 
----
+#### State Transition Action Endpoints
+- **Assign:** `POST /api/complaints/{id}/assign/` `{"target_user_id": 2, "remarks": "..."}`
+- **Accept:** `POST /api/complaints/{id}/accept/` `{"remarks": "..."}`
+- **Start Inspection:** `POST /api/complaints/{id}/start-inspection/` `{"target_user_id": 5}`
+- **Upload Evidence:** `POST /api/complaints/{id}/upload-evidence/` *(Multipart `files`)*
+- **Resolve:** `POST /api/complaints/{id}/resolve/` `{"resolution_summary": "..."}`
+- **Citizen Feedback:** `POST /api/complaints/{id}/citizen-feedback/` `{"rating": 5, "feedback_comment": "..."}`
+- **Close:** `POST /api/complaints/{id}/close/`
+- **Reopen:** `POST /api/complaints/{id}/reopen/` `{"reason": "..."}`
+- **Transfer:** `POST /api/complaints/{id}/transfer/` `{"target_department_id": 3}`
+- **Escalate:** `POST /api/complaints/{id}/escalate/` `{"reason": "..."}`
+- **Reject:** `POST /api/complaints/{id}/reject/` `{"reason": "..."}`
+- **Timeline Log:** `GET /api/complaints/{id}/timeline/`
 
-### 6.4 Bulk GIS Layer Sync API
-
-Scans all imported `GISLayerFeature` vector records across the system, maps them to their respective `GISCatalogEntry` and `AssetCategory`, and bulk-ingests them as `Facility` records.
-
-- **Endpoint:** `POST /api/facilities/sync-gis/`
-- **Authentication:** Public / Admin
-- **Request Body:** `{}`
-- **Response (`200 OK`):**
-  ```json
-  {
-    "message": "Successfully synced 8254 GIS layer features into Facilities.",
-    "synced_facilities_count": 8254,
-    "total_facilities": 8254
-  }
-  ```
-
----
-
-### 6.5 Facility Version History & Audit Log (SCD Type 2)
-
-Every time a `Facility` record is updated (`PUT` or `PATCH`), a point-in-time snapshot of the prior state is stored in `FacilityHistory`. This endpoint returns the historical timeline of changes.
-
-- **Endpoint:** `GET /api/facilities/{id}/history/`
-- **Response (`200 OK`):**
-  ```json
-  [
-    {
-      "id": 1,
-      "facility": 102,
-      "snapshot": {
-        "id": 102,
-        "name": "Sadar Hospital",
-        "attributes": { "beds": 250 },
-        "updated_at": "2026-08-03T10:00:00Z"
-      },
-      "created_at": "2026-08-03T11:20:00Z"
-    }
-  ]
-  ```
+#### Spatial & Heatmap Endpoints
+- **GeoJSON Export:** `GET /api/complaints/geojson/`
+- **GIS Heatmap Points:** `GET /api/complaints/heatmap/`
+- **Nearby Search:** `GET /api/complaints/nearby/?lat=25.0291&lng=85.4281&radius=5000`
+- **Nearest Facility:** `GET /api/complaints/nearest-facility/?lat=25.0291&lng=85.4281`
 
 ---
 
-## 7. Web Portals & Interactive Dashboards
+## 6. Executive Analytics Dashboards & Notifications
 
-The backend includes built-in interactive web applications built with HTML5, CSS3, Vanilla JavaScript, and Leaflet.js:
-
-### 7.1 Interactive GIS Map Portal
-- **URL:** `http://127.0.0.1:8000/map/` or `http://127.0.0.1:8000/`
-- **Features:**
-  - Collapsible category accordion rendering 50+ shapefile layers.
-  - Multi-basemap support (OpenStreetMap, ESRI Satellite, Carto Dark).
-  - Feature selection with modal attribute table display.
-
-### 7.2 Facility Search & Management UI Portal
-- **URL:** `http://127.0.0.1:8000/facilities/` or `http://127.0.0.1:8000/facilities/search/`
-- **Features:**
-  - Real-time search across facility names, categories, and custom attributes.
-  - Interactive Filter Bar by Department, District, Category, and GIS Layer.
-  - Dynamic Form Modal generation based on `AssetCategory` JSON Schema.
-  - Leaflet Mini-Map Modal for visual coordinate verification.
-  - Version History Audit Timeline Modal.
-  - One-click GeoJSON Export download.
-
-### 7.3 Single Sign-On Authentication UI Portal
-- **URL:** `http://127.0.0.1:8000/login/` or `http://127.0.0.1:8000/signup/`
-- **Features:**
-  - High-end glassmorphic responsive interface with smooth Sign In / Sign Up tab switching.
-  - Dynamic loading of RBAC Roles and Line Departments from backend REST APIs.
-  - Role-driven input behavior (e.g., automatically hiding/disabling department assignment for citizen roles).
-  - Client-side validation, password visibility toggles, and floating toast alert system.
-  - Automatic JWT token (`access` & `refresh`) and user session storage in `localStorage`.
-  - Active session detection card with quick navigation to GIS Map & Facilities.
+- `GET /api/dashboards/citizen/` $\rightarrow$ Total, pending, resolved counts & my complaints
+- `GET /api/dashboards/department/` $\rightarrow$ Department queue, assigned, pending, resolved & SLA breached counts
+- `GET /api/dashboards/officer/` $\rightarrow$ Today's work queue & pending assigned tasks
+- `GET /api/dashboards/district/` $\rightarrow$ District department-wise, status-wise & priority-wise breakdown
+- `GET /api/dashboards/state/` $\rightarrow$ District rankings comparison matrix
+- `GET /api/notifications/` $\rightarrow$ Dispatched notifications list for current logged-in user
 
 ---
 
-## 8. Error Handling & HTTP Status Codes
+## 7. Geospatial & Shapefile Management Module
 
-The API returns standard HTTP status codes and uniform JSON error objects:
-
-| Status Code | Meaning | Cause / Description |
-|---|---|---|
-| `200 OK` | Request Succeeded | Successful `GET`, `PUT`, `PATCH`, or `DELETE` operation. |
-| `201 Created` | Resource Created | Successful `POST` creation or file import. |
-| `400 Bad Request` | Validation Error | Missing required fields, invalid JSON, or unparseable shapefile. |
-| `401 Unauthorized` | Auth Required | Missing or invalid `Bearer <access_token>` in header. |
-| `404 Not Found` | Resource Not Found | Requested layer, department, or facility ID does not exist. |
-| `500 Server Error` | Backend Exception | Unexpected server-side failure. Check server logs. |
-
-### Standard Error Payload Format:
-```json
-{
-  "error": "Layer 'Invalid_Layer' not found or not published."
-}
-```
+- **Catalog Entry List:** `GET /api/gis/catalog/`
+- **GeoJSON Layer Features:** `GET /api/gis/layers/{layer_name}/`
+- **Dynamic Shapefile Upload:** `POST /api/gis/upload-layer/` *(Accepts `.zip` shapefile bundles)*
+- **Catalog CRUD:** `/api/gis/catalog-crud/`
+- **Spatial Feature CRUD:** `/api/gis/features/`
 
 ---
 
-## 9. Frontend & Leaflet.js Integration Quickstart
+## 8. Facilities Directory & SCD Type 2 Audit Module
 
-### Example: Searching Facilities and Rendering on Map
-
-```javascript
-// 1. Search Facilities by keyword or filters
-async function searchFacilities(query = 'hospital', categoryId = null) {
-    let url = `http://127.0.0.1:8000/api/facilities/?search=${encodeURIComponent(query)}`;
-    if (categoryId) {
-        url += `&category=${categoryId}`;
-    }
-    const res = await fetch(url);
-    const facilities = await res.json();
-    console.log("Found facilities:", facilities.length);
-    return facilities;
-}
-
-// 2. Fetch GeoJSON and Render on Leaflet Map
-async function renderFacilitiesGeoJSON(mapInstance, categoryId) {
-    const url = `http://127.0.0.1:8000/api/facilities/geojson/?category=${categoryId}`;
-    const res = await fetch(url);
-    const geojson = await res.json();
-
-    const layer = L.geoJSON(geojson, {
-        onEachFeature: (feature, layer) => {
-            const p = feature.properties;
-            layer.bindPopup(`
-                <div style="font-family: sans-serif;">
-                    <h3 style="margin:0 0 5px 0;">${p.name}</h3>
-                    <p style="margin:0; font-size:12px; color:#64748b;">${p.category} | ${p.department}</p>
-                </div>
-            `);
-        }
-    }).addTo(mapInstance);
-
-    if (layer.getBounds().isValid()) {
-        mapInstance.fitBounds(layer.getBounds());
-    }
-}
-```
+- **List & Filter Facilities:** `GET /api/facilities/?search=hospital&category=1`
+- **Facility CRUD:** `/api/facilities/{id}/`
+- **GeoJSON Facility Export:** `GET /api/facilities/geojson/`
+- **Bulk GIS Layer Sync:** `POST /api/facilities/bulk-sync-gis/`
+- **Audit Version History (SCD Type 2):** `GET /api/facilities/{id}/history/`
 
 ---
 
-## 10. Complaint Management System & GIS Geo-routing Architecture
+## 9. Django Admin Panel Integration
 
-### 10.1 System Overview
-The **Complaint Management System** provides end-to-end infrastructure grievance registration, auto-routing engine, workflow state machine, evidence verification, audit timeline, notifications, and spatial analytics dashboards.
+Registered Models in Django Admin (`/admin/`):
+- **`ComplaintCategoryAdmin`**: Category, department, default priority, default SLA hours, FontAwesome icons.
+- **`ComplaintAdmin`**: Complaint lifecycle, SLA breach flags, assigned officers.
+  - **`ComplaintEvidenceInline`**: View attached geotagged evidence images & EXIF coordinates.
+  - **`ComplaintTimelineInline`**: View complete immutable audit log history.
+- **`ComplaintEvidenceAdmin`**: Standalone evidence attachment audit table.
+- **`ComplaintTimelineAdmin`**: Standalone workflow event log table.
 
-### 10.2 Fixed System Roles
-1. `CITIZEN_REGISTERED` / `CITIZEN_ANONYMOUS`: Citizen
-2. `DISTRICT_COLLECTOR`: District Collector
-3. `DISTRICT_MAGISTRATE` / `DM`: District Magistrate
-4. `ADM`: Additional District Magistrate
-5. `DEPARTMENT_HEAD`: Department Head
-6. `DEPARTMENT_OFFICER`: Department Officer
-7. `EXECUTIVE_ENGINEER`: Executive / Assistant Engineer
-8. `FIELD_INSPECTOR`: Field Inspector / Junior Engineer
-9. `FIELD_SUPERVISOR`: Field Supervisor
-10. `STATE_ADMIN`: State Administrator
+---
 
-### 10.3 Dynamic Departments & Defect Categories
-Complaint Category automatically routes tickets to responsible line departments with SLA targets:
-- `Broken Handpump / Borewell Defect` $\rightarrow$ Water Resources Department (SLA: 24h)
-- `Piped Water Leakage / Contamination` $\rightarrow$ Water Resources Department (SLA: 12h)
-- `Garbage Accumulation / Sanitation` $\rightarrow$ Urban Development & Infra (SLA: 24h)
-- `Non-Functional Street Light` $\rightarrow$ Urban Development & Infra (SLA: 48h)
-- `Transformer Failure / Power Outage` $\rightarrow$ Public Works & Transport Dept (SLA: 6h)
-- `Hospital Staff / Oxygen / Facility Issue` $\rightarrow$ Health Department (SLA: 12h)
-- `School Infrastructure / Roof / Sanitation` $\rightarrow$ Education Department (SLA: 48h)
-- `Road Potholes / Damaged Bridge` $\rightarrow$ Public Works & Transport Dept (SLA: 72h)
+## 10. Web UI Portals
 
-### 10.4 Complete Workflow Lifecycle
-`SUBMITTED` $\rightarrow$ `ASSIGNED` $\rightarrow$ `ACCEPTED` $\rightarrow$ `INSPECTION_STARTED` $\rightarrow$ `EVIDENCE_UPLOADED` $\rightarrow$ `RESOLVED` $\rightarrow$ `CITIZEN_VERIFICATION` $\rightarrow$ `CLOSED`
-*(Support for Reopen, Transfer, Escalate, and Reject transitions).*
+1. **Interactive GIS Map Portal**: `http://127.0.0.1:8000/` (Leaflet.js spatial layer toggle, basemap switcher, pin inspection).
+2. **Facilities Directory Portal**: `http://127.0.0.1:8000/facilities/` (Facility search, modal editor, audit history viewer).
+3. **Glassmorphic Single Sign-On Portal**: `http://127.0.0.1:8000/login/` & `/signup/` (Tab switcher, dynamic role & department dropdowns, password visibility toggles, session card).
 
-### 10.5 Complaint Management API Reference
-| Endpoint | Method | Role Permission | Description |
+---
+
+## 11. Complete REST API Reference Table
+
+| Path | Method | Auth Required | Description |
 | :--- | :--- | :--- | :--- |
-| `/api/complaints/` | `GET` | Authenticated / Public | List complaints filtered by role/department scope |
-| `/api/complaints/` | `POST` | Authenticated Citizen | Create complaint with auto-routing & spatial calculations |
-| `/api/complaints/{id}/assign/` | `POST` | Department Head / Admin | Assign ticket to Department Officer / Engineer |
-| `/api/complaints/{id}/accept/` | `POST` | Department Officer | Accept assigned ticket |
-| `/api/complaints/{id}/start-inspection/` | `POST` | Executive Engineer / Officer | Initiate site inspection phase |
-| `/api/complaints/{id}/upload-evidence/` | `POST` | Field Inspector / Citizen | Upload geotagged photos, videos, or PDFs |
-| `/api/complaints/{id}/resolve/` | `POST` | Department Officer | Mark complaint as resolved with summary |
-| `/api/complaints/{id}/citizen-feedback/` | `POST` | Citizen | Submit 1-5 star rating and feedback comment |
-| `/api/complaints/{id}/close/` | `POST` | Department Officer / Citizen | Close resolved complaint |
-| `/api/complaints/{id}/reopen/` | `POST` | Citizen | Reopen unresolved complaint |
-| `/api/complaints/{id}/transfer/` | `POST` | Department Staff | Transfer ticket to another line department |
-| `/api/complaints/{id}/escalate/` | `POST` | Officer / ADM / DM | Escalate ticket to District Magistrate / ADM |
-| `/api/complaints/{id}/reject/` | `POST` | Department Staff | Reject complaint with reason |
-| `/api/complaints/{id}/timeline/` | `GET` | Authenticated | Fetch complete audit timeline log |
-| `/api/complaints/geojson/` | `GET` | Public / Authenticated | Export complaints as GeoJSON FeatureCollection |
-| `/api/complaints/heatmap/` | `GET` | Public / Authenticated | Fetch weighted spatial points for GIS Heatmaps |
-| `/api/complaints/nearby/` | `GET` | Public / Authenticated | Query complaints within spatial radius (m) |
-| `/api/complaints/nearest-facility/` | `GET` | Public / Authenticated | Locate nearest spatial facility for lat/lng |
-| `/api/dashboards/citizen/` | `GET` | Citizen | Citizen portal metrics summary |
-| `/api/dashboards/department/` | `GET` | Department Staff | Department level SLA & queue metrics |
-| `/api/dashboards/officer/` | `GET` | Officer / Engineer | Daily work queue & pending task metrics |
-| `/api/dashboards/district/` | `GET` | ADM / DM / Collector | District-wide department & status metrics |
-| `/api/dashboards/state/` | `GET` | State Admin | District rankings & comparison matrix |
-| `/api/notifications/` | `GET` | Authenticated User | Dispatched notifications list |
+| `/api/auth/signup/` | `POST` | Public | Register new user account |
+| `/api/auth/login/` | `POST` | Public | Obtain JWT Access (30m) & Refresh tokens |
+| `/api/auth/token/refresh/` | `POST` | Public | Refresh expired JWT access token |
+| `/api/auth/me/` | `GET` | Bearer | Retrieve authenticated user profile |
+| `/api/auth/roles/` | `GET` | Public | List system roles |
+| `/api/complaints/` | `GET` | Bearer / Public | List complaints filtered by role/department scope |
+| `/api/complaints/` | `POST` | Bearer | Submit complaint with auto-routing & spatial calculations |
+| `/api/complaints/{id}/assign/` | `POST` | Bearer | Assign ticket to officer / engineer |
+| `/api/complaints/{id}/accept/` | `POST` | Bearer | Accept assigned ticket |
+| `/api/complaints/{id}/start-inspection/` | `POST` | Bearer | Start site inspection phase |
+| `/api/complaints/{id}/upload-evidence/` | `POST` | Bearer | Upload geotagged photos/videos/PDFs |
+| `/api/complaints/{id}/resolve/` | `POST` | Bearer | Resolve complaint with summary |
+| `/api/complaints/{id}/citizen-feedback/` | `POST` | Bearer | Submit 1-5 star rating & feedback |
+| `/api/complaints/{id}/close/` | `POST` | Bearer | Close verified complaint |
+| `/api/complaints/{id}/reopen/` | `POST` | Bearer | Reopen unresolved complaint |
+| `/api/complaints/{id}/transfer/` | `POST` | Bearer | Transfer complaint to another department |
+| `/api/complaints/{id}/escalate/` | `POST` | Bearer | Escalate ticket to ADM / DM |
+| `/api/complaints/{id}/reject/` | `POST` | Bearer | Reject complaint with reason |
+| `/api/complaints/{id}/timeline/` | `GET` | Bearer | Fetch immutable audit timeline log |
+| `/api/complaints/geojson/` | `GET` | Public / Bearer | Export complaints as GeoJSON FeatureCollection |
+| `/api/complaints/heatmap/` | `GET` | Public / Bearer | Fetch weighted spatial points for heatmaps |
+| `/api/complaints/nearby/` | `GET` | Public / Bearer | Query complaints within spatial radius (m) |
+| `/api/complaints/nearest-facility/` | `GET` | Public / Bearer | Calculate distance to nearest spatial facility |
+| `/api/dashboards/citizen/` | `GET` | Bearer / Public | Citizen portal metrics summary |
+| `/api/dashboards/department/` | `GET` | Bearer / Public | Department queue & SLA metrics |
+| `/api/dashboards/officer/` | `GET` | Bearer / Public | Today's officer work queue |
+| `/api/dashboards/district/` | `GET` | Bearer / Public | District-wide department & status metrics |
+| `/api/dashboards/state/` | `GET` | Bearer / Public | District rankings comparison matrix |
+| `/api/notifications/` | `GET` | Bearer | List dispatched notifications |
+| `/api/facilities/` | `GET` / `POST` | Bearer / Public | Facilities directory list and create |
+| `/api/facilities/{id}/` | `GET` / `PUT` / `DELETE` | Bearer / Public | Facility retrieve, update, delete |
+| `/api/facilities/geojson/` | `GET` | Public | Export facilities as GeoJSON FeatureCollection |
+| `/api/gis/catalog/` | `GET` | Public | List published GIS layer catalog |
+| `/api/gis/layers/{layer}/` | `GET` | Public | Fetch vector layer GeoJSON |
+| `/api/gis/upload-layer/` | `POST` | Bearer | Upload shapefile `.zip` bundle |

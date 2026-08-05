@@ -31,6 +31,16 @@ class NDISModelAndPageTests(TestCase):
         response = client.get("/admin/myapp/facility/")
         self.assertEqual(response.status_code, 200)
 
+    def test_facility_district_name_filtering(self):
+        client = APIClient()
+        res1 = client.get("/api/facilities/?district=nalanda")
+        self.assertEqual(res1.status_code, 200)
+        self.assertGreaterEqual(len(res1.data), 1)
+
+        res2 = client.get("/api/facilities/?distict=Nalanda")
+        self.assertEqual(res2.status_code, 200)
+        self.assertGreaterEqual(len(res2.data), 1)
+
 
 class AuthenticationAPITests(TestCase):
     def setUp(self):

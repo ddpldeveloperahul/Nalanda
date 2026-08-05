@@ -211,15 +211,11 @@ class GISLayerGeoJSONView(APIView):
 class DepartmentViewSet(viewsets.ModelViewSet):
     """
     CRUD ViewSet for Line Departments.
-    - GET /api/departments/ : List all departments (filter ?search=Health)
-    - POST /api/departments/ : Create department
-    - GET /api/departments/<id>/ : Retrieve department
-    - PUT/PATCH /api/departments/<id>/ : Update department
-    - DELETE /api/departments/<id>/ : Delete department
     """
     queryset = Department.objects.all().order_by("id")
     serializer_class = DepartmentSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    pagination_class = None
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -232,11 +228,11 @@ class DepartmentViewSet(viewsets.ModelViewSet):
 class DistrictViewSet(viewsets.ModelViewSet):
     """
     CRUD ViewSet for Master Districts.
-    - GET /api/districts/ : List all districts
     """
     queryset = District.objects.all().select_related("state").order_by("name")
     serializer_class = DistrictSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    pagination_class = None
 
 
 
@@ -244,11 +240,6 @@ class DistrictViewSet(viewsets.ModelViewSet):
 class DepartmentOfficerViewSet(viewsets.ModelViewSet):
     """
     CRUD ViewSet for Department Officers / Nodal Officers.
-    - GET /api/department-officers/ : List all officers (filter ?search=Rahul or ?department=1)
-    - POST /api/department-officers/ : Create officer
-    - GET /api/department-officers/<id>/ : Retrieve officer
-    - PUT/PATCH /api/department-officers/<id>/ : Update officer
-    - DELETE /api/department-officers/<id>/ : Delete officer
     """
     queryset = DepartmentOfficer.objects.all().order_by("id")
     serializer_class = DepartmentOfficerSerializer
@@ -274,15 +265,11 @@ class DepartmentOfficerViewSet(viewsets.ModelViewSet):
 class AssetCategoryViewSet(viewsets.ModelViewSet):
     """
     CRUD ViewSet for Asset Categories.
-    - GET /api/asset-categories/ : List all asset categories (filter ?search=Hospital or ?department=1)
-    - /api/asset-categories/ : Create asset category
-    - GET /api/asset-categories/<id>/ : Retrieve asset category
-    - PUT/PATCH /api/asset-categories/<id>/ : Update asset category
-    - DELETE /api/asset-categories/<id>/ : Delete asset category
     """
     queryset = AssetCategory.objects.all().select_related("department", "catalog_entry").order_by("name")
     serializer_class = AssetCategorySerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    pagination_class = None
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -396,18 +383,29 @@ class FacilityViewSet(viewsets.ModelViewSet):
 
         qs = super().get_queryset()
         search = self.request.query_params.get("search")
-        district_id = self.request.query_params.get("district")
-        dept_id = self.request.query_params.get("department")
+        district_val = self.request.query_params.get("district") or self.request.query_params.get("distict")
+        dept_val = self.request.query_params.get("department")
         category_id = self.request.query_params.get("category")
         catalog_entry_id = self.request.query_params.get("catalog_entry")
         hazard_safe = self.request.query_params.get("hazard_safe")
 
         if search:
             qs = qs.filter(Q(name__icontains=search) | Q(attributes__icontains=search))
-        if district_id:
-            qs = qs.filter(district_id=district_id)
-        if dept_id:
-            qs = qs.filter(department_id=dept_id)
+
+        if district_val:
+            d_str = str(district_val).strip()
+            if d_str.isdigit():
+                qs = qs.filter(district_id=int(d_str))
+            else:
+                qs = qs.filter(district__name__icontains=d_str)
+
+        if dept_val:
+            d_dept = str(dept_val).strip()
+            if d_dept.isdigit():
+                qs = qs.filter(department_id=int(d_dept))
+            else:
+                qs = qs.filter(department__name__icontains=d_dept)
+
         if category_id:
             qs = qs.filter(category_id=category_id)
         if catalog_entry_id:
