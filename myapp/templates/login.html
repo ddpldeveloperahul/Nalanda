@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NDIS Portal - Authentication & Access</title>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-card: rgba(30, 41, 59, 0.75);
+            --border-glass: rgba(255, 255, 255, 0.12);
+            --primary: #38bdf8;
+            --primary-hover: #0284c7;
+            --accent: #6366f1;
+            --accent-hover: #4f46e5;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --input-bg: rgba(15, 23, 42, 0.6);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow-x: hidden;
+            position: relative;
+            background-image: 
+                radial-gradient(circle at 15% 20%, rgba(56, 189, 248, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 85% 80%, rgba(99, 102, 241, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.08) 0%, transparent 60%);
+            background-attachment: fixed;
+        }
+
+        /* Top Navigation Header */
+        .header-nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 70px;
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-glass);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 2rem;
+            z-index: 100;
+        }
+
+        .brand-logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            text-decoration: none;
+            color: var(--text-main);
+            font-weight: 700;
+            font-size: 1.2rem;
+        }
+
+        .brand-logo i {
+            font-size: 1.5rem;
+            color: var(--primary);
+            filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.5));
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .nav-btn {
+            color: var(--text-muted);
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .nav-btn:hover {
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .nav-btn.active {
+            color: var(--primary);
+            background: rgba(56, 189, 248, 0.1);
+        }
+
+        /* Toast Alert Notification */
+        .toast-container {
+            position: fixed;
+            top: 85px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: 380px;
+        }
+
+        .toast {
+            background: rgba(30, 41, 59, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-glass);
+            color: var(--text-main);
+            padding: 1rem 1.25rem;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .toast::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+        }
+
+        .toast.success::before { background: var(--success); }
+        .toast.error::before { background: var(--danger); }
+        .toast.warning::before { background: var(--warning); }
+
+        .toast i { font-size: 1.2rem; margin-top: 2px; }
+        .toast.success i { color: var(--success); }
+        .toast.error i { color: var(--danger); }
+        .toast.warning i { color: var(--warning); }
+
+        .toast-content { flex: 1; }
+        .toast-title { font-weight: 600; font-size: 0.95rem; margin-bottom: 2px; }
+        .toast-msg { font-size: 0.85rem; color: var(--text-muted); }
+        .toast-close { cursor: pointer; color: var(--text-muted); font-size: 1rem; opacity: 0.7; }
+        .toast-close:hover { opacity: 1; }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        /* Main Container Card */
+        .auth-wrapper {
+            margin-top: 100px;
+            margin-bottom: 40px;
+            width: 100%;
+            max-width: 540px;
+            padding: 0 1.5rem;
+        }
+
+        .auth-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-glass);
+            border-radius: 24px;
+            padding: 2.5rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 30px rgba(56, 189, 248, 0.05);
+            position: relative;
+        }
+
+        .auth-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .badge-gov {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            background: rgba(56, 189, 248, 0.1);
+            color: var(--primary);
+            border: 1px solid rgba(56, 189, 248, 0.25);
+            padding: 0.3rem 0.8rem;
+            border-radius: 50px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 1rem;
+        }
+
+        .auth-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .auth-subtitle {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        /* Tab Switcher */
+        .tabs-nav {
+            display: flex;
+            background: rgba(15, 23, 42, 0.8);
+            padding: 0.35rem;
+            border-radius: 14px;
+            border: 1px solid var(--border-glass);
+            margin-bottom: 2rem;
+            position: relative;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 0.7rem;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 0.95rem;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .tab-btn.active {
+            color: var(--text-main);
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+            box-shadow: 0 4px 15px rgba(56, 189, 248, 0.3);
+        }
+
+        /* Forms Styling */
+        .auth-form {
+            display: none;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        .auth-form.active {
+            display: flex;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        @media (max-width: 520px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            position: relative;
+        }
+
+        .form-label {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: #cbd5e1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .form-label span.req {
+            color: var(--danger);
+        }
+
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .input-icon {
+            position: absolute;
+            left: 1rem;
+            color: var(--text-muted);
+            font-size: 1rem;
+            pointer-events: none;
+            transition: color 0.2s ease;
+        }
+
+        .form-input, .form-select {
+            width: 100%;
+            padding: 0.8rem 1rem 0.8rem 2.75rem;
+            background: var(--input-bg);
+            border: 1px solid var(--border-glass);
+            border-radius: 12px;
+            color: var(--text-main);
+            font-size: 0.95rem;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        .form-select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+            background-size: 1.1rem;
+            cursor: pointer;
+        }
+
+        .form-select option {
+            background-color: #1e293b;
+            color: #f8fafc;
+        }
+
+        .form-input:focus, .form-select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+            background: rgba(15, 23, 42, 0.8);
+        }
+
+        .form-input:focus + .input-icon, .form-select:focus + .input-icon {
+            color: var(--primary);
+        }
+
+        .btn-toggle-pwd {
+            position: absolute;
+            right: 1rem;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 0.2rem;
+            font-size: 0.95rem;
+            transition: color 0.2s ease;
+        }
+
+        .btn-toggle-pwd:hover {
+            color: var(--text-main);
+        }
+
+        .form-error {
+            font-size: 0.78rem;
+            color: var(--danger);
+            display: none;
+            margin-top: 0.2rem;
+        }
+
+        .form-group.has-error .form-input, .form-group.has-error .form-select {
+            border-color: var(--danger);
+        }
+
+        .form-group.has-error .form-error {
+            display: block;
+        }
+
+        /* Submit Button */
+        .btn-submit {
+            margin-top: 0.5rem;
+            padding: 0.9rem;
+            border: none;
+            border-radius: 12px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+            color: #ffffff;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            box-shadow: 0 10px 25px -5px rgba(56, 189, 248, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.6rem;
+        }
+
+        .btn-submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 30px -5px rgba(56, 189, 248, 0.5);
+            background: linear-gradient(135deg, #0284c7 0%, #4f46e5 100%);
+        }
+
+        .btn-submit:active {
+            transform: translateY(0);
+        }
+
+        .btn-submit:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .spinner {
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 0.8s linear infinite;
+            display: none;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Logged In User Info Card */
+        .session-card {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 1rem;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--border-glass);
+            padding: 1.5rem;
+            border-radius: 16px;
+            margin-top: 1rem;
+        }
+
+        .user-avatar {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+            color: #fff;
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.4);
+        }
+
+        .user-name { font-size: 1.2rem; font-weight: 700; }
+        .user-role { font-size: 0.85rem; color: var(--text-muted); }
+
+        .session-actions {
+            display: flex;
+            gap: 0.75rem;
+            width: 100%;
+            margin-top: 0.5rem;
+        }
+
+        .btn-action {
+            flex: 1;
+            padding: 0.65rem;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4rem;
+            border: 1px solid var(--border-glass);
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.05);
+            transition: all 0.2s ease;
+        }
+
+        .btn-action:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-action.logout {
+            border-color: rgba(239, 68, 68, 0.4);
+            color: var(--danger);
+        }
+        .btn-action.logout:hover {
+            background: rgba(239, 68, 68, 0.15);
+        }
+
+        /* Footer */
+        .footer-note {
+            margin-top: 2rem;
+            text-align: center;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header Navigation -->
+    <header class="header-nav">
+        <a href="/map/" class="brand-logo">
+            <i class="fa-solid fa-map-location-dot"></i>
+            <span>NDIS Portal</span>
+        </a>
+        <nav class="nav-links">
+            <a href="/map/" class="nav-btn">
+                <i class="fa-solid fa-layer-group"></i> GIS Map
+            </a>
+            <a href="/facilities/" class="nav-btn">
+                <i class="fa-solid fa-building-columns"></i> Facilities UI
+            </a>
+        </nav>
+    </header>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Main Auth Card Wrapper -->
+    <div class="auth-wrapper">
+        <div class="auth-card">
+            
+            <div class="auth-header">
+                <div class="badge-gov">
+                    <i class="fa-solid fa-shield-halved"></i> Govt. of Bihar - Nalanda District
+                </div>
+                <h1 class="auth-title">NDIS Single Sign-On</h1>
+                <p class="auth-subtitle">Access Geospatial Master Assets & Department Infrastructure</p>
+            </div>
+
+            <!-- Logged-in Session View (Hidden by default) -->
+            <div id="sessionCard" class="session-card">
+                <div class="user-avatar">
+                    <i class="fa-solid fa-user-check"></i>
+                </div>
+                <div>
+                    <div id="sessionUserName" class="user-name">User Name</div>
+                    <div id="sessionUserRole" class="user-role">Role Name</div>
+                </div>
+                <div class="session-actions">
+                    <a href="/facilities/" class="btn-action">
+                        <i class="fa-solid fa-building"></i> Facilities
+                    </a>
+                    <a href="/map/" class="btn-action">
+                        <i class="fa-solid fa-map"></i> GIS Map
+                    </a>
+                    <button id="btnLogout" class="btn-action logout">
+                        <i class="fa-solid fa-right-from-bracket"></i> Logout
+                    </button>
+                </div>
+            </div>
+
+            <!-- Form Tabs -->
+            <div id="tabNav" class="tabs-nav">
+                <button id="tabBtnLogin" class="tab-btn active" onclick="switchTab('login')">
+                    <i class="fa-solid fa-right-to-bracket"></i> Sign In
+                </button>
+                <button id="tabBtnSignup" class="tab-btn" onclick="switchTab('signup')">
+                    <i class="fa-solid fa-user-plus"></i> Create Account
+                </button>
+            </div>
+
+            <!-- LOGIN FORM -->
+            <form id="loginForm" class="auth-form active" onsubmit="handleLogin(event)">
+                <div class="form-group" id="groupLoginUsername">
+                    <label class="form-label">Username or Email <span class="req">*</span></label>
+                    <div class="input-wrapper">
+                        <i class="fa-solid fa-user input-icon"></i>
+                        <input type="text" id="loginUsername" class="form-input" placeholder="e.g. rahul_officer" required>
+                    </div>
+                    <div class="form-error" id="errorLoginUsername">Please enter your username or email.</div>
+                </div>
+
+                <div class="form-group" id="groupLoginPassword">
+                    <label class="form-label">Password <span class="req">*</span></label>
+                    <div class="input-wrapper">
+                        <i class="fa-solid fa-lock input-icon"></i>
+                        <input type="password" id="loginPassword" class="form-input" placeholder="••••••••••••" required>
+                        <button type="button" class="btn-toggle-pwd" onclick="togglePasswordVisibility('loginPassword', this)">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
+                    <div class="form-error" id="errorLoginPassword">Please enter your password.</div>
+                </div>
+
+                <button type="submit" id="btnLoginSubmit" class="btn-submit">
+                    <span class="spinner" id="loginSpinner"></span>
+                    <i class="fa-solid fa-right-to-bracket"></i> Sign In to NDIS
+                </button>
+            </form>
+
+            <!-- SIGNUP FORM -->
+            <form id="signupForm" class="auth-form" onsubmit="handleSignup(event)">
+                
+                <div class="form-row">
+                    <div class="form-group" id="groupSignupFirstName">
+                        <label class="form-label">First Name</label>
+                        <div class="input-wrapper">
+                            <i class="fa-solid fa-id-card input-icon"></i>
+                            <input type="text" id="signupFirstName" class="form-input" placeholder="Rahul">
+                        </div>
+                    </div>
+                    <div class="form-group" id="groupSignupLastName">
+                        <label class="form-label">Last Name</label>
+                        <div class="input-wrapper">
+                            <i class="fa-solid fa-id-card input-icon"></i>
+                            <input type="text" id="signupLastName" class="form-input" placeholder="Kumar">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group" id="groupSignupUsername">
+                    <label class="form-label">Username <span class="req">*</span></label>
+                    <div class="input-wrapper">
+                        <i class="fa-solid fa-at input-icon"></i>
+                        <input type="text" id="signupUsername" class="form-input" placeholder="rahul_officer" required>
+                    </div>
+                    <div class="form-error" id="errorSignupUsername">Username is required.</div>
+                </div>
+
+                <div class="form-group" id="groupSignupEmail">
+                    <label class="form-label">Email Address <span class="req">*</span></label>
+                    <div class="input-wrapper">
+                        <i class="fa-solid fa-envelope input-icon"></i>
+                        <input type="email" id="signupEmail" class="form-input" placeholder="rahul.officer@bihar.gov.in" required>
+                    </div>
+                    <div class="form-error" id="errorSignupEmail">Valid email is required.</div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group" id="groupSignupPhone">
+                        <label class="form-label">Phone Number</label>
+                        <div class="input-wrapper">
+                            <i class="fa-solid fa-phone input-icon"></i>
+                            <input type="tel" id="signupPhone" class="form-input" placeholder="+91 9876543210">
+                        </div>
+                    </div>
+                    <div class="form-group" id="groupSignupDesignation">
+                        <label class="form-label">Designation</label>
+                        <div class="input-wrapper">
+                            <i class="fa-solid fa-user-tie input-icon"></i>
+                            <input type="text" id="signupDesignation" class="form-input" placeholder="Executive Engineer">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group" id="groupSignupRole">
+                    <label class="form-label">Account Role <span class="req">*</span></label>
+                    <div class="input-wrapper">
+                        <i class="fa-solid fa-user-shield input-icon"></i>
+                        <select id="signupRole" class="form-select" onchange="handleRoleChange()" required>
+                            <option value="">Select Official Role...</option>
+                        </select>
+                    </div>
+                    <div class="form-error" id="errorSignupRole">Role is mandatory.</div>
+                </div>
+
+                <div class="form-group" id="groupSignupDept">
+                    <label class="form-label">Line Department</label>
+                    <div class="input-wrapper">
+                        <i class="fa-solid fa-building-user input-icon"></i>
+                        <select id="signupDept" class="form-select">
+                            <option value="">Select Line Department (If applicable)...</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group" id="groupSignupPassword">
+                    <label class="form-label">Password <span class="req">*</span></label>
+                    <div class="input-wrapper">
+                        <i class="fa-solid fa-key input-icon"></i>
+                        <input type="password" id="signupPassword" class="form-input" placeholder="SecurePassword123" required>
+                        <button type="button" class="btn-toggle-pwd" onclick="togglePasswordVisibility('signupPassword', this)">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
+                    <div class="form-error" id="errorSignupPassword">Password is required.</div>
+                </div>
+
+                <div class="form-group" id="groupSignupConfirmPassword">
+                    <label class="form-label">Confirm Password <span class="req">*</span></label>
+                    <div class="input-wrapper">
+                        <i class="fa-solid fa-check-double input-icon"></i>
+                        <input type="password" id="signupConfirmPassword" class="form-input" placeholder="SecurePassword123" required>
+                        <button type="button" class="btn-toggle-pwd" onclick="togglePasswordVisibility('signupConfirmPassword', this)">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
+                    <div class="form-error" id="errorSignupConfirmPassword">Passwords must match.</div>
+                </div>
+
+                <button type="submit" id="btnSignupSubmit" class="btn-submit">
+                    <span class="spinner" id="signupSpinner"></span>
+                    <i class="fa-solid fa-user-check"></i> Register Account
+                </button>
+            </form>
+
+            <div class="footer-note">
+                Nalanda District Information System (NDIS) © 2026 | Powered by PostGIS & DRF
+            </div>
+
+        </div>
+    </div>
+
+    <!-- JavaScript Auth Controller -->
+    <script>
+        const INITIAL_MODE = "{{ mode|default:'login' }}";
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            checkExistingSession();
+            await loadDropdowns();
+
+            if (INITIAL_MODE === 'signup') {
+                switchTab('signup');
+            } else {
+                switchTab('login');
+            }
+        });
+
+        // Toast Notification System
+        function showToast(title, message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+
+            let iconClass = 'fa-circle-check';
+            if (type === 'error') iconClass = 'fa-circle-xmark';
+            if (type === 'warning') iconClass = 'fa-triangle-exclamation';
+
+            toast.innerHTML = `
+                <i class="fa-solid ${iconClass}"></i>
+                <div class="toast-content">
+                    <div class="toast-title">${title}</div>
+                    <div class="toast-msg">${message}</div>
+                </div>
+                <i class="fa-solid fa-xmark toast-close" onclick="this.parentElement.remove()"></i>
+            `;
+
+            container.appendChild(toast);
+            setTimeout(() => {
+                if (toast.parentElement) toast.remove();
+            }, 5000);
+        }
+
+        // Toggle Password Visibility
+        function togglePasswordVisibility(inputId, btn) {
+            const input = document.getElementById(inputId);
+            const icon = btn.querySelector('i');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.className = 'fa-solid fa-eye-slash';
+            } else {
+                input.type = 'password';
+                icon.className = 'fa-solid fa-eye';
+            }
+        }
+
+        // Tab Switcher
+        function switchTab(mode) {
+            const loginForm = document.getElementById('loginForm');
+            const signupForm = document.getElementById('signupForm');
+            const tabBtnLogin = document.getElementById('tabBtnLogin');
+            const tabBtnSignup = document.getElementById('tabBtnSignup');
+
+            if (mode === 'signup') {
+                loginForm.classList.remove('active');
+                signupForm.classList.add('active');
+                tabBtnLogin.classList.remove('active');
+                tabBtnSignup.classList.add('active');
+                window.history.replaceState(null, '', '/signup/');
+            } else {
+                signupForm.classList.remove('active');
+                loginForm.classList.add('active');
+                tabBtnSignup.classList.remove('active');
+                tabBtnLogin.classList.add('active');
+                window.history.replaceState(null, '', '/login/');
+            }
+        }
+
+        // Check Existing Logged-in Session
+        function checkExistingSession() {
+            const userStr = localStorage.getItem('ndis_user');
+            const token = localStorage.getItem('ndis_access_token');
+
+            if (userStr && token) {
+                try {
+                    const user = JSON.parse(userStr);
+                    document.getElementById('sessionUserName').innerText = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username;
+                    document.getElementById('sessionUserRole').innerText = user.role_info ? user.role_info.name : (user.department_name || 'Authenticated User');
+                    document.getElementById('sessionCard').style.display = 'flex';
+                } catch (e) {
+                    console.error("Session parse error", e);
+                }
+            } else {
+                document.getElementById('sessionCard').style.display = 'none';
+            }
+        }
+
+        // Logout
+        document.getElementById('btnLogout').addEventListener('click', () => {
+            localStorage.removeItem('ndis_access_token');
+            localStorage.removeItem('ndis_refresh_token');
+            localStorage.removeItem('ndis_user');
+            document.getElementById('sessionCard').style.display = 'none';
+            showToast('Logged Out', 'You have been logged out successfully.', 'warning');
+        });
+
+        // Load Roles & Departments
+        async function loadDropdowns() {
+            // 1. Roles
+            try {
+                const resRoles = await fetch('/api/auth/roles/');
+                if (resRoles.ok) {
+                    const roles = await resRoles.json();
+                    const selectRole = document.getElementById('signupRole');
+                    selectRole.innerHTML = '<option value="">Select Official Role...</option>';
+                    roles.forEach(r => {
+                        selectRole.innerHTML += `<option value="${r.id}" data-code="${r.code}">${r.name} (${r.scope_level})</option>`;
+                    });
+                }
+            } catch (err) {
+                console.warn("Roles fetch failed, using fallbacks.", err);
+            }
+
+            // 2. Departments
+            try {
+                const resDepts = await fetch('/api/departments/');
+                if (resDepts.ok) {
+                    const depts = await resDepts.json();
+                    const selectDept = document.getElementById('signupDept');
+                    selectDept.innerHTML = '<option value="">Select Line Department (If applicable)...</option>';
+                    depts.forEach(d => {
+                        selectDept.innerHTML += `<option value="${d.id}">${d.name}</option>`;
+                    });
+                }
+            } catch (err) {
+                console.warn("Departments fetch failed", err);
+            }
+        }
+
+        // Handle Role Selection Rules (e.g. Disable Department for Citizens)
+        function handleRoleChange() {
+            const roleSelect = document.getElementById('signupRole');
+            const selectedOpt = roleSelect.options[roleSelect.selectedIndex];
+            const code = selectedOpt ? selectedOpt.getAttribute('data-code') : '';
+            const deptGroup = document.getElementById('groupSignupDept');
+            const deptSelect = document.getElementById('signupDept');
+
+            if (code && code.includes('CITIZEN')) {
+                deptSelect.value = '';
+                deptSelect.disabled = true;
+                deptGroup.style.opacity = '0.5';
+            } else {
+                deptSelect.disabled = false;
+                deptGroup.style.opacity = '1';
+            }
+        }
+
+        // HANDLE LOGIN SUBMISSION
+        async function handleLogin(e) {
+            e.preventDefault();
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            const spinner = document.getElementById('loginSpinner');
+            const btn = document.getElementById('btnLoginSubmit');
+
+            if (!username || !password) {
+                showToast('Validation Error', 'Please fill in both username and password.', 'error');
+                return;
+            }
+
+            spinner.style.display = 'inline-block';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/api/auth/login/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    localStorage.setItem('ndis_access_token', data.tokens.access);
+                    localStorage.setItem('ndis_refresh_token', data.tokens.refresh);
+                    localStorage.setItem('ndis_user', JSON.stringify(data.user));
+
+                    showToast('Login Successful!', `Welcome back, ${data.user.first_name || data.user.username}! Redirecting...`, 'success');
+                    
+                    setTimeout(() => {
+                        window.location.href = '/facilities/';
+                    }, 1200);
+                } else {
+                    const errorMsg = data.detail || data.error || (data.non_field_errors ? data.non_field_errors.join(', ') : 'Invalid credentials.');
+                    showToast('Login Failed', errorMsg, 'error');
+                }
+            } catch (err) {
+                console.error("Login Error:", err);
+                showToast('Network Error', 'Unable to reach authentication server.', 'error');
+            } finally {
+                spinner.style.display = 'none';
+                btn.disabled = false;
+            }
+        }
+
+        // HANDLE SIGNUP SUBMISSION
+        async function handleSignup(e) {
+            e.preventDefault();
+            const username = document.getElementById('signupUsername').value.trim();
+            const email = document.getElementById('signupEmail').value.trim();
+            const password = document.getElementById('signupPassword').value;
+            const confirm_password = document.getElementById('signupConfirmPassword').value;
+            const first_name = document.getElementById('signupFirstName').value.trim();
+            const last_name = document.getElementById('signupLastName').value.trim();
+            const phone = document.getElementById('signupPhone').value.trim();
+            const designation = document.getElementById('signupDesignation').value.trim();
+            const role = document.getElementById('signupRole').value;
+            const department = document.getElementById('signupDept').value;
+
+            const spinner = document.getElementById('signupSpinner');
+            const btn = document.getElementById('btnSignupSubmit');
+
+            if (password !== confirm_password) {
+                showToast('Password Mismatch', 'Password and Confirm Password do not match.', 'error');
+                return;
+            }
+
+            if (!role) {
+                showToast('Validation Error', 'Please select an account role.', 'error');
+                return;
+            }
+
+            const payload = {
+                username,
+                email,
+                password,
+                confirm_password,
+                first_name,
+                last_name,
+                phone,
+                designation,
+                role: parseInt(role),
+                department: department ? parseInt(department) : null,
+                district: 1, // Default Nalanda District
+                state: 1     // Default Bihar
+            };
+
+            spinner.style.display = 'inline-block';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/api/auth/signup/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+
+                if (response.status === 201) {
+                    localStorage.setItem('ndis_access_token', data.tokens.access);
+                    localStorage.setItem('ndis_refresh_token', data.tokens.refresh);
+                    localStorage.setItem('ndis_user', JSON.stringify(data.user));
+
+                    showToast('Registration Successful!', 'Account created! Redirecting to Facilities portal...', 'success');
+                    
+                    setTimeout(() => {
+                        window.location.href = '/facilities/';
+                    }, 1200);
+                } else {
+                    let errorMsg = 'Validation failed. Please check form fields.';
+                    if (typeof data === 'object') {
+                        const messages = [];
+                        for (let k in data) {
+                            const errVal = Array.isArray(data[k]) ? data[k].join(', ') : data[k];
+                            messages.push(`${k}: ${errVal}`);
+                        }
+                        if (messages.length > 0) errorMsg = messages.join(' | ');
+                    }
+                    showToast('Registration Failed', errorMsg, 'error');
+                }
+            } catch (err) {
+                console.error("Signup Error:", err);
+                showToast('Network Error', 'Unable to connect to server.', 'error');
+            } finally {
+                spinner.style.display = 'none';
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

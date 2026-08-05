@@ -5,7 +5,8 @@ from myapp.models import (
     Role, Permission, RolePermission, User, UserDistrictScope,Facility, FacilityHistory,
     WorkflowInstance, WorkflowTransition, GapScore, Proposal, BudgetApproval, Citizengrievance,
     DocumentFile, NotificationTemplate, NotificationDispatchLog, AuditEventLog, Recommendation,
-    GISCatalogEntry, GISDatasetVersionHistory, GISDataProvenance, GISProcessingJob,GISLayerFeature
+    GISCatalogEntry, GISDatasetVersionHistory, GISDataProvenance, GISProcessingJob,GISLayerFeature,
+    Complaint,ComplaintCategory,ComplaintStatus,ComplaintEvidence,ComplaintPriority,ComplaintTimeline
 )
 
 try:
@@ -335,3 +336,63 @@ class GISLayerFeatureAdmin(admin.ModelAdmin):
     list_display = ["feature_id", "name", "properties", "geom_geojson","geom"]
     # list_filter = ["name", "layer"]
     # search_fields = ["id", "name"]
+
+
+# ==========================================
+# COMPLAINT MANAGEMENT ADMIN REGISTRATIONS
+# ==========================================
+
+@admin.register(ComplaintCategory)
+class ComplaintCategoryAdmin(admin.ModelAdmin):
+    list_display = ["name", "department", "default_priority", "default_sla_hours", "icon", "created_at"]
+    list_filter = ["department", "default_priority"]
+    search_fields = ["name", "department__name"]
+
+
+class ComplaintEvidenceInline(admin.TabularInline):
+    model = ComplaintEvidence
+    extra = 0
+    readonly_fields = ["file_name", "file_type", "stage", "uploaded_by", "latitude", "longitude", "is_geotag_verified", "created_at"]
+
+
+class ComplaintTimelineInline(admin.TabularInline):
+    model = ComplaintTimeline
+    extra = 0
+    readonly_fields = ["action", "from_status", "to_status", "performed_by", "performer_role", "remarks", "created_at"]
+
+
+@admin.register(Complaint)
+class ComplaintAdmin(admin.ModelAdmin):
+    list_display = [
+        "tracking_no",
+        "title",
+        "category",
+        "department",
+        "status",
+        "priority",
+        "citizen_name",
+        "assigned_officer",
+        "is_sla_breached",
+        "created_at",
+    ]
+    list_filter = ["status", "priority", "department", "is_sla_breached", "district"]
+    search_fields = ["tracking_no", "title", "description", "citizen_name", "citizen_phone"]
+    readonly_fields = ["tracking_no", "sla_deadline", "is_sla_breached", "resolved_at", "closed_at", "created_at", "updated_at"]
+    inlines = [ComplaintEvidenceInline, ComplaintTimelineInline]
+    ordering = ["-created_at"]
+
+
+@admin.register(ComplaintEvidence)
+class ComplaintEvidenceAdmin(admin.ModelAdmin):
+    list_display = ["complaint", "file_name", "file_type", "stage", "uploaded_by", "is_geotag_verified", "created_at"]
+    list_filter = ["file_type", "stage", "is_geotag_verified"]
+    search_fields = ["complaint__tracking_no", "file_name"]
+
+
+@admin.register(ComplaintTimeline)
+class ComplaintTimelineAdmin(admin.ModelAdmin):
+    list_display = ["complaint", "action", "from_status", "to_status", "performed_by", "performer_role", "created_at"]
+    list_filter = ["action", "to_status"]
+    search_fields = ["complaint__tracking_no", "remarks", "performer_role"]
+
+

@@ -115,6 +115,90 @@
             color: var(--accent-color);
         }
 
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .btn-header-nav {
+            background: rgba(51, 65, 85, 0.5);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-header-nav:hover {
+            background: rgba(56, 189, 248, 0.15);
+            border-color: var(--accent-color);
+            color: var(--accent-color);
+        }
+
+        .btn-header-login {
+            background: linear-gradient(135deg, #0284c7 0%, #6366f1 100%);
+            color: #ffffff;
+            padding: 7px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 0 12px rgba(56, 189, 248, 0.3);
+            transition: all 0.25s ease;
+        }
+
+        .btn-header-login:hover {
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.5);
+            transform: translateY(-1px);
+        }
+
+        .user-header-badge {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            background: rgba(30, 41, 59, 0.85);
+            border: 1px solid var(--border-color);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+        }
+
+        .user-avatar-sm {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent-color), #6366f1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            color: white;
+        }
+
+        .btn-header-logout {
+            background: transparent;
+            border: none;
+            color: #ef4444;
+            cursor: pointer;
+            font-size: 0.85rem;
+            margin-left: 4px;
+            transition: color 0.2s;
+        }
+
+        .btn-header-logout:hover {
+            color: #f87171;
+        }
+
         /* App Container */
         .app-container {
             display: flex;
@@ -486,6 +570,26 @@
                 <span>Active Layers: <strong id="active-layers-count">0</strong></span>
             </div>
         </div>
+
+        <div class="header-actions">
+            <a href="/facilities/" class="btn-header-nav">
+                <i class="fa-solid fa-building-columns"></i> Facilities UI
+            </a>
+
+            <!-- Shown when NOT logged in -->
+            <a id="navLoginBtn" href="/login/" class="btn-header-login">
+                <i class="fa-solid fa-right-to-bracket"></i> Sign In / Register
+            </a>
+
+            <!-- Shown when logged in -->
+            <div id="navUserBadge" class="user-header-badge">
+                <div class="user-avatar-sm"><i class="fa-solid fa-user"></i></div>
+                <span id="navUserName" style="font-weight: 600;">User</span>
+                <button id="navLogoutBtn" class="btn-header-logout" title="Logout">
+                    <i class="fa-solid fa-power-off"></i>
+                </button>
+            </div>
+        </div>
     </header>
 
     <!-- Main Container -->
@@ -848,9 +952,39 @@
             }
         }
 
+        function checkHeaderAuthSession() {
+            const userStr = localStorage.getItem('ndis_user');
+            const token = localStorage.getItem('ndis_access_token');
+            const loginBtn = document.getElementById('navLoginBtn');
+            const userBadge = document.getElementById('navUserBadge');
+            const userName = document.getElementById('navUserName');
+
+            if (userStr && token) {
+                try {
+                    const user = JSON.parse(userStr);
+                    userName.innerText = (user.first_name || user.username);
+                    loginBtn.style.display = 'none';
+                    userBadge.style.display = 'flex';
+                } catch(e) {
+                    console.error("Session parse error", e);
+                }
+            } else {
+                loginBtn.style.display = 'flex';
+                userBadge.style.display = 'none';
+            }
+        }
+
+        document.getElementById('navLogoutBtn')?.addEventListener('click', () => {
+            localStorage.removeItem('ndis_access_token');
+            localStorage.removeItem('ndis_refresh_token');
+            localStorage.removeItem('ndis_user');
+            checkHeaderAuthSession();
+        });
+
         // Load on ready
         loadGisCatalog().then(() => {
             checkUrlParamsAndHighlight();
+            checkHeaderAuthSession();
         });
     </script>
 </body>

@@ -658,6 +658,16 @@ The backend includes built-in interactive web applications built with HTML5, CSS
   - Version History Audit Timeline Modal.
   - One-click GeoJSON Export download.
 
+### 7.3 Single Sign-On Authentication UI Portal
+- **URL:** `http://127.0.0.1:8000/login/` or `http://127.0.0.1:8000/signup/`
+- **Features:**
+  - High-end glassmorphic responsive interface with smooth Sign In / Sign Up tab switching.
+  - Dynamic loading of RBAC Roles and Line Departments from backend REST APIs.
+  - Role-driven input behavior (e.g., automatically hiding/disabling department assignment for citizen roles).
+  - Client-side validation, password visibility toggles, and floating toast alert system.
+  - Automatic JWT token (`access` & `refresh`) and user session storage in `localStorage`.
+  - Active session detection card with quick navigation to GIS Map & Facilities.
+
 ---
 
 ## 8. Error Handling & HTTP Status Codes
@@ -722,3 +732,65 @@ async function renderFacilitiesGeoJSON(mapInstance, categoryId) {
     }
 }
 ```
+
+---
+
+## 10. Complaint Management System & GIS Geo-routing Architecture
+
+### 10.1 System Overview
+The **Complaint Management System** provides end-to-end infrastructure grievance registration, auto-routing engine, workflow state machine, evidence verification, audit timeline, notifications, and spatial analytics dashboards.
+
+### 10.2 Fixed System Roles
+1. `CITIZEN_REGISTERED` / `CITIZEN_ANONYMOUS`: Citizen
+2. `DISTRICT_COLLECTOR`: District Collector
+3. `DISTRICT_MAGISTRATE` / `DM`: District Magistrate
+4. `ADM`: Additional District Magistrate
+5. `DEPARTMENT_HEAD`: Department Head
+6. `DEPARTMENT_OFFICER`: Department Officer
+7. `EXECUTIVE_ENGINEER`: Executive / Assistant Engineer
+8. `FIELD_INSPECTOR`: Field Inspector / Junior Engineer
+9. `FIELD_SUPERVISOR`: Field Supervisor
+10. `STATE_ADMIN`: State Administrator
+
+### 10.3 Dynamic Departments & Defect Categories
+Complaint Category automatically routes tickets to responsible line departments with SLA targets:
+- `Broken Handpump / Borewell Defect` $\rightarrow$ Water Resources Department (SLA: 24h)
+- `Piped Water Leakage / Contamination` $\rightarrow$ Water Resources Department (SLA: 12h)
+- `Garbage Accumulation / Sanitation` $\rightarrow$ Urban Development & Infra (SLA: 24h)
+- `Non-Functional Street Light` $\rightarrow$ Urban Development & Infra (SLA: 48h)
+- `Transformer Failure / Power Outage` $\rightarrow$ Public Works & Transport Dept (SLA: 6h)
+- `Hospital Staff / Oxygen / Facility Issue` $\rightarrow$ Health Department (SLA: 12h)
+- `School Infrastructure / Roof / Sanitation` $\rightarrow$ Education Department (SLA: 48h)
+- `Road Potholes / Damaged Bridge` $\rightarrow$ Public Works & Transport Dept (SLA: 72h)
+
+### 10.4 Complete Workflow Lifecycle
+`SUBMITTED` $\rightarrow$ `ASSIGNED` $\rightarrow$ `ACCEPTED` $\rightarrow$ `INSPECTION_STARTED` $\rightarrow$ `EVIDENCE_UPLOADED` $\rightarrow$ `RESOLVED` $\rightarrow$ `CITIZEN_VERIFICATION` $\rightarrow$ `CLOSED`
+*(Support for Reopen, Transfer, Escalate, and Reject transitions).*
+
+### 10.5 Complaint Management API Reference
+| Endpoint | Method | Role Permission | Description |
+| :--- | :--- | :--- | :--- |
+| `/api/complaints/` | `GET` | Authenticated / Public | List complaints filtered by role/department scope |
+| `/api/complaints/` | `POST` | Authenticated Citizen | Create complaint with auto-routing & spatial calculations |
+| `/api/complaints/{id}/assign/` | `POST` | Department Head / Admin | Assign ticket to Department Officer / Engineer |
+| `/api/complaints/{id}/accept/` | `POST` | Department Officer | Accept assigned ticket |
+| `/api/complaints/{id}/start-inspection/` | `POST` | Executive Engineer / Officer | Initiate site inspection phase |
+| `/api/complaints/{id}/upload-evidence/` | `POST` | Field Inspector / Citizen | Upload geotagged photos, videos, or PDFs |
+| `/api/complaints/{id}/resolve/` | `POST` | Department Officer | Mark complaint as resolved with summary |
+| `/api/complaints/{id}/citizen-feedback/` | `POST` | Citizen | Submit 1-5 star rating and feedback comment |
+| `/api/complaints/{id}/close/` | `POST` | Department Officer / Citizen | Close resolved complaint |
+| `/api/complaints/{id}/reopen/` | `POST` | Citizen | Reopen unresolved complaint |
+| `/api/complaints/{id}/transfer/` | `POST` | Department Staff | Transfer ticket to another line department |
+| `/api/complaints/{id}/escalate/` | `POST` | Officer / ADM / DM | Escalate ticket to District Magistrate / ADM |
+| `/api/complaints/{id}/reject/` | `POST` | Department Staff | Reject complaint with reason |
+| `/api/complaints/{id}/timeline/` | `GET` | Authenticated | Fetch complete audit timeline log |
+| `/api/complaints/geojson/` | `GET` | Public / Authenticated | Export complaints as GeoJSON FeatureCollection |
+| `/api/complaints/heatmap/` | `GET` | Public / Authenticated | Fetch weighted spatial points for GIS Heatmaps |
+| `/api/complaints/nearby/` | `GET` | Public / Authenticated | Query complaints within spatial radius (m) |
+| `/api/complaints/nearest-facility/` | `GET` | Public / Authenticated | Locate nearest spatial facility for lat/lng |
+| `/api/dashboards/citizen/` | `GET` | Citizen | Citizen portal metrics summary |
+| `/api/dashboards/department/` | `GET` | Department Staff | Department level SLA & queue metrics |
+| `/api/dashboards/officer/` | `GET` | Officer / Engineer | Daily work queue & pending task metrics |
+| `/api/dashboards/district/` | `GET` | ADM / DM / Collector | District-wide department & status metrics |
+| `/api/dashboards/state/` | `GET` | State Admin | District rankings & comparison matrix |
+| `/api/notifications/` | `GET` | Authenticated User | Dispatched notifications list |

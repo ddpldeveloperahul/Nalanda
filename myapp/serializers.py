@@ -4,7 +4,6 @@ from django.contrib.auth.password_validation import validate_password
 from django.db.models import Q
 from rest_framework_simplejwt.tokens import RefreshToken
 from myapp.models import (
-
     User,
     State,
     District,
@@ -16,6 +15,12 @@ from myapp.models import (
     GISLayerFeature,
     Facility,
     FacilityHistory,
+    ComplaintCategory,
+    Complaint,
+    ComplaintEvidence,
+    ComplaintTimeline,
+    NotificationTemplate,
+    NotificationDispatchLog,
 )
 
 
@@ -410,5 +415,172 @@ class FacilitySerializer(serializers.ModelSerializer):
                     except Exception as e:
                         raise serializers.ValidationError({"geom": f"Invalid GeoJSON geometry: {str(e)}"})
         return super().to_internal_value(data)
+
+
+class ComplaintCategorySerializer(serializers.ModelSerializer):
+    department_name = serializers.CharField(source="department.name", read_only=True)
+
+    class Meta:
+        model = ComplaintCategory
+        fields = [
+            "id",
+            "name",
+            "department",
+            "department_name",
+            "default_priority",
+            "default_sla_hours",
+            "icon",
+            "description",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+
+class ComplaintEvidenceSerializer(serializers.ModelSerializer):
+    uploaded_by_name = serializers.CharField(source="uploaded_by.get_full_name", read_only=True)
+
+    class Meta:
+        model = ComplaintEvidence
+        fields = [
+            "id",
+            "complaint",
+            "file",
+            "file_name",
+            "file_type",
+            "stage",
+            "uploaded_by",
+            "uploaded_by_name",
+            "latitude",
+            "longitude",
+            "is_geotag_verified",
+            "distance_from_pin_m",
+            "created_at",
+        ]
+        read_only_fields = ["id", "created_at"]
+
+
+class ComplaintTimelineSerializer(serializers.ModelSerializer):
+    performed_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ComplaintTimeline
+        fields = [
+            "id",
+            "complaint",
+            "action",
+            "from_status",
+            "to_status",
+            "performed_by",
+            "performed_by_name",
+            "performer_role",
+            "remarks",
+            "metadata",
+            "created_at",
+        ]
+        read_only_fields = ["id", "created_at"]
+
+    def get_performed_by_name(self, obj):
+        if obj.performed_by:
+            full = obj.performed_by.get_full_name()
+            return full if full else obj.performed_by.username
+        return "System"
+
+
+class ComplaintSerializer(serializers.ModelSerializer):
+    category_name = serializers.CharField(source="category.name", read_only=True)
+    department_name = serializers.CharField(source="department.name", read_only=True)
+    district_name = serializers.CharField(source="district.name", read_only=True)
+    block_name = serializers.CharField(source="block.name", read_only=True)
+    village_ward_name = serializers.CharField(source="village_ward.name", read_only=True)
+    assigned_officer_name = serializers.SerializerMethodField()
+    assigned_inspector_name = serializers.SerializerMethodField()
+    evidences = ComplaintEvidenceSerializer(many=True, read_only=True)
+    timeline = ComplaintTimelineSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Complaint
+        fields = [
+            "id",
+            "tracking_no",
+            "title",
+            "description",
+            "category",
+            "category_name",
+            "department",
+            "department_name",
+            "citizen_user",
+            "citizen_name",
+            "citizen_phone",
+            "citizen_email",
+            "is_identity_masked",
+            "assigned_officer",
+            "assigned_officer_name",
+            "assigned_inspector",
+            "assigned_inspector_name",
+            "status",
+            "priority",
+            "sla_target_hours",
+            "sla_deadline",
+            "is_sla_breached",
+            "latitude",
+            "longitude",
+            "district",
+            "district_name",
+            "subdivision",
+            "block",
+            "block_name",
+            "village_ward",
+            "village_ward_name",
+            "nearest_facility",
+            "nearest_facility_name",
+            "nearest_facility_distance_m",
+            "nearest_gis_feature",
+            "resolution_summary",
+            "rejection_reason",
+            "transfer_reason",
+            "escalation_reason",
+            "rating",
+            "feedback_comment",
+            "evidences",
+            "timeline",
+            "resolved_at",
+            "closed_at",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "tracking_no",
+            "sla_deadline",
+            "is_sla_breached",
+            "resolved_at",
+            "closed_at",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_assigned_officer_name(self, obj):
+        if obj.assigned_officer:
+            full = obj.assigned_officer.get_full_name()
+            return full if full else obj.assigned_officer.username
+        return None
+
+    def get_assigned_inspector_name(self, obj):
+        if obj.assigned_inspector:
+            full = obj.assigned_inspector.get_full_name()
+            return full if full else obj.assigned_inspector.username
+        return None
+
+
+class ComplaintActionSerializer(serializers.Serializer):
+    target_user_id = serializers.IntegerField(required=False, allow_null=True)
+    target_department_id = serializers.IntegerField(required=False, allow_null=True)
+    remarks = serializers.CharField(required=False, allow_blank=True, default="")
+    reason = serializers.CharField(required=False, allow_blank=True, default="")
+    resolution_summary = serializers.CharField(required=False, allow_blank=True, default="")
+    rating = serializers.IntegerField(required=False, allow_null=True)
+    feedback_comment = serializers.CharField(required=False, allow_blank=True, default="")
+
 
 

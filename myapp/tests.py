@@ -141,3 +141,90 @@ class AuthenticationAPITests(TestCase):
         response = self.client.post(self.refresh_url, {"refresh": refresh_token}, format="json")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("access", response.data)
+
+
+class ComplaintSystemTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.state = State.objects.create(name="Bihar")
+        self.district = District.objects.create(state=self.state, name="Nalanda")
+        self.department = Department.objects.create(name="Health Department")
+        self.water_dept = Department.objects.create(name="Water Resources Department")
+
+        from myapp.models import Role, ComplaintCategory, ComplaintPriority
+        self.citizen_role = Role.objects.create(name="Citizen", code="CITIZEN_REGISTERED")
+        self.officer_role = Role.objects.create(name="Department Officer", code="DEPARTMENT_OFFICER")
+
+        self.citizen = User.objects.create_user(
+            username="citizen_sunita",
+            email="sunita@example.com",
+            password="password123",
+            role=self.citizen_role,
+            first_name="Sunita",
+            last_name="Devi"
+        )
+        self.officer = User.objects.create_user(
+            username="officer_rahul",
+            email="rahul@example.com",
+            password="password123",
+            role=self.officer_role,
+            department=self.water_dept,
+            first_name="Rahul",
+            last_name="Kumar"
+        )
+
+        self.category = ComplaintCategory.objects.create(
+            name="Broken Handpump / Borewell Defect",
+            department=self.water_dept,
+            default_priority=ComplaintPriority.HIGH,
+            default_sla_hours=24
+        )
+
+    def test_create_and_auto_route_complaint(self):
+        self.client.force_authenticate(user=self.citizen)
+        payload = {
+            "title": "Broken Handpump at Rajgir Ward 02",
+            "description": "Handpump broken since last 3 days.",
+            "category": self.category.id,
+            "latitude": 25.0300,
+            "longitude": 85.4200,
+            "district": self.district.id
+        }
+        res = self.client.post("/api/complaints/", payload, format="json")
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertIn("tracking_no", res.data)
+        self.assertEqual(res.data["department_name"], "Water Resources Department")
+        self.assertEqual(res.data["status"], "SUBMITTED")
+
+    def test_complaint_workflow_lifecycle(self):
+        # 1. Create
+        self.client.force_authenticate(user=self.citizen)
+        payload = {
+            "title": "Water Leakage",
+            "description": "Piped water leakage near main road.",
+            "category": self.category.id,
+            "district": self.district.id
+        }
+        res_create = self.client.post("/api/complaints/", payload, format="json")
+        cmp_id = res_create.data["id"]
+
+        # 2. Assign to Officer
+        self.client.force_authenticate(user=self.officer)
+        res_assign = self.client.post(f"/api/complaints/{cmp_id}/assign/", {"target_user_id": self.officer.id, "remarks": "Assigned to Rahul"}, format="json")
+        self.assertEqual(res_assign.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_assign.data["status"], "ASSIGNED")
+
+        # 3. Accept
+        res_accept = self.client.post(f"/api/complaints/{cmp_id}/accept/", {"remarks": "Accepted task"}, format="json")
+        self.assertEqual(res_accept.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_accept.data["status"], "ACCEPTED")
+
+        # 4. Resolve
+        res_resolve = self.client.post(f"/api/complaints/{cmp_id}/resolve/", {"resolution_summary": "Fixed broken valve."}, format="json")
+        self.assertEqual(res_resolve.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_resolve.data["status"], "RESOLVED")
+
+        # 5. Timeline audit log
+        res_timeline = self.client.get(f"/api/complaints/{cmp_id}/timeline/")
+        self.assertEqual(res_timeline.status_code, status.HTTP_200_OK)
+        self.assertGreaterEqual(len(res_timeline.data), 4)
