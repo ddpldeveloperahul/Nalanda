@@ -206,6 +206,21 @@ class ComplaintSystemTests(TestCase):
         self.assertEqual(res.data["department_name"], "Water Resources Department")
         self.assertEqual(res.data["status"], "SUBMITTED")
 
+    def test_complaint_creation_latitude_longitude_typos(self):
+        self.client.force_authenticate(user=self.citizen)
+        payload = {
+            "title": "Broken Handpump",
+            "description": "Handpump broken near main square.",
+            "category": self.category.id,
+            "latitute": "25.1967",
+            "longitute": "85.5142",
+            "district": self.district.id
+        }
+        res = self.client.post("/api/complaints/", payload, format="json")
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(res.data["latitude"], 25.1967)
+        self.assertEqual(res.data["longitude"], 85.5142)
+
     def test_complaint_workflow_lifecycle(self):
         # 1. Create
         self.client.force_authenticate(user=self.citizen)

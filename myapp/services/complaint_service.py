@@ -34,8 +34,20 @@ if HAS_GEODJANGO:
 
 def calculate_haversine_distance_m(lat1, lon1, lat2, lon2):
     """Calculates Haversine distance in meters between two lat/lng pairs."""
-    if lat1 is None or lon1 is None or lat2 is None or lon2 is None:
+    try:
+        if isinstance(lat1, (list, tuple)): lat1 = lat1[0]
+        if isinstance(lon1, (list, tuple)): lon1 = lon1[0]
+        if isinstance(lat2, (list, tuple)): lat2 = lat2[0]
+        if isinstance(lon2, (list, tuple)): lon2 = lon2[0]
+
+        if lat1 is None or lon1 is None or lat2 is None or lon2 is None:
+            return 999999.0
+
+        lat1, lon1 = float(lat1), float(lon1)
+        lat2, lon2 = float(lat2), float(lon2)
+    except (ValueError, TypeError):
         return 999999.0
+
     R = 6371000.0 # Radius of Earth in meters
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
     delta_phi = math.radians(lat2 - lat1)
@@ -239,6 +251,17 @@ class ComplaintService:
 
             lat = validated_data.get("latitude")
             lng = validated_data.get("longitude")
+
+            if isinstance(lat, (list, tuple)): lat = lat[0]
+            if isinstance(lng, (list, tuple)): lng = lng[0]
+
+            if lat is not None:
+                try: lat = float(lat)
+                except (ValueError, TypeError): lat = None
+
+            if lng is not None:
+                try: lng = float(lng)
+                except (ValueError, TypeError): lng = None
 
             # Spatial Calculations for Nearest Facility & Administrative Boundaries
             nearest_fac = None

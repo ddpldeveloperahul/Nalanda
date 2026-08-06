@@ -560,6 +560,46 @@ class ComplaintSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
 
+    def to_internal_value(self, data):
+        if hasattr(data, 'dict'):
+            data_dict = data.dict()
+        elif hasattr(data, 'copy'):
+            data_dict = data.copy()
+        else:
+            data_dict = dict(data)
+
+        # Flexible Latitude parsing (handles latitude, latitute, lat, Lat, etc.)
+        lat_val = None
+        for key in ["latitude", "latitute", "lat", "Lat", "Latitude", "Latitute"]:
+            if key in data_dict and data_dict[key] not in [None, "", "null", "undefined"]:
+                lat_val = data_dict[key]
+                break
+
+        if lat_val is not None:
+            try:
+                if isinstance(lat_val, (list, tuple)):
+                    lat_val = lat_val[0]
+                data_dict["latitude"] = float(lat_val)
+            except (ValueError, TypeError):
+                pass
+
+        # Flexible Longitude parsing (handles longitude, longitute, lng, long, lon, Lng, etc.)
+        lng_val = None
+        for key in ["longitude", "longitute", "lng", "long", "lon", "Lng", "Long", "Longitude", "Longitute"]:
+            if key in data_dict and data_dict[key] not in [None, "", "null", "undefined"]:
+                lng_val = data_dict[key]
+                break
+
+        if lng_val is not None:
+            try:
+                if isinstance(lng_val, (list, tuple)):
+                    lng_val = lng_val[0]
+                data_dict["longitude"] = float(lng_val)
+            except (ValueError, TypeError):
+                pass
+
+        return super().to_internal_value(data_dict)
+
     def get_assigned_officer_name(self, obj):
         if obj.assigned_officer:
             full = obj.assigned_officer.get_full_name()
