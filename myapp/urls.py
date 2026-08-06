@@ -37,8 +37,13 @@ urlpatterns = [
     path('api/gis/catalog/', views.GISCatalogListView.as_view(), name='gis-catalog-list'),
     path('api/gis/layers/<str:layer_name>/', views.GISLayerGeoJSONView.as_view(), name='gis-layer-geojson'),
     path('api/gis/upload-layer/', views.GISLayerUploadView.as_view(), name='gis-layer-upload'),
-    
-    #GIS RESTful CRUD ViewSets
+
+    # Department Specific Complaints API
+    path('api/department/<str:department_id>/complain/', views.DepartmentComplaintsAPIView.as_view(), name='department-complaints-singular'),
+    path('api/department/<str:department_id>/complaints/', views.DepartmentComplaintsAPIView.as_view(), name='department-complaints-plural'),
+    path('api/departments/<str:department_id>/complain/', views.DepartmentComplaintsAPIView.as_view(), name='departments-complaints-singular'),
+
+    # GIS RESTful CRUD ViewSets
     path('api/', include(router.urls)),
 ]
 

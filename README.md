@@ -186,6 +186,7 @@ For every dropped pin location (`latitude, longitude`):
 - **Escalate:** `POST /api/complaints/{id}/escalate/` `{"reason": "..."}`
 - **Reject:** `POST /api/complaints/{id}/reject/` `{"reason": "..."}`
 - **Timeline Log:** `GET /api/complaints/{id}/timeline/`
+- **Department Complaint Breakdown & List:** `GET /api/department/{department_id}/complain/` *(Also supports name e.g. `/api/department/Health/complain/`)*
 
 #### Spatial & Heatmap Endpoints
 - **GeoJSON Export:** `GET /api/complaints/geojson/`
@@ -195,13 +196,18 @@ For every dropped pin location (`latitude, longitude`):
 
 ---
 
-## 6. Executive Analytics Dashboards & Notifications
+## 6. Executive Analytics Dashboards & Notifications (Strict Role RBAC)
 
-- `GET /api/dashboards/citizen/` $\rightarrow$ Total, pending, resolved counts & my complaints
-- `GET /api/dashboards/department/` $\rightarrow$ Department queue, assigned, pending, resolved & SLA breached counts
-- `GET /api/dashboards/officer/` $\rightarrow$ Today's work queue & pending assigned tasks
-- `GET /api/dashboards/district/` $\rightarrow$ District department-wise, status-wise & priority-wise breakdown
-- `GET /api/dashboards/state/` $\rightarrow$ District rankings comparison matrix
+- `GET /api/dashboards/my-dashboard/` $\rightarrow$ Unified auto-routing dashboard tailored to logged-in user's role
+- `GET /api/dashboards/citizen/` $\rightarrow$ Citizen personal grievance stats, status tracker & feedback *(Citizen access only)*
+- `GET /api/dashboards/department/` $\rightarrow$ Department queue, assigned, pending, resolved & SLA breached counts *(Department Head)*
+- `GET /api/dashboards/officer/` $\rightarrow$ Officer daily work queue & assigned task execution *(Department Officer / Engineers)*
+- `GET /api/dashboards/field-inspector/` $\rightarrow$ Field Mobile PWA inspection queue & geotag evidence verification
+- `GET /api/dashboards/district/` $\rightarrow$ District department-wise, status-wise & priority-wise breakdown *(Collector / DM / ADM)*
+- `GET /api/dashboards/district-collector/` $\rightarrow$ District Collector Command Center & SLA leaderboards
+- `GET /api/dashboards/dm/` $\rightarrow$ District Magistrate Executive Command Center
+- `GET /api/dashboards/adm/` $\rightarrow$ Additional District Magistrate Sector Grievance Dashboard
+- `GET /api/dashboards/state/` $\rightarrow$ State Admin cross-district KPI comparison & ranking matrix
 - `GET /api/notifications/` $\rightarrow$ Dispatched notifications list for current logged-in user
 
 ---

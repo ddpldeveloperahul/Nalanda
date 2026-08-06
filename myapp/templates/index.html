@@ -712,12 +712,47 @@
                     document.getElementById('total-layers-count').innerText = data.total_layers;
                     renderSidebarCategories(data.categories);
 
-                    // Auto-load District and Block boundaries as default
+                    // Always auto-load District and Block boundaries as default background layers
                     toggleLayer('District_boundary', true);
                     toggleLayer('Block_boundary', true);
                 }
             } catch (err) {
                 console.error("Failed to load GIS catalog:", err);
+            }
+        }
+
+        async function checkUrlParamsAndHighlight() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const facilityId = urlParams.get('facility_id');
+            const lat = parseFloat(urlParams.get('lat'));
+            const lng = parseFloat(urlParams.get('lng'));
+            const name = urlParams.get('name');
+            const layer = urlParams.get('layer');
+
+            // 1. Auto-load all points of the selected category layer (e.g. Bank, Hospital, School)
+            if (layer) {
+                toggleLayer(layer, true);
+            }
+
+            // 2. Highlight the clicked facility pin in RED with pulsing marker & popup
+            if (!isNaN(lat) && !isNaN(lng)) {
+                map.setView([lat, lng], 14);
+
+                const icon = L.divIcon({
+                    className: 'custom-facility-marker-pulse',
+                    html: `<div style="background:#ef4444; width:24px; height:24px; border-radius:50%; border:3px solid #ffffff; box-shadow:0 0 20px #ef4444; z-index:9999;"></div>`,
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
+                });
+
+                const marker = L.marker([lat, lng], { icon: icon, zIndexOffset: 1000 }).addTo(map);
+                marker.bindPopup(`
+                    <div style="font-family:'Inter',sans-serif; padding:4px;">
+                        <h4 style="margin:0 0 4px 0; color:#0f172a; font-size:0.95rem; font-weight:700;">${name || 'Selected Facility'}</h4>
+                        <p style="margin:0; font-size:0.8rem; color:#64748b;">Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}</p>
+                        ${facilityId ? `<p style="margin:4px 0 0 0; font-size:0.75rem; color:#3b82f6; font-weight:600;">Facility ID: #${facilityId}</p>` : ''}
+                    </div>
+                `).openPopup();
             }
         }
 
@@ -918,39 +953,6 @@
                 toggleLayer(name, false);
             }
         });
-
-        async function checkUrlParamsAndHighlight() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const facilityId = urlParams.get('facility_id');
-            const lat = parseFloat(urlParams.get('lat'));
-            const lng = parseFloat(urlParams.get('lng'));
-            const name = urlParams.get('name');
-            const layer = urlParams.get('layer');
-
-            if (layer) {
-                toggleLayer(layer, true);
-            }
-
-            if (!isNaN(lat) && !isNaN(lng)) {
-                map.setView([lat, lng], 15);
-
-                const icon = L.divIcon({
-                    className: 'custom-facility-marker-pulse',
-                    html: `<div style="background:#ef4444; width:18px; height:18px; border-radius:50%; border:3px solid #ffffff; box-shadow:0 0 15px #ef4444;"></div>`,
-                    iconSize: [20, 20],
-                    iconAnchor: [10, 10]
-                });
-
-                const marker = L.marker([lat, lng], { icon: icon }).addTo(map);
-                marker.bindPopup(`
-                    <div style="font-family:'Inter',sans-serif; padding:4px;">
-                        <h4 style="margin:0 0 4px 0; color:#0f172a; font-size:0.95rem; font-weight:700;">${name || 'Selected Facility'}</h4>
-                        <p style="margin:0; font-size:0.8rem; color:#64748b;">Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}</p>
-                        ${facilityId ? `<p style="margin:4px 0 0 0; font-size:0.75rem; color:#3b82f6; font-weight:600;">Facility ID: #${facilityId}</p>` : ''}
-                    </div>
-                `).openPopup();
-            }
-        }
 
         function checkHeaderAuthSession() {
             const userStr = localStorage.getItem('ndis_user');

@@ -131,18 +131,8 @@ class VillageWard(models.Model):
 
 
 class Department(models.Model):
-    choose_name =(
-        ("Health","health"),
-        ("Education","education"),
-        ("Transport","transport"),
-        ("Hydrology","hydrology"),
-        ("Environment","environment"),
-        ("Hazards","hazards"),
-        ("Civic","civic"),
-        ("Other","other"),
-    )
     """Line Department Master Entity (e.g., Health, Water Resources, Education, Tourism, Solar)."""
-    name = models.CharField(max_length=150, unique=True, verbose_name="Department Name",choices=choose_name)
+    name = models.CharField(max_length=150, unique=True, verbose_name="Department Name")
     description = models.TextField(blank=True, null=True, verbose_name="Description")
     created_at = models.DateTimeField(auto_now_add=True, db_index=True, verbose_name="Created At")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Updated At")

@@ -238,3 +238,68 @@ class ComplaintSystemTests(TestCase):
         res_timeline = self.client.get(f"/api/complaints/{cmp_id}/timeline/")
         self.assertEqual(res_timeline.status_code, status.HTTP_200_OK)
         self.assertGreaterEqual(len(res_timeline.data), 4)
+
+
+class DashboardSecurityTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        from myapp.models import Role
+        self.citizen_role = Role.objects.create(name="Citizen", code="CITIZEN")
+        self.officer_role = Role.objects.create(name="Department Officer", code="DEPARTMENT_OFFICER")
+        self.dm_role = Role.objects.create(name="District Magistrate", code="DISTRICT_MAGISTRATE")
+
+        self.citizen_user = User.objects.create_user(username="citizen1", password="password123", role=self.citizen_role)
+        self.officer_user = User.objects.create_user(username="officer1", password="password123", role=self.officer_role)
+        self.dm_user = User.objects.create_user(username="dm1", password="password123", role=self.dm_role)
+
+    def test_citizen_dashboard_access(self):
+        self.client.force_authenticate(user=self.citizen_user)
+        res = self.client.get("/api/dashboards/citizen/")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data["role"], "CITIZEN")
+
+    def test_citizen_forbidden_on_executive_dashboards(self):
+        self.client.force_authenticate(user=self.citizen_user)
+        
+        # Citizen hitting Department Dashboard -> 403
+        res_dept = self.client.get("/api/dashboards/department/")
+        self.assertEqual(res_dept.status_code, status.HTTP_403_FORBIDDEN)
+
+        # Citizen hitting District Dashboard -> 403
+        res_dist = self.client.get("/api/dashboards/district/")
+        self.assertEqual(res_dist.status_code, status.HTTP_403_FORBIDDEN)
+
+        # Citizen hitting State Dashboard -> 403
+        res_state = self.client.get("/api/dashboards/state/")
+        self.assertEqual(res_state.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_dm_executive_dashboard_access(self):
+        self.client.force_authenticate(user=self.dm_user)
+        res = self.client.get("/api/dashboards/district/")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data["role"], "DISTRICT_MAGISTRATE")
+
+    def test_my_dashboard_unified_redirect(self):
+        # 1. Citizen unified dashboard
+        self.client.force_authenticate(user=self.citizen_user)
+        res_c = self.client.get("/api/dashboards/my-dashboard/")
+        self.assertEqual(res_c.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_c.data["role"], "CITIZEN")
+
+        # 2. DM unified dashboard
+        self.client.force_authenticate(user=self.dm_user)
+        res_dm = self.client.get("/api/dashboards/my-dashboard/")
+        self.assertEqual(res_dm.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_dm.data["role"], "DISTRICT_MAGISTRATE")
+
+    def test_department_complaints_endpoint(self):
+        dept = Department.objects.create(name="Public Works Department")
+        res = self.client.get(f"/api/department/{dept.id}/complain/")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data["department_id"], dept.id)
+        self.assertEqual(res.data["department_name"], "Public Works Department")
+        self.assertIn("total_complaints", res.data)
+        self.assertIn("status_summary", res.data)
+        self.assertIn("priority_summary", res.data)
+        self.assertIn("complaints", res.data)
+
