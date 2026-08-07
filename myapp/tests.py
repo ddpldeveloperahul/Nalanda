@@ -359,3 +359,49 @@ class DashboardSecurityTests(TestCase):
         res_del = self.client.delete(f"/api/users/{user_id}/")
         self.assertEqual(res_del.status_code, status.HTTP_204_NO_CONTENT)
 
+    def test_spatial_query_engine_excel_presets(self):
+        # Test 1: Nearest health facility finder query
+        res1 = self.client.get("/api/spatial-query/?q=nearest health facility finder&lat=25.0319&lng=85.4164")
+        self.assertEqual(res1.status_code, status.HTTP_200_OK)
+        self.assertEqual(res1.data["status"], "success")
+        self.assertEqual(res1.data["query_info"]["matched_preset_title"], "Nearest health facility finder")
+
+        # Test 2: Nearby drinking water source locator query
+        res2 = self.client.get("/api/spatial-query/?q=nearby drinking water source locator&lat=25.0319&lng=85.4164")
+        self.assertEqual(res2.status_code, status.HTTP_200_OK)
+        self.assertEqual(res2.data["status"], "success")
+        self.assertEqual(res2.data["query_info"]["matched_preset_title"], "Nearby drinking water source locator")
+
+        # Test 3: Unauthenticated/Citizen search for Government Administration query -> 403 Forbidden
+        res3_citizen = self.client.get("/api/spatial-query/?q=block-wise health service gap&lat=25.0319&lng=85.4164")
+        self.assertEqual(res3_citizen.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(res3_citizen.data["status"], "permission_denied")
+
+        # Test 4: Authenticated Admin search for Government Administration & Line Department queries -> 200 OK
+        admin_user = User.objects.create_superuser(username="spatial_admin", email="spatial_admin@example.com", password="password123")
+        self.client.force_authenticate(user=admin_user)
+        res3_admin = self.client.get("/api/spatial-query/?q=block-wise health service gap&lat=25.0319&lng=85.4164")
+        self.assertEqual(res3_admin.status_code, status.HTTP_200_OK)
+        self.assertEqual(res3_admin.data["query_info"]["perspective"], "Government Administration")
+
+        res4_admin = self.client.get("/api/spatial-query/?q=institutions for rooftop solar install&lat=25.0319&lng=85.4164")
+        self.assertEqual(res4_admin.status_code, status.HTTP_200_OK)
+        self.assertEqual(res4_admin.data["query_info"]["perspective"], "Line Departments")
+
+        # Test 5: Listing all presets grouped by perspective
+        res5 = self.client.get("/api/spatial-query/")
+        self.assertEqual(res5.status_code, status.HTTP_200_OK)
+        self.assertIn("query_presets_by_perspective", res5.data)
+        self.assertIn("citizens", res5.data["query_presets_by_perspective"])
+        self.assertIn("government_administration", res5.data["query_presets_by_perspective"])
+        self.assertIn("line_departments", res5.data["query_presets_by_perspective"])
+
+        # Test 6: Department Head officer search for Line Department query -> 200 OK
+        dept_role = Role.objects.create(name="Department Head", code="DEPARTMENT_HEAD")
+        dept_user = User.objects.create_user(username="dept_head_user", email="dept_head@example.com", password="password123", role=dept_role)
+        self.client.force_authenticate(user=dept_user)
+        res6 = self.client.get("/api/spatial-query/?q=Groundwater stress and dependency zones&lat=25.0319&lng=85.4164")
+        self.assertEqual(res6.status_code, status.HTTP_200_OK)
+        self.assertEqual(res6.data["status"], "success")
+        self.assertEqual(res6.data["query_info"]["matched_preset_title"], "Groundwater stress and dependency zones")
+

@@ -26,7 +26,12 @@ from myapp.serializers import (
     ComplaintTimelineSerializer,
     ComplaintActionSerializer,
 )
-from myapp.services.complaint_service import ComplaintService, calculate_haversine_distance_m
+from myapp.services.complaint_service import (
+    ComplaintService,
+    calculate_haversine_distance_m,
+    safe_float,
+    extract_facility_lat_lng
+)
 
 
 def index(request):
@@ -1188,40 +1193,668 @@ class ComplaintViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"], url_path="nearest-facility")
     def nearest_facility(self, request):
-        lat = float(request.query_params.get("lat", 25.1968))
-        lng = float(request.query_params.get("lng", 85.5143))
+        lat = safe_float(request.query_params.get("lat", 25.1968))
+        lng = safe_float(request.query_params.get("lng", 85.5143))
+        limit_val = int(request.query_params.get("limit", 1))
         
-        facilities = Facility.objects.all()[:100]
-        min_dist = 999999.0
-        closest = None
+        facilities = Facility.objects.all()[:200]
+        facility_distances = []
+
         for fac in facilities:
-            fac_lat, fac_lng = None, None
-            if hasattr(fac, 'geom') and fac.geom:
-                try:
-                    if hasattr(fac.geom, 'y'):
-                        fac_lat, fac_lng = fac.geom.y, fac.geom.x
-                    elif isinstance(fac.geom, dict) and 'coordinates' in fac.geom:
-                        coords = fac.geom['coordinates']
-                        fac_lng, fac_lat = coords[0], coords[1]
-                except Exception:
-                    pass
-            if fac_lat and fac_lng:
+            fac_lat, fac_lng = extract_facility_lat_lng(fac)
+            if fac_lat is not None and fac_lng is not None:
                 dist = calculate_haversine_distance_m(lat, lng, fac_lat, fac_lng)
-                if dist < min_dist:
-                    min_dist = dist
-                    closest = fac
+                facility_distances.append({
+                    "id": fac.id,
+                    "name": fac.name,
+                    "category": fac.category.name if fac.category else None,
+                    "department": fac.department.name if fac.department else None,
+                    "latitude": fac_lat,
+                    "longitude": fac_lng,
+                    "distance_m": dist
+                })
         
-        if not closest:
+        facility_distances.sort(key=lambda item: item["distance_m"])
+        
+        if not facility_distances:
             return Response({"message": "No nearby facilities found within district bounds."}, status=status.HTTP_404_NOT_FOUND)
-        
+
+        if limit_val == 1:
+            closest = facility_distances[0]
+            return Response({
+                "nearest_facility": closest
+            }, status=status.HTTP_200_OK)
+
+        top_n = facility_distances[:limit_val]
         return Response({
-            "nearest_facility": {
-                "id": closest.id,
-                "name": closest.name,
-                "category": closest.category.name if closest.category else None,
-                "department": closest.department.name if closest.department else None,
-                "distance_m": min_dist
+            "count": len(top_n),
+            "nearest_facilities": top_n
+        }, status=status.HTTP_200_OK)
+
+
+EXCEL_SPATIAL_QUERIES = [
+    # --- CITIZENS PERSPECTIVE ---
+    {
+        "id": "nearest_health_facility_finder",
+        "title": "Nearest health facility finder",
+        "perspective": "Citizens",
+        "department": "Health Department",
+        "keywords": ["health", "hospital", "phc", "chc", "dispensary", "doctor", "clinic", "nearest health"],
+        "dept_name": "Health Department",
+        "buffer_m": 15000,
+        "hazard_safe_only": False,
+        "layers": ["Hospital", "Community_Health_centre", "Primary_Health_centre", "Dispensary"],
+        "description": "Finds nearest health facility by distance from user location."
+    },
+    {
+        "id": "nearby_hospital_blood_bank_search",
+        "title": "Nearby hospital and blood bank search",
+        "perspective": "Citizens",
+        "department": "Health Department",
+        "keywords": ["blood bank", "blood", "hospital", "nearby hospital"],
+        "dept_name": "Health Department",
+        "buffer_m": 10000,
+        "hazard_safe_only": False,
+        "layers": ["Blood_Bank", "Hospital"],
+        "description": "Selects all hospitals and blood banks within 10 km buffer of user location."
+    },
+    {
+        "id": "safe_health_facility_during_disaster",
+        "title": "Safe health facility during disaster",
+        "perspective": "Citizens",
+        "department": "Health Department",
+        "keywords": ["safe health", "disaster", "hazard safe health", "flood safe health"],
+        "dept_name": "Health Department",
+        "buffer_m": 25000,
+        "hazard_safe_only": True,
+        "layers": ["Hospital", "Community_Health_centre", "Primary_Health_centre"],
+        "description": "Filters health facilities outside hazard polygons (hazard_safe=True)."
+    },
+    {
+        "id": "nearby_drinking_water_source_locator",
+        "title": "Nearby drinking water source locator",
+        "perspective": "Citizens",
+        "department": "Water Resources Department",
+        "keywords": ["water", "drinking water", "tubewell", "well", "handpump", "spring", "water source"],
+        "dept_name": "Water Resources Department",
+        "buffer_m": 5000,
+        "hazard_safe_only": False,
+        "layers": ["Well", "Tubewell", "Spring", "Waterbody"],
+        "description": "Finds all drinking water sources within 2 km - 5 km of user location."
+    },
+    {
+        "id": "groundwater_potential_around_my_area",
+        "title": "Groundwater potential around my area",
+        "perspective": "Citizens",
+        "department": "Water Resources Department",
+        "keywords": ["groundwater", "water table", "ground water", "potential"],
+        "dept_name": "Water Resources Department",
+        "buffer_m": 10000,
+        "hazard_safe_only": False,
+        "layers": ["GroundWater_Potential", "Well", "Tubewell"],
+        "description": "Overlays user location with groundwater potential polygons and lists nearby wells/tubewells."
+    },
+    {
+        "id": "nearby_tourist_and_religious_places",
+        "title": "Nearby tourist and religious places",
+        "perspective": "Citizens",
+        "department": "Tourism",
+        "keywords": ["tourist", "tourism", "temple", "mosque", "church", "religious", "heritage"],
+        "dept_name": "Tourism",
+        "buffer_m": 15000,
+        "hazard_safe_only": False,
+        "layers": ["Places_of_Tourist_Interest", "Temple", "Mosque", "Church"],
+        "description": "Finds all tourism and religious places within 10-15 km of user location."
+    },
+    {
+        "id": "tourist_place_with_accommodation_access",
+        "title": "Tourist place with accommodation access",
+        "perspective": "Citizens",
+        "department": "Tourism",
+        "keywords": ["accommodation", "circuit house", "hotel", "stay", "bungalow"],
+        "dept_name": "Tourism",
+        "buffer_m": 15000,
+        "hazard_safe_only": False,
+        "layers": ["Places_of_Tourist_Interest", "Circuit_house"],
+        "description": "Selects tourist places near major roads with accommodation access within threshold."
+    },
+    {
+        "id": "safe_tourist_destination_finder",
+        "title": "Safe tourist destination finder",
+        "perspective": "Citizens",
+        "department": "Tourism",
+        "keywords": ["safe tourist", "safe tourism", "hazard safe tourist"],
+        "dept_name": "Tourism",
+        "buffer_m": 25000,
+        "hazard_safe_only": True,
+        "layers": ["Places_of_Tourist_Interest", "Temple", "Mosque", "Church"],
+        "description": "Shows tourist places outside hazard zones and near accessible roads."
+    },
+    {
+        "id": "accessible_schools_near_my_home",
+        "title": "Accessible schools near my home",
+        "perspective": "Citizens",
+        "department": "Education Department",
+        "keywords": ["school", "education", "college", "university", "accessible school"],
+        "dept_name": "Education Department",
+        "buffer_m": 5000,
+        "hazard_safe_only": False,
+        "layers": ["School", "Collage", "University"],
+        "description": "Finds all schools/education institutes within 3-5 km of user location."
+    },
+    {
+        "id": "safe_and_connected_education_facilities",
+        "title": "Safe and connected education facilities",
+        "perspective": "Citizens",
+        "department": "Education Department",
+        "keywords": ["safe school", "safe education", "hazard safe school"],
+        "dept_name": "Education Department",
+        "buffer_m": 15000,
+        "hazard_safe_only": True,
+        "layers": ["School", "Collage", "University"],
+        "description": "Shows education facilities outside hazard zones."
+    },
+    {
+        "id": "solar_ready_public_institutions_nearby",
+        "title": "Solar-ready public institutions nearby",
+        "perspective": "Citizens",
+        "department": "Solar Department",
+        "keywords": ["solar", "solar ready", "solar institution", "renewable"],
+        "dept_name": "Solar Department",
+        "buffer_m": 10000,
+        "hazard_safe_only": True,
+        "layers": ["School", "Hospital", "PoliceStation", "PostOffice"],
+        "description": "Finds public facilities with good road access and low hazard exposure for solar readiness."
+    },
+
+    # --- GOVERNMENT ADMINISTRATION PERSPECTIVE (DM / COLLECTOR / ADM) ---
+    {
+        "id": "block_wise_health_service_gap",
+        "title": "Block-wise health service gap",
+        "perspective": "Government Administration",
+        "department": "Health Department",
+        "keywords": ["block health gap", "health service gap", "health gap"],
+        "dept_name": "Health Department",
+        "buffer_m": 25000,
+        "hazard_safe_only": False,
+        "layers": ["Hospital", "Community_Health_centre", "Primary_Health_centre", "Dispensary"],
+        "description": "Measures block areas beyond service distance from health facilities using buffer."
+    },
+    {
+        "id": "hazard_exposure_of_health_facilities",
+        "title": "Hazard exposure of health facilities",
+        "perspective": "Government Administration",
+        "department": "Health Department",
+        "keywords": ["hazard exposure health", "flood health facility", "vulnerable hospital"],
+        "dept_name": "Health Department",
+        "buffer_m": 25000,
+        "hazard_safe_only": False,
+        "layers": ["Hospital", "Community_Health_centre", "Primary_Health_centre"],
+        "description": "Identifies all health facilities intersecting hazard polygons."
+    },
+    {
+        "id": "population_versus_water_source_access_gap",
+        "title": "Population versus water source access gap",
+        "perspective": "Government Administration",
+        "department": "Water Resources Department",
+        "keywords": ["water gap", "water access gap", "population water"],
+        "dept_name": "Water Resources Department",
+        "buffer_m": 10000,
+        "hazard_safe_only": False,
+        "layers": ["Well", "Tubewell", "Waterbody"],
+        "description": "Identifies populated areas with low proximity to water sources."
+    },
+    {
+        "id": "flood_vulnerable_drinking_water_points",
+        "title": "Flood-vulnerable drinking water points",
+        "perspective": "Government Administration",
+        "department": "Water Resources Department",
+        "keywords": ["flood water", "vulnerable water", "flood tubewell"],
+        "dept_name": "Water Resources Department",
+        "buffer_m": 25000,
+        "hazard_safe_only": False,
+        "layers": ["Well", "Tubewell", "Waterbody"],
+        "description": "Detects water points inside or near flood hazard zones."
+    },
+    {
+        "id": "tourism_amenities_gap_analysis",
+        "title": "Tourism amenities gap analysis",
+        "perspective": "Government Administration",
+        "department": "Tourism",
+        "keywords": ["tourism amenities gap", "tourism gap", "amenities gap"],
+        "dept_name": "Tourism",
+        "buffer_m": 20000,
+        "hazard_safe_only": False,
+        "layers": ["Places_of_Tourist_Interest", "Temple", "Mosque", "Church", "Circuit_house"],
+        "description": "Finds tourism sites lacking nearby public amenities and visitor support services."
+    },
+    {
+        "id": "tourism_hazard_risk_mapping",
+        "title": "Tourism hazard risk mapping",
+        "perspective": "Government Administration",
+        "department": "Tourism",
+        "keywords": ["tourism hazard risk", "hazard tourism", "tourism risk mapping"],
+        "dept_name": "Tourism",
+        "buffer_m": 25000,
+        "hazard_safe_only": False,
+        "layers": ["Places_of_Tourist_Interest", "Temple", "Mosque", "Church"],
+        "description": "Identifies tourism and religious sites exposed to flood/earthquake hazards."
+    },
+    {
+        "id": "transport_access_priority_for_tourism",
+        "title": "Transport access priority for tourism",
+        "perspective": "Government Administration",
+        "department": "Tourism",
+        "keywords": ["transport access tourism", "tourism road access", "access priority"],
+        "dept_name": "Tourism",
+        "buffer_m": 20000,
+        "hazard_safe_only": False,
+        "layers": ["Places_of_Tourist_Interest", "Circuit_house"],
+        "description": "Ranks tourism sites beyond desired road/rail access distance."
+    },
+    {
+        "id": "education_hazard_and_connectivity_review",
+        "title": "Education hazard and connectivity review",
+        "perspective": "Government Administration",
+        "department": "Education Department",
+        "keywords": ["education hazard review", "school connectivity review", "school hazard"],
+        "dept_name": "Education Department",
+        "buffer_m": 25000,
+        "hazard_safe_only": False,
+        "layers": ["School", "Collage", "University"],
+        "description": "Detects institutions in hazard zones or poorly connected by roads."
+    },
+    {
+        "id": "block_wise_education_infrastructure_expansion_priority",
+        "title": "Block-wise education infrastructure expansion priority",
+        "perspective": "Government Administration",
+        "department": "Education Department",
+        "keywords": ["block education expansion", "school expansion priority", "education expansion"],
+        "dept_name": "Education Department",
+        "buffer_m": 20000,
+        "hazard_safe_only": False,
+        "layers": ["School", "Collage", "University"],
+        "description": "Compares population distribution with institution density by block."
+    },
+    {
+        "id": "solar_ready_of_public_institutions",
+        "title": "Solar ready of public institutions",
+        "perspective": "Government Administration",
+        "department": "Solar Department",
+        "keywords": ["solar ready admin", "solar pilot deployment", "admin solar"],
+        "dept_name": "Solar Department",
+        "buffer_m": 15000,
+        "hazard_safe_only": True,
+        "layers": ["School", "Hospital", "Community_Health_centre", "Primary_Health_centre", "PoliceStation"],
+        "description": "Selects public institutions outside hazard zones for solar pilot deployment."
+    },
+    {
+        "id": "ground_mounted_solar_suitability_screening",
+        "title": "Ground-mounted solar suitability screening",
+        "perspective": "Government Administration",
+        "department": "Solar Department",
+        "keywords": ["ground mounted solar", "solar suitability screening", "solar land screening"],
+        "dept_name": "Solar Department",
+        "buffer_m": 25000,
+        "hazard_safe_only": True,
+        "layers": ["School", "Hospital", "PoliceStation"],
+        "description": "Finds flat/moderate slope land parcels with compatible land use and low hazard conflict."
+    },
+
+    # --- LINE DEPARTMENTS PERSPECTIVE ---
+    {
+        "id": "new_health_facility_planning_support",
+        "title": "New health facility planning support",
+        "perspective": "Line Departments",
+        "department": "Health Department",
+        "keywords": ["new health facility", "propose health facility", "health planning support"],
+        "dept_name": "Health Department",
+        "buffer_m": 25000,
+        "hazard_safe_only": False,
+        "layers": ["Hospital", "Community_Health_centre", "Primary_Health_centre", "Dispensary"],
+        "description": "Locates block wise population clusters lacking health facilities for proposing new facility."
+    },
+    {
+        "id": "disaster_ready_health_network_planning",
+        "title": "Disaster-ready health network planning",
+        "perspective": "Line Departments",
+        "department": "Health Department",
+        "keywords": ["disaster ready health", "disaster health network", "health network planning"],
+        "dept_name": "Health Department",
+        "buffer_m": 25000,
+        "hazard_safe_only": True,
+        "layers": ["Hospital", "Community_Health_centre", "Primary_Health_centre"],
+        "description": "Identifies facilities intersecting hazard polygons with maximum route network."
+    },
+    {
+        "id": "blood_bank_and_hospital_logistics_optimization",
+        "title": "Blood bank and hospital logistics optimization",
+        "perspective": "Line Departments",
+        "department": "Health Department",
+        "keywords": ["blood bank logistics", "hospital logistics optimization", "logistics bottleneck"],
+        "dept_name": "Health Department",
+        "buffer_m": 15000,
+        "hazard_safe_only": False,
+        "layers": ["Blood_Bank", "Hospital"],
+        "description": "Measures access between blood banks and hospitals to flag logistics bottlenecks."
+    },
+    {
+        "id": "new_tubewell_well_support",
+        "title": "New tubewell/well support",
+        "perspective": "Line Departments",
+        "department": "Water Resources Department",
+        "keywords": ["new tubewell", "suggest tubewell", "new well support"],
+        "dept_name": "Water Resources Department",
+        "buffer_m": 25000,
+        "hazard_safe_only": False,
+        "layers": ["Well", "Tubewell", "GroundWater_Potential"],
+        "description": "Identifies areas with few existing tubewells where groundwater potential is favorable."
+    },
+    {
+        "id": "groundwater_stress_and_dependency_zones",
+        "title": "Groundwater stress and dependency zones",
+        "perspective": "Line Departments",
+        "department": "Water Resources Department",
+        "keywords": ["groundwater stress", "water dependency zones", "water stress"],
+        "dept_name": "Water Resources Department",
+        "buffer_m": 20000,
+        "hazard_safe_only": False,
+        "layers": ["Well", "Tubewell", "GroundWater_Potential"],
+        "description": "Identifies areas where groundwater conditions and population dependence suggest stress."
+    },
+    {
+        "id": "heritage_circuit_design_support",
+        "title": "Heritage circuit design support",
+        "perspective": "Line Departments",
+        "department": "Tourism",
+        "keywords": ["heritage circuit", "circuit design support", "cultural circuit"],
+        "dept_name": "Tourism",
+        "buffer_m": 20000,
+        "hazard_safe_only": False,
+        "layers": ["Places_of_Tourist_Interest", "Temple", "Mosque", "Church"],
+        "description": "Clusters cultural/religious sites that can be linked into circuits with minimal travel gaps."
+    },
+    {
+        "id": "tourism_safety_and_advisory_planning",
+        "title": "Tourism safety and advisory planning",
+        "perspective": "Line Departments",
+        "department": "Tourism",
+        "keywords": ["tourism safety planning", "tourism advisory planning", "hazard advisory tourism"],
+        "dept_name": "Tourism",
+        "buffer_m": 25000,
+        "hazard_safe_only": True,
+        "layers": ["Places_of_Tourist_Interest", "Temple", "Mosque", "Church"],
+        "description": "Flags sites needing hazard advisories, route caution, or seasonal management."
+    },
+    {
+        "id": "school_expansion_and_upgrade_planning",
+        "title": "School expansion and upgrade planning",
+        "perspective": "Line Departments",
+        "department": "Education Department",
+        "keywords": ["school expansion planning", "school upgrade planning", "new school planning"],
+        "dept_name": "Education Department",
+        "buffer_m": 15000,
+        "hazard_safe_only": False,
+        "layers": ["School", "Collage", "University"],
+        "description": "Locates high-demand settlements for new or upgrading schools."
+    },
+    {
+        "id": "school_resilience_planning",
+        "title": "School resilience planning",
+        "perspective": "Line Departments",
+        "department": "Education Department",
+        "keywords": ["school resilience planning", "school retrofitting", "school emergency planning"],
+        "dept_name": "Education Department",
+        "buffer_m": 20000,
+        "hazard_safe_only": False,
+        "layers": ["School", "Collage", "University"],
+        "description": "Identifies schools needing retrofitting, relocation support, or emergency planning."
+    },
+    {
+        "id": "institutions_for_rooftop_solar_install",
+        "title": "Institutions for Rooftop solar install",
+        "perspective": "Line Departments",
+        "department": "Solar Department",
+        "keywords": ["rooftop solar install", "rooftop solar institutions", "solar install"],
+        "dept_name": "Solar Department",
+        "buffer_m": 15000,
+        "hazard_safe_only": True,
+        "layers": ["School", "Hospital", "Community_Health_centre", "Primary_Health_centre", "PoliceStation"],
+        "description": "Shortlists institutions for rooftop solar using service importance, access, and hazard safety."
+    },
+    {
+        "id": "cross_sector_solar_convergence_planning",
+        "title": "Cross-sector solar convergence planning",
+        "perspective": "Line Departments",
+        "department": "Solar Department",
+        "keywords": ["cross sector solar", "solar convergence planning", "multi sector solar"],
+        "dept_name": "Solar Department",
+        "buffer_m": 20000,
+        "hazard_safe_only": False,
+        "layers": ["School", "Hospital", "Well", "Tubewell", "Places_of_Tourist_Interest"],
+        "description": "Locates areas where solar can support education, health, water pumping, and tourism together."
+    }
+]
+
+
+class SpatialQueryAPIView(APIView):
+    """
+    Smart Natural Language & Excel Spatial Query Execution Engine.
+    Executes queries from 'Queries for Nalanda.xlsx' (e.g. 'nearest health facility finder', 
+    'nearby drinking water source locator', 'safe health facility during disaster', etc.)
+    Supports ?q=... &lat=... &lng=... &radius=... &limit=...
+    """
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def get(self, request, *args, **kwargs):
+        query_text = request.query_params.get("q") or request.query_params.get("search") or request.query_params.get("query") or ""
+        query_text = query_text.strip()
+        
+        lat = safe_float(request.query_params.get("lat", 25.1968))
+        lng = safe_float(request.query_params.get("lng", 85.5143))
+        limit_val = int(request.query_params.get("limit", 20))
+
+        raw_radius = request.query_params.get("radius") or request.query_params.get("radius_m") or request.query_params.get("radius_km")
+        max_radius_m = None
+        if raw_radius is not None:
+            try:
+                r_val = float(raw_radius)
+                if r_val <= 100:
+                    max_radius_m = r_val * 1000.0
+                else:
+                    max_radius_m = r_val
+            except (ValueError, TypeError):
+                max_radius_m = None
+
+        if not query_text:
+            citizens_presets = [
+                {
+                    "id": q["id"],
+                    "title": q["title"],
+                    "department": q["department"],
+                    "description": q["description"],
+                    "layers": q["layers"]
+                }
+                for q in EXCEL_SPATIAL_QUERIES if q["perspective"] == "Citizens"
+            ]
+            govt_admin_presets = [
+                {
+                    "id": q["id"],
+                    "title": q["title"],
+                    "department": q["department"],
+                    "description": q["description"],
+                    "layers": q["layers"]
+                }
+                for q in EXCEL_SPATIAL_QUERIES if q["perspective"] == "Government Administration"
+            ]
+            line_dept_presets = [
+                {
+                    "id": q["id"],
+                    "title": q["title"],
+                    "department": q["department"],
+                    "description": q["description"],
+                    "layers": q["layers"]
+                }
+                for q in EXCEL_SPATIAL_QUERIES if q["perspective"] == "Line Departments"
+            ]
+
+            return Response({
+                "message": "Spatial Query Engine active. Pass ?q=<query_name>&lat=<lat>&lng=<lng>&radius=<meters_or_km>&limit=<count> to execute.",
+                "total_presets": len(EXCEL_SPATIAL_QUERIES),
+                "query_presets_by_perspective": {
+                    "citizens": citizens_presets,
+                    "government_administration": govt_admin_presets,
+                    "line_departments": line_dept_presets
+                },
+                "available_query_presets": [q["title"] for q in EXCEL_SPATIAL_QUERIES]
+            }, status=status.HTTP_200_OK)
+
+        matched_preset = None
+        q_lower = query_text.lower()
+        
+        # 1. Exact or title match first
+        for preset in EXCEL_SPATIAL_QUERIES:
+            if preset["title"].lower() in q_lower or q_lower in preset["title"].lower():
+                matched_preset = preset
+                break
+
+        # 2. Keyword match fallback (if title match not found)
+        if not matched_preset:
+            for preset in EXCEL_SPATIAL_QUERIES:
+                for kw in preset["keywords"]:
+                    if kw in q_lower:
+                        matched_preset = preset
+                        break
+                if matched_preset:
+                    break
+
+        if not matched_preset:
+            matched_preset = {
+                "id": "dynamic_search",
+                "title": f"Search: {query_text}",
+                "perspective": "General",
+                "department": "General",
+                "keywords": [query_text],
+                "dept_name": None,
+                "buffer_m": 25000,
+                "hazard_safe_only": False,
+                "layers": [],
+                "description": f"Dynamic spatial search for '{query_text}'"
             }
+
+        # Enforce Perspective-Based Role Permissions
+        user_role = get_user_role_code(request.user)
+        preset_perspective = matched_preset.get("perspective")
+
+        admin_officer_roles = {
+            "DISTRICT_COLLECTOR", "DISTRICT_MAGISTRATE", "DM_COLLECTOR", "DM", 
+            "ADM", "SDM", "STATE_ADMIN", "SUPER_ADMIN", "DISTRICT_OFFICER"
+        }
+        
+        line_officer_roles = {
+            "DEPARTMENT_HEAD", "DEPARTMENT_OFFICER", "EXECUTIVE_ENGINEER", 
+            "FIELD_INSPECTOR", "FIELD_SUPERVISOR", "DEPARTMENT_ADMIN", 
+            "LINE_DEPARTMENT_OFFICER", "ENGINEER", "DISTRICT_COLLECTOR", 
+            "DISTRICT_MAGISTRATE", "DM_COLLECTOR", "ADM", "SDM", "STATE_ADMIN", 
+            "SUPER_ADMIN"
+        }
+
+        is_staff_or_super = bool(request.user and request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser))
+
+        if preset_perspective == "Government Administration":
+            if user_role not in admin_officer_roles and not is_staff_or_super:
+                return Response({
+                    "status": "permission_denied",
+                    "message": f"Access Denied: '{matched_preset['title']}' is restricted to Government Administration officials (DM / ADM / SDM).",
+                    "query_info": {
+                        "input_query": query_text,
+                        "matched_preset_title": matched_preset["title"],
+                        "perspective": preset_perspective,
+                        "required_perspective": "Government Administration",
+                        "your_role": user_role
+                    },
+                    "total_found": 0,
+                    "results": []
+                }, status=status.HTTP_403_FORBIDDEN)
+
+        if preset_perspective == "Line Departments":
+            if (user_role in ["CITIZEN", "ANONYMOUS"] or (user_role not in line_officer_roles and not is_staff_or_super)):
+                return Response({
+                    "status": "permission_denied",
+                    "message": f"Access Denied: '{matched_preset['title']}' is restricted to Line Department officers.",
+                    "query_info": {
+                        "input_query": query_text,
+                        "matched_preset_title": matched_preset["title"],
+                        "perspective": preset_perspective,
+                        "required_perspective": "Line Departments",
+                        "your_role": user_role
+                    },
+                    "total_found": 0,
+                    "results": []
+                }, status=status.HTTP_403_FORBIDDEN)
+
+        if Facility.objects.count() == 0:
+            sync_facilities_from_gis()
+
+        facilities_qs = Facility.objects.all().select_related("department", "category", "catalog_entry", "gis_feature")
+
+        if matched_preset.get("dept_name"):
+            d_word = matched_preset["dept_name"].split()[0]
+            facilities_qs = facilities_qs.filter(Q(department__name__icontains=matched_preset["dept_name"]) | Q(department__name__icontains=d_word))
+
+        if matched_preset.get("hazard_safe_only"):
+            facilities_qs = facilities_qs.filter(hazard_safe=True)
+
+        if matched_preset.get("layers"):
+            layer_q = Q()
+            for layer in matched_preset["layers"]:
+                layer_q |= Q(category__name__icontains=layer.replace("_", " ")) | Q(catalog_entry__layer_name__icontains=layer) | Q(name__icontains=layer.replace("_", " "))
+            facilities_qs = facilities_qs.filter(layer_q)
+
+        if matched_preset["id"] == "dynamic_search":
+            facilities_qs = facilities_qs.filter(
+                Q(name__icontains=query_text)
+                | Q(category__name__icontains=query_text)
+                | Q(department__name__icontains=query_text)
+                | Q(attributes__icontains=query_text)
+            )
+
+        results = []
+        for fac in facilities_qs[:500]:
+            fac_lat, fac_lng = extract_facility_lat_lng(fac)
+            if fac_lat is not None and fac_lng is not None:
+                dist = calculate_haversine_distance_m(lat, lng, fac_lat, fac_lng)
+                if max_radius_m is not None and dist > max_radius_m:
+                    continue
+                results.append({
+                    "id": fac.id,
+                    "name": fac.name,
+                    "category": fac.category.name if fac.category else "Facility",
+                    "department": fac.department.name if fac.department else (matched_preset.get("dept_name") or "General Administration"),
+                    "hazard_safe": fac.hazard_safe,
+                    "latitude": fac_lat,
+                    "longitude": fac_lng,
+                    "distance_m": dist,
+                    "distance_km": round(dist / 1000.0, 2)
+                })
+
+        results.sort(key=lambda item: item["distance_m"])
+        top_results = results[:limit_val]
+
+        return Response({
+            "status": "success",
+            "query_info": {
+                "input_query": query_text,
+                "matched_preset_title": matched_preset["title"],
+                "perspective": matched_preset["perspective"],
+                "department": matched_preset.get("dept_name") or matched_preset.get("department"),
+                "required_layers": matched_preset["layers"],
+                "radius_filter_m": max_radius_m,
+                "limit": limit_val,
+                "user_location": {"latitude": lat, "longitude": lng}
+            },
+            "total_found": len(results),
+            "results": top_results
         }, status=status.HTTP_200_OK)
 
 

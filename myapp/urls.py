@@ -46,6 +46,9 @@ urlpatterns = [
     path('api/department/<str:department_id>/users/', views.DepartmentUsersAPIView.as_view(), name='department-users'),
     path('api/departments/<str:department_id>/users/', views.DepartmentUsersAPIView.as_view(), name='departments-users'),
 
+    # GIS Spatial Query Engine (Excel Query Presets)
+    path('api/spatial-query/', views.SpatialQueryAPIView.as_view(), name='spatial-query'),
+
     # GIS RESTful CRUD ViewSets
     path('api/', include(router.urls)),
 ]
