@@ -278,6 +278,86 @@ class DepartmentComplaintsAPIView(APIView):
         return viewset.get_department_complaints(request, pk=department_id)
 
 
+class UserViewSet(viewsets.ModelViewSet):
+    """
+    Complete RESTful CRUD ViewSet for System Users with Department-wise and Role-wise filtering.
+    """
+    queryset = User.objects.all().select_related("state", "district", "department", "role").order_by("-id")
+    serializer_class = UserSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        search = self.request.query_params.get("search")
+        dept_val = self.request.query_params.get("department")
+        role_val = self.request.query_params.get("role")
+        district_val = self.request.query_params.get("district")
+
+        if search:
+            qs = qs.filter(
+                Q(username__icontains=search)
+                | Q(first_name__icontains=search)
+                | Q(last_name__icontains=search)
+                | Q(email__icontains=search)
+                | Q(phone__icontains=search)
+                | Q(designation__icontains=search)
+            )
+
+        if dept_val:
+            if str(dept_val).isdigit():
+                qs = qs.filter(department_id=dept_val)
+            else:
+                qs = qs.filter(department__name__icontains=dept_val)
+
+        if role_val:
+            if str(role_val).isdigit():
+                qs = qs.filter(role_id=role_val)
+            else:
+                qs = qs.filter(Q(role__code__iexact=role_val) | Q(role__name__icontains=role_val))
+
+        if district_val:
+            if str(district_val).isdigit():
+                qs = qs.filter(district_id=district_val)
+            else:
+                qs = qs.filter(district__name__icontains=district_val)
+
+        return qs
+
+    def create(self, request, *args, **kwargs):
+        serializer = SignupSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        return Response(UserSerializer(user, context={"request": request}).data, status=status.HTTP_201_CREATED)
+
+
+class DepartmentUsersAPIView(APIView):
+    """
+    Direct API View for GET /api/department/<department_id>/users/
+    Returns list and count of all users assigned to a specific department.
+    """
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def get(self, request, department_id, *args, **kwargs):
+        if str(department_id).isdigit():
+            dept = Department.objects.filter(pk=department_id).first()
+        else:
+            dept = Department.objects.filter(name__icontains=department_id).first()
+
+        if not dept:
+            return Response(
+                {"error": f"Department with ID/Name '{department_id}' not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        users_qs = User.objects.filter(department=dept).select_related("state", "district", "department", "role").order_by("id")
+        return Response({
+            "department_id": dept.id,
+            "department_name": dept.name,
+            "total_users": users_qs.count(),
+            "users": UserSerializer(users_qs, many=True, context={"request": request}).data
+        }, status=status.HTTP_200_OK)
+
+
 class DistrictViewSet(viewsets.ModelViewSet):
     """
     CRUD ViewSet for Master Districts.

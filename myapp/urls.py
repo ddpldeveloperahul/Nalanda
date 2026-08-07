@@ -15,6 +15,7 @@ router.register(r'asset-categories', views.AssetCategoryViewSet, basename='asset
 router.register(r'facilities', views.FacilityViewSet, basename='facilities')
 router.register(r'complaint-categories', views.ComplaintCategoryViewSet, basename='complaint-categories')
 router.register(r'complaints', views.ComplaintViewSet, basename='complaints')
+router.register(r'users', views.UserViewSet, basename='users')
 router.register(r'dashboards', views.DashboardViewSet, basename='dashboards')
 router.register(r'notifications', views.NotificationViewSet, basename='notifications')
 
@@ -38,13 +39,13 @@ urlpatterns = [
     path('api/gis/layers/<str:layer_name>/', views.GISLayerGeoJSONView.as_view(), name='gis-layer-geojson'),
     path('api/gis/upload-layer/', views.GISLayerUploadView.as_view(), name='gis-layer-upload'),
 
-    # Department Specific Complaints API
+    # Department Specific Complaints & Users APIs
     path('api/department/<str:department_id>/complain/', views.DepartmentComplaintsAPIView.as_view(), name='department-complaints-singular'),
     path('api/department/<str:department_id>/complaints/', views.DepartmentComplaintsAPIView.as_view(), name='department-complaints-plural'),
     path('api/departments/<str:department_id>/complain/', views.DepartmentComplaintsAPIView.as_view(), name='departments-complaints-singular'),
+    path('api/department/<str:department_id>/users/', views.DepartmentUsersAPIView.as_view(), name='department-users'),
+    path('api/departments/<str:department_id>/users/', views.DepartmentUsersAPIView.as_view(), name='departments-users'),
 
     # GIS RESTful CRUD ViewSets
     path('api/', include(router.urls)),
 ]
-
-

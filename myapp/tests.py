@@ -1,7 +1,7 @@
 from django.test import TestCase, Client
 from rest_framework.test import APIClient
 from rest_framework import status
-from myapp.models import State, District, Department, User, Facility
+from myapp.models import State, District, Department, User, Facility, Role
 
 
 class NDISModelAndPageTests(TestCase):
@@ -317,4 +317,45 @@ class DashboardSecurityTests(TestCase):
         self.assertIn("status_summary", res.data)
         self.assertIn("priority_summary", res.data)
         self.assertIn("complaints", res.data)
+
+    def test_user_crud_and_department_wise_user_get(self):
+        dept = Department.objects.create(name="Health Department Test")
+        role = Role.objects.create(code="TEST_OFFICER_1", name="Test Officer 1", scope_level="DEPARTMENT")
+        
+        # 1. Create User via POST /api/users/
+        self.client.force_authenticate(user=self.dm_user)
+        payload = {
+            "username": "health_officer_test_1",
+            "password": "Password123!",
+            "confirm_password": "Password123!",
+            "email": "healthtest1@example.com",
+            "first_name": "Health",
+            "last_name": "Officer",
+            "phone": "9876543210",
+            "department": dept.id,
+            "role": role.id
+        }
+        res_create = self.client.post("/api/users/", payload, format="json")
+        self.assertEqual(res_create.status_code, status.HTTP_201_CREATED)
+        user_id = res_create.data["id"]
+
+        # 2. Get Users by Department query param GET /api/users/?department=...
+        res_dept = self.client.get(f"/api/users/?department={dept.id}")
+        self.assertEqual(res_dept.status_code, status.HTTP_200_OK)
+        self.assertTrue(any(u["id"] == user_id for u in res_dept.data))
+
+        # 3. Get Department Users via GET /api/department/{department_id}/users/
+        res_direct = self.client.get(f"/api/department/{dept.id}/users/")
+        self.assertEqual(res_direct.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_direct.data["department_id"], dept.id)
+        self.assertEqual(res_direct.data["total_users"], 1)
+
+        # 4. Update User via PATCH /api/users/{id}/
+        res_patch = self.client.patch(f"/api/users/{user_id}/", {"designation": "Chief Medical Officer"}, format="json")
+        self.assertEqual(res_patch.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_patch.data["designation"], "Chief Medical Officer")
+
+        # 5. Delete User via DELETE /api/users/{id}/
+        res_del = self.client.delete(f"/api/users/{user_id}/")
+        self.assertEqual(res_del.status_code, status.HTTP_204_NO_CONTENT)
 

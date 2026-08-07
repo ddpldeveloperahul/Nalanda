@@ -32,29 +32,64 @@ if HAS_GEODJANGO:
     from django.contrib.gis.geos import Point, GEOSGeometry
 
 
+def safe_float(val):
+    """Safely converts any scalar or array-like value to a float without truth-value ambiguous errors."""
+    if val is None:
+        return None
+    try:
+        if hasattr(val, '__len__') and not isinstance(val, (str, bytes)):
+            val = val[0]
+        return float(val)
+    except Exception:
+        return None
+
+
+def extract_facility_lat_lng(fac):
+    """Safely extracts float (lat, lng) from a Facility object without boolean array evaluation errors."""
+    try:
+        geom = getattr(fac, 'geom', None)
+        if geom is not None:
+            if hasattr(geom, 'y') and hasattr(geom, 'x'):
+                return safe_float(geom.y), safe_float(geom.x)
+            if hasattr(geom, 'centroid'):
+                return safe_float(geom.centroid.y), safe_float(geom.centroid.x)
+            if hasattr(geom, 'coords'):
+                c = geom.coords
+                while isinstance(c, (list, tuple)) and len(c) > 0 and isinstance(c[0], (list, tuple)):
+                    c = c[0]
+                if isinstance(c, (list, tuple)) and len(c) >= 2:
+                    return safe_float(c[1]), safe_float(c[0])
+            if isinstance(geom, dict) and 'coordinates' in geom:
+                c = geom['coordinates']
+                while isinstance(c, (list, tuple)) and len(c) > 0 and isinstance(c[0], (list, tuple)):
+                    c = c[0]
+                if isinstance(c, (list, tuple)) and len(c) >= 2:
+                    return safe_float(c[1]), safe_float(c[0])
+    except Exception:
+        pass
+    return None, None
+
+
 def calculate_haversine_distance_m(lat1, lon1, lat2, lon2):
     """Calculates Haversine distance in meters between two lat/lng pairs."""
     try:
-        if isinstance(lat1, (list, tuple)): lat1 = lat1[0]
-        if isinstance(lon1, (list, tuple)): lon1 = lon1[0]
-        if isinstance(lat2, (list, tuple)): lat2 = lat2[0]
-        if isinstance(lon2, (list, tuple)): lon2 = lon2[0]
+        lat1 = safe_float(lat1)
+        lon1 = safe_float(lon1)
+        lat2 = safe_float(lat2)
+        lon2 = safe_float(lon2)
 
         if lat1 is None or lon1 is None or lat2 is None or lon2 is None:
             return 999999.0
 
-        lat1, lon1 = float(lat1), float(lon1)
-        lat2, lon2 = float(lat2), float(lon2)
-    except (ValueError, TypeError):
+        R = 6371000.0 # Radius of Earth in meters
+        phi1, phi2 = math.radians(lat1), math.radians(lat2)
+        delta_phi = math.radians(lat2 - lat1)
+        delta_lambda = math.radians(lon2 - lon1)
+        a = math.sin(delta_phi / 2.0)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda / 2.0)**2
+        c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
+        return round(R * c, 2)
+    except Exception:
         return 999999.0
-
-    R = 6371000.0 # Radius of Earth in meters
-    phi1, phi2 = math.radians(lat1), math.radians(lat2)
-    delta_phi = math.radians(lat2 - lat1)
-    delta_lambda = math.radians(lon2 - lon1)
-    a = math.sin(delta_phi / 2.0)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda / 2.0)**2
-    c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
-    return round(R * c, 2)
 
 
 def seed_fixed_roles():
@@ -249,42 +284,21 @@ class ComplaintService:
             priority = category.default_priority if category else ComplaintPriority.MEDIUM
             sla_deadline = timezone.now() + timedelta(hours=sla_hours)
 
-            lat = validated_data.get("latitude")
-            lng = validated_data.get("longitude")
-
-            if isinstance(lat, (list, tuple)): lat = lat[0]
-            if isinstance(lng, (list, tuple)): lng = lng[0]
-
-            if lat is not None:
-                try: lat = float(lat)
-                except (ValueError, TypeError): lat = None
-
-            if lng is not None:
-                try: lng = float(lng)
-                except (ValueError, TypeError): lng = None
+            lat = safe_float(validated_data.get("latitude"))
+            lng = safe_float(validated_data.get("longitude"))
 
             # Spatial Calculations for Nearest Facility & Administrative Boundaries
             nearest_fac = None
             nearest_fac_name = None
             nearest_fac_dist = None
             
-            if lat and lng:
+            if lat is not None and lng is not None:
                 facilities = Facility.objects.all()[:100]
                 min_dist = 999999.0
                 closest = None
                 for fac in facilities:
-                    fac_lat, fac_lng = None, None
-                    if hasattr(fac, 'geom') and fac.geom:
-                        try:
-                            if hasattr(fac.geom, 'y'):
-                                fac_lat, fac_lng = fac.geom.y, fac.geom.x
-                            elif isinstance(fac.geom, dict) and 'coordinates' in fac.geom:
-                                coords = fac.geom['coordinates']
-                                fac_lng, fac_lat = coords[0], coords[1]
-                        except Exception:
-                            pass
-                    
-                    if fac_lat and fac_lng:
+                    fac_lat, fac_lng = extract_facility_lat_lng(fac)
+                    if fac_lat is not None and fac_lng is not None:
                         dist = calculate_haversine_distance_m(lat, lng, fac_lat, fac_lng)
                         if dist < min_dist:
                             min_dist = dist
@@ -297,7 +311,7 @@ class ComplaintService:
 
             # Create Spatial Geometry Point if GeoDjango is available
             geos_point = None
-            if HAS_GEODJANGO and lat and lng:
+            if HAS_GEODJANGO and lat is not None and lng is not None:
                 try:
                     geos_point = Point(float(lng), float(lat), srid=4326)
                 except Exception:
