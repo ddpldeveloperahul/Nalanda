@@ -16,6 +16,7 @@ router.register(r'facilities', views.FacilityViewSet, basename='facilities')
 router.register(r'complaint-categories', views.ComplaintCategoryViewSet, basename='complaint-categories')
 router.register(r'complaints', views.ComplaintViewSet, basename='complaints')
 router.register(r'users', views.UserViewSet, basename='users')
+router.register(r'proposals', views.ProposalViewSet, basename='proposals')
 router.register(r'dashboards', views.DashboardViewSet, basename='dashboards')
 router.register(r'notifications', views.NotificationViewSet, basename='notifications')
 
@@ -46,8 +47,9 @@ urlpatterns = [
     path('api/department/<str:department_id>/users/', views.DepartmentUsersAPIView.as_view(), name='department-users'),
     path('api/departments/<str:department_id>/users/', views.DepartmentUsersAPIView.as_view(), name='departments-users'),
 
-    # GIS Spatial Query Engine (Excel Query Presets)
+    # GIS Spatial Query Engine & Planning ERP
     path('api/spatial-query/', views.SpatialQueryAPIView.as_view(), name='spatial-query'),
+    path('api/planning/dashboard/', views.PlanningERPAPIView.as_view(), name='planning-dashboard'),
 
     # GIS RESTful CRUD ViewSets
     path('api/', include(router.urls)),

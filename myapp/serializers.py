@@ -21,6 +21,9 @@ from myapp.models import (
     ComplaintTimeline,
     NotificationTemplate,
     NotificationDispatchLog,
+    GapScore,
+    Proposal,
+    BudgetApproval,
 )
 
 
@@ -360,6 +363,8 @@ class FacilitySerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source="category.name", read_only=True)
     layer_name = serializers.CharField(source="catalog_entry.layer_name", read_only=True)
     geom_geojson = serializers.SerializerMethodField()
+    latitude = serializers.FloatField(write_only=True, required=False)
+    longitude = serializers.FloatField(write_only=True, required=False)
 
     class Meta:
         model = Facility
@@ -377,6 +382,8 @@ class FacilitySerializer(serializers.ModelSerializer):
             "gis_feature",
             "attributes",
             "geom",
+            "latitude",     
+            "longitude",  
             "geom_geojson",
             "hazard_safe",
             "hazard_flags",
@@ -384,7 +391,27 @@ class FacilitySerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
+    def create(self, validated_data):
+        from django.contrib.gis.geos import Point
 
+        lat = validated_data.pop("latitude", None)
+        lng = validated_data.pop("longitude", None)
+
+        if lat is not None and lng is not None:
+            validated_data["geom"] = Point(float(lng), float(lat))
+
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        from django.contrib.gis.geos import Point
+
+        lat = validated_data.pop("latitude", None)
+        lng = validated_data.pop("longitude", None)
+
+        if lat is not None and lng is not None:
+            instance.geom = Point(float(lng), float(lat))
+
+        return super().update(instance, validated_data)
     def get_geom_geojson(self, obj):
         if not obj.geom:
             return None
@@ -621,6 +648,111 @@ class ComplaintActionSerializer(serializers.Serializer):
     resolution_summary = serializers.CharField(required=False, allow_blank=True, default="")
     rating = serializers.IntegerField(required=False, allow_null=True)
     feedback_comment = serializers.CharField(required=False, allow_blank=True, default="")
+
+
+class ProposalSerializer(serializers.ModelSerializer):
+    district_name = serializers.CharField(source="district.name", read_only=True)
+    department_name = serializers.CharField(source="department.name", read_only=True)
+    created_by_name = serializers.SerializerMethodField(read_only=True)
+    reviewed_by_name = serializers.SerializerMethodField(read_only=True)
+    approved_by_name = serializers.SerializerMethodField(read_only=True)
+    cost_formatted = serializers.SerializerMethodField(read_only=True)
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+    stage_display = serializers.CharField(source="get_stage_display", read_only=True)
+
+    class Meta:
+        model = Proposal
+        fields = [
+            "id",
+            "proposal_id",
+            "title",
+            "category",
+            "district",
+            "district_name",
+            "department",
+            "department_name",
+            "created_by",
+            "created_by_name",
+            "status",
+            "status_display",
+            "stage",
+            "stage_display",
+            "priority",
+            
+            # Step 1: Need ID
+            "village",
+            "block",
+            "ward",
+            "population_impact",
+            "gap_score",
+            "linked_complaint_ids",
+            "problem_statement",
+            
+            # Step 2: Survey & Inspection
+            "inspection_date",
+            "survey_team",
+            "inspection_notes",
+            "gis_reference",
+            "latitude",
+            "longitude",
+            
+            # Step 3: Technical DPR
+            "technical_scope",
+            "engineering_notes",
+            "estimated_timeline",
+            
+            # Step 4: Financial Estimation
+            "civil_works",
+            "equipment_cost",
+            "electrical_cost",
+            "contingency_cost",
+            "maintenance_cost",
+            "estimated_cost",
+            "cost_formatted",
+            "delegated_power_note",
+            
+            # Step 5: Clearances
+            "clearances",
+            
+            # Step 6: Attachments
+            "attachments",
+            
+            # Step 7: Review & Submission
+            "review_notes",
+            "reviewed_by",
+            "reviewed_by_name",
+            "reviewed_at",
+            "approved_by",
+            "approved_by_name",
+            "approved_at",
+            
+            "is_deleted",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return obj.created_by.get_full_name() or obj.created_by.username
+        return "System"
+
+    def get_reviewed_by_name(self, obj):
+        if obj.reviewed_by:
+            return obj.reviewed_by.get_full_name() or obj.reviewed_by.username
+        return None
+
+    def get_approved_by_name(self, obj):
+        if obj.approved_by:
+            return obj.approved_by.get_full_name() or obj.approved_by.username
+        return None
+
+    def get_cost_formatted(self, obj):
+        cost = float(obj.estimated_cost or 0)
+        if cost >= 10000000:
+            return f"₹{round(cost / 10000000.0, 2)} Cr"
+        elif cost >= 100000:
+            return f"₹{round(cost / 100000.0, 2)} Lakh"
+        return f"₹{cost:,.2f}"
 
 
 

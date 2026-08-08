@@ -21,7 +21,8 @@ Welcome to the **Nalanda District Information System (NDIS) & GIS Portal** compl
 8. [Facilities Directory & SCD Type 2 Audit Module](#8-facilities-directory--scd-type-2-audit-module)
 9. [Django Admin Panel Integration](#9-django-admin-panel-integration)
 10. [Web UI Portals](#10-web-ui-portals)
-11. [Complete REST API Reference Table](#11-complete-rest-api-reference-table)
+11. [Smart Spatial Query Engine & User Management Modules](#11-smart-spatial-query-engine--user-management-modules)
+12. [Complete REST API Reference Table](#12-complete-rest-api-reference-table)
 
 ---
 
@@ -252,7 +253,48 @@ Registered Models in Django Admin (`/admin/`):
 
 ---
 
-## 11. Complete REST API Reference Table
+## 11. Smart Spatial Query Engine & User Management Modules
+
+### 11.1 Smart Natural Language & Excel Spatial Query Engine
+- **Endpoint:** `GET /api/spatial-query/`
+- **Description:** Executes natural language and preset spatial queries directly from `Queries for Nalanda.xlsx` across 3 distinct perspectives: **Citizens**, **Government Administration**, and **Line Departments**.
+- **Supported Query Parameters:**
+  - `q` / `search`: Search query title or keyword (e.g. `"nearest health facility finder"`, `"nearby drinking water source locator"`, `"block-wise health service gap"`, `"institutions for rooftop solar install"`, `"Groundwater stress and dependency zones"`).
+  - `lat` & `lng`: User current location / pin latitude & longitude (e.g., `lat=25.0319&lng=85.4164`).
+  - `radius`: Distance threshold filter in meters or kilometers (e.g., `radius=5000` for 5 km).
+  - `limit`: Top N nearest facilities count (e.g., `limit=5`).
+- **RBAC Perspective Permissions:**
+  - **Citizens Queries**: Public Access (`200 OK` for everyone).
+  - **Government Administration Queries**: Restricted to DM, Collector, ADM, SDM (`403 Forbidden` for Citizens).
+  - **Line Departments Queries**: Restricted to Line Department Officers, Executive Engineers, Department Heads (`403 Forbidden` for Citizens).
+
+### 11.2 Complete User Directory & Department Users API
+- **User CRUD Endpoint:** `GET` / `POST` / `PUT` / `PATCH` / `DELETE` `/api/users/` & `/api/users/{id}/`
+  - Supports full user account management, soft deletion, and multi-field filtering by `search`, `department`, `role`, and `district`.
+- **Department-Wise Users Endpoint:** `GET /api/department/{department_id}/users/`
+  - Returns total user count and detailed user listings filtered by specific Department ID with role metadata.
+
+### 11.3 Development Planning ERP & 7-Step DPR Wizard Module
+- **Planning Dashboard ERP Endpoint:** `GET /api/planning/dashboard/`
+  - Powers `/linedept/planning`. Returns KPI summary metrics (`development_needs`, `draft_dpr`, `pending_review`, `approved`), simulation-derived complaint clusters (`suggested_development_needs`), and the DPR repository table.
+- **Proposals ViewSet Endpoint:** `GET` / `POST` / `PUT` / `PATCH` / `DELETE` `/api/proposals/` & `/api/proposals/{id}/`
+  - Supports filtering by `department`, `district`, `status`, `stage`, `priority`, `block`, `search`.
+- **7-Step DPR Wizard Actions:**
+  - `POST /api/proposals/{id}/step1-need-identification/`: Need identification (village, block, ward, population impact, gap score, problem statement).
+  - `POST /api/proposals/{id}/step2-survey-inspection/`: Survey & site inspection (inspection date, team, notes, GIS location coordinates).
+  - `POST /api/proposals/{id}/step3-technical-dpr/`: Technical scope, engineering notes, timeline.
+  - `POST /api/proposals/{id}/step4-financial-estimation/`: Financial estimation breakdown (civil, equipment, electrical, contingency, maintenance) with auto-calculated Grand Total.
+  - `POST /api/proposals/{id}/step5-clearances/`: Environmental & land clearances checklist.
+  - `POST /api/proposals/{id}/step6-attachments/`: DPR drawing PDF and attachment uploads.
+  - `POST /api/proposals/{id}/submit/`: Submit DPR for review (`DRAFT_DPR` -> `PENDING_REVIEW`).
+- **DM Sanction & Approval Workflow Actions:**
+  - `POST /api/proposals/{id}/approve/`: Approve DPR proposal.
+  - `POST /api/proposals/{id}/reject/`: Reject DPR proposal with review notes.
+  - `POST /api/proposals/{id}/sanction/`: Sanction budget & issue sanction order.
+
+---
+
+## 12. Complete REST API Reference Table
 
 | Path | Method | Auth Required | Description |
 | :--- | :--- | :--- | :--- |
@@ -261,6 +303,23 @@ Registered Models in Django Admin (`/admin/`):
 | `/api/auth/token/refresh/` | `POST` | Public | Refresh expired JWT access token |
 | `/api/auth/me/` | `GET` | Bearer | Retrieve authenticated user profile |
 | `/api/auth/roles/` | `GET` | Public | List system roles |
+| `/api/users/` | `GET` / `POST` | Bearer / Admin | Complete User directory CRUD list & create (filters: `search`, `department`, `role`, `district`) |
+| `/api/users/{id}/` | `GET` / `PUT` / `PATCH` / `DELETE` | Bearer / Admin | Retrieve, update, patch, or soft delete user account |
+| `/api/department/{department_id}/users/` | `GET` | Bearer | Get department-wise user list with role breakdown |
+| `/api/spatial-query/` | `GET` | Bearer / Public | Smart Natural Language & Excel Spatial Query Engine (`?q=...`, `?lat=...`, `?lng=...`, `?radius=...`, `?limit=...`, RBAC perspective filter) |
+| `/api/planning/dashboard/` | `GET` | Bearer / Public | Development Planning ERP dashboard KPIs, suggested needs & DPR repository |
+| `/api/proposals/` | `GET` / `POST` | Bearer | Proposals CRUD list & create (filters: `department`, `district`, `status`, `stage`, `priority`, `block`, `search`) |
+| `/api/proposals/{id}/` | `GET` / `PUT` / `PATCH` / `DELETE` | Bearer | Proposal details retrieve, update, and soft delete |
+| `/api/proposals/{id}/step1-need-identification/` | `POST` | Bearer | Step 1: Save Need Identification fields |
+| `/api/proposals/{id}/step2-survey-inspection/` | `POST` | Bearer | Step 2: Save Survey & Site Inspection notes and GIS coordinates |
+| `/api/proposals/{id}/step3-technical-dpr/` | `POST` | Bearer | Step 3: Save Technical Scope and engineering notes |
+| `/api/proposals/{id}/step4-financial-estimation/` | `POST` | Bearer | Step 4: Save Financial Line Items and auto-compute Grand Total |
+| `/api/proposals/{id}/step5-clearances/` | `POST` | Bearer | Step 5: Save Clearances checklist |
+| `/api/proposals/{id}/step6-attachments/` | `POST` | Bearer | Step 6: Upload DPR drawings and attachments |
+| `/api/proposals/{id}/submit/` | `POST` | Bearer | Step 7: Submit DPR proposal for review |
+| `/api/proposals/{id}/approve/` | `POST` | Bearer | Approve DPR proposal |
+| `/api/proposals/{id}/reject/` | `POST` | Bearer | Reject DPR proposal with reason |
+| `/api/proposals/{id}/sanction/` | `POST` | Bearer | Sanction proposal budget & create sanction order |
 | `/api/complaints/` | `GET` | Bearer / Public | List complaints filtered by role/department scope |
 | `/api/complaints/` | `POST` | Bearer | Submit complaint with auto-routing & spatial calculations |
 | `/api/complaints/{id}/assign/` | `POST` | Bearer | Assign ticket to officer / engineer |
@@ -278,7 +337,7 @@ Registered Models in Django Admin (`/admin/`):
 | `/api/complaints/geojson/` | `GET` | Public / Bearer | Export complaints as GeoJSON FeatureCollection |
 | `/api/complaints/heatmap/` | `GET` | Public / Bearer | Fetch weighted spatial points for heatmaps |
 | `/api/complaints/nearby/` | `GET` | Public / Bearer | Query complaints within spatial radius (m) |
-| `/api/complaints/nearest-facility/` | `GET` | Public / Bearer | Calculate distance to nearest spatial facility |
+| `/api/complaints/nearest-facility/` | `GET` | Public / Bearer | Calculate distance & return top N nearest spatial facilities |
 | `/api/dashboards/citizen/` | `GET` | Bearer / Public | Citizen portal metrics summary |
 | `/api/dashboards/department/` | `GET` | Bearer / Public | Department queue & SLA metrics |
 | `/api/dashboards/officer/` | `GET` | Bearer / Public | Today's officer work queue |

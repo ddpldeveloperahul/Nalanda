@@ -3,7 +3,7 @@ from django.contrib.auth.admin import UserAdmin as DefaultUserAdmin
 from myapp.models import (
     State, District, SubDivision, Block, VillageWard, Department, DepartmentOfficer, AssetCategory,
     Role, Permission, RolePermission, User, UserDistrictScope, Facility, FacilityHistory,
-    WorkflowInstance, WorkflowTransition, GapScore, Proposal, BudgetApproval, Citizengrievance,
+    WorkflowInstance, WorkflowTransition, GapScore, Proposal, BudgetApproval,
     DocumentFile, NotificationTemplate, NotificationDispatchLog, AuditEventLog, Recommendation,
     GISCatalogEntry, GISDatasetVersionHistory, GISDataProvenance, GISProcessingJob, GISLayerFeature,
     Complaint, ComplaintCategory, ComplaintStatus, ComplaintEvidence, ComplaintPriority, ComplaintTimeline
@@ -236,10 +236,10 @@ class WorkflowInstanceAdmin(admin.ModelAdmin):
 
 @admin.register(Proposal)
 class ProposalAdmin(admin.ModelAdmin):
-    list_display = ["id", "title", "department", "district", "estimated_cost", "created_at"]
-    search_fields = ["title", "department__name", "district__name"]
-    list_filter = ["department", "district"]
-    autocomplete_fields = ["district", "department", "workflow_instance", "gap_score_ref"]
+    list_display = ["id", "proposal_id", "title", "department", "block", "status", "stage", "priority", "estimated_cost", "created_at"]
+    search_fields = ["proposal_id", "title", "department__name", "district__name", "block", "village"]
+    list_filter = ["status", "stage", "priority", "department", "district", "block"]
+    autocomplete_fields = ["district", "department", "created_by", "reviewed_by", "approved_by", "workflow_instance", "gap_score_ref"]
     inlines = [BudgetApprovalInline]
 
 

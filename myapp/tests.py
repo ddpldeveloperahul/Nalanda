@@ -405,3 +405,109 @@ class DashboardSecurityTests(TestCase):
         self.assertEqual(res6.data["status"], "success")
         self.assertEqual(res6.data["query_info"]["matched_preset_title"], "Groundwater stress and dependency zones")
 
+
+class ProposalDPRWizardTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.state = State.objects.create(name="Bihar")
+        self.district = District.objects.create(name="Nalanda", state=self.state)
+        self.dept = Department.objects.create(name="Water & Sanitation (JJM)")
+        self.user = User.objects.create_user(username="engineer_vijay", email="vijay@example.com", password="password123", district=self.district, department=self.dept)
+
+    def test_planning_erp_dashboard_kpis(self):
+        self.client.force_authenticate(user=self.user)
+        res = self.client.get("/api/planning/dashboard/")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data["status"], "success")
+        self.assertIn("kpi_summary", res.data)
+        self.assertIn("suggested_development_needs", res.data)
+        self.assertIn("dpr_repository", res.data)
+
+    def test_dpr_wizard_7_steps_flow(self):
+        self.client.force_authenticate(user=self.user)
+
+        # 1. Create Initial Proposal
+        create_payload = {
+            "title": "Silao Ward 3 Elevated Reservoir",
+            "category": "Infrastructure",
+            "district": self.district.id,
+            "department": self.dept.id,
+            "priority": "high"
+        }
+        res_create = self.client.post("/api/proposals/", create_payload, format="json")
+        self.assertEqual(res_create.status_code, status.HTTP_201_CREATED)
+        prop_id = res_create.data["id"]
+        self.assertTrue(res_create.data["proposal_id"].startswith("PRP-"))
+
+        # 2. Step 1: Need Identification
+        step1_payload = {
+            "village": "Silao",
+            "block": "Silao",
+            "ward": "Ward 3",
+            "population_impact": 15000,
+            "gap_score": 8.5,
+            "problem_statement": "Severe water shortage in peak summer."
+        }
+        res_step1 = self.client.post(f"/api/proposals/{prop_id}/step1-need-identification/", step1_payload, format="json")
+        self.assertEqual(res_step1.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_step1.data["proposal"]["block"], "Silao")
+
+        # 3. Step 2: Survey & Inspection
+        step2_payload = {
+            "inspection_date": "2026-08-10",
+            "survey_team": "Eng. Vijay Kumar, Inspector Ramesh",
+            "inspection_notes": "Catchment area clear, site suitable for 500KL tank.",
+            "gis_reference": "Selected site, Silao",
+            "latitude": 25.0319,
+            "longitude": 85.4164
+        }
+        res_step2 = self.client.post(f"/api/proposals/{prop_id}/step2-survey-inspection/", step2_payload, format="json")
+        self.assertEqual(res_step2.status_code, status.HTTP_200_OK)
+
+        # 4. Step 3: Technical DPR
+        step3_payload = {
+            "technical_scope": "Construction of 500KL RCC Over Head Tank with 4km DI pipeline.",
+            "engineering_notes": "Requires land clearance from Circle Officer.",
+            "estimated_timeline": "90 days"
+        }
+        res_step3 = self.client.post(f"/api/proposals/{prop_id}/step3-technical-dpr/", step3_payload, format="json")
+        self.assertEqual(res_step3.status_code, status.HTTP_200_OK)
+
+        # 5. Step 4: Financial Estimation
+        step4_payload = {
+            "civil_works": 8000000.00,
+            "equipment_cost": 2000000.00,
+            "electrical_cost": 1000000.00,
+            "contingency_cost": 500000.00,
+            "maintenance_cost": 500000.00,
+            "delegated_power_note": "Within DM delegated power"
+        }
+        res_step4 = self.client.post(f"/api/proposals/{prop_id}/step4-financial-estimation/", step4_payload, format="json")
+        self.assertEqual(res_step4.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_step4.data["grand_total"], 12000000.00)
+        self.assertEqual(res_step4.data["cost_formatted"], "₹1.2 Cr")
+
+        # 6. Step 5: Clearances
+        step5_payload = {
+            "clearances": {"environmental": "cleared", "land_acquisition": "in_progress"}
+        }
+        res_step5 = self.client.post(f"/api/proposals/{prop_id}/step5-clearances/", step5_payload, format="json")
+        self.assertEqual(res_step5.status_code, status.HTTP_200_OK)
+
+        # 7. Step 6: Attachments
+        step6_payload = {
+            "attachment_url": "http://127.0.0.1:8000/media/dpr_drawings.pdf"
+        }
+        res_step6 = self.client.post(f"/api/proposals/{prop_id}/step6-attachments/", step6_payload, format="json")
+        self.assertEqual(res_step6.status_code, status.HTTP_200_OK)
+
+        # 8. Step 7: Submit Proposal
+        res_submit = self.client.post(f"/api/proposals/{prop_id}/submit/")
+        self.assertEqual(res_submit.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_submit.data["proposal"]["status"], "PENDING_REVIEW")
+
+        # 9. Sanction Proposal
+        res_sanction = self.client.post(f"/api/proposals/{prop_id}/sanction/", {"sanctioned_amount": 12000000.00}, format="json")
+        self.assertEqual(res_sanction.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_sanction.data["proposal"]["status"], "SANCTIONED")
+

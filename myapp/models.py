@@ -486,14 +486,96 @@ class GapScore(models.Model):
         return f"Gap Score {self.score} ({self.district.name} - {self.department.name})"
 
 
+class ProposalStatus(models.TextChoices):
+    DEVELOPMENT_NEEDS = "DEVELOPMENT_NEEDS", "Development Needs"
+    DRAFT_DPR = "DRAFT_DPR", "Draft DPR"
+    PENDING_REVIEW = "PENDING_REVIEW", "Pending Review"
+    UNDER_REVIEW = "UNDER_REVIEW", "Under Review"
+    APPROVED = "APPROVED", "Approved"
+    SANCTIONED = "SANCTIONED", "Sanctioned"
+    REJECTED = "REJECTED", "Rejected"
+    IN_EXECUTION = "IN_EXECUTION", "In Execution"
+
+
+class ProposalPriority(models.TextChoices):
+    LOW = "low", "Low"
+    MEDIUM = "medium", "Medium"
+    HIGH = "high", "High"
+    URGENT = "urgent", "Urgent"
+
+
+class ProposalStage(models.TextChoices):
+    NEED_IDENTIFICATION = "1_NEED_IDENTIFICATION", "1. Need Identification"
+    SURVEY_INSPECTION = "2_SURVEY_INSPECTION", "2. Survey & Inspection"
+    TECHNICAL_DPR = "3_TECHNICAL_DPR", "3. Technical DPR"
+    FINANCIAL_ESTIMATION = "4_FINANCIAL_ESTIMATION", "4. Financial Estimation"
+    CLEARANCES = "5_CLEARANCES", "5. Clearances"
+    ATTACHMENTS = "6_ATTACHMENTS", "6. Attachments"
+    REVIEW_SUBMIT = "7_REVIEW_SUBMIT", "7. Review & Submit"
+
+
 class Proposal(models.Model):
-    """Department Development Proposal / Scheme Project Application."""
+    """Department Development Proposal / Scheme Project Application (DPR Wizard ERP)."""
+    proposal_id = models.CharField(max_length=50, unique=True, null=True, blank=True, verbose_name="Proposal ID (e.g. PRP-2026-00104)")
     title = models.CharField(max_length=255, verbose_name="Proposal Title")
-    district = models.ForeignKey(District, on_delete=models.CASCADE, related_name="proposals")
-    department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name="proposals")
+    category = models.CharField(max_length=150, default="Infrastructure", verbose_name="Proposal Category")
+    district = models.ForeignKey(District, on_delete=models.CASCADE, related_name="proposals", verbose_name="District")
+    department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name="proposals", verbose_name="Department")
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="created_proposals", verbose_name="Created By")
+    
     workflow_instance = models.ForeignKey(WorkflowInstance, on_delete=models.SET_NULL, null=True, blank=True, related_name="proposals")
     gap_score_ref = models.ForeignKey(GapScore, on_delete=models.SET_NULL, null=True, blank=True, related_name="proposals")
-    estimated_cost = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, verbose_name="Estimated Cost (INR)")
+    
+    status = models.CharField(max_length=50, choices=ProposalStatus.choices, default=ProposalStatus.DRAFT_DPR, verbose_name="Proposal Status")
+    stage = models.CharField(max_length=50, choices=ProposalStage.choices, default=ProposalStage.NEED_IDENTIFICATION, verbose_name="Current DPR Stage")
+    priority = models.CharField(max_length=20, choices=ProposalPriority.choices, default=ProposalPriority.MEDIUM, verbose_name="Priority Level")
+
+    # Step 1: Need Identification
+    village = models.CharField(max_length=150, blank=True, null=True, verbose_name="Village")
+    block = models.CharField(max_length=150, blank=True, null=True, verbose_name="Block (e.g. Silao)")
+    ward = models.CharField(max_length=150, blank=True, null=True, verbose_name="Ward")
+    population_impact = models.IntegerField(default=0, verbose_name="Population Impact")
+    gap_score = models.DecimalField(max_digits=8, decimal_places=2, default=0.00, verbose_name="Gap Score Metric")
+    linked_complaint_ids = models.JSONField(default=list, blank=True, verbose_name="Linked Complaint IDs")
+    problem_statement = models.TextField(blank=True, null=True, verbose_name="Problem Statement and Reason")
+
+    # Step 2: Survey & Inspection
+    inspection_date = models.DateField(blank=True, null=True, verbose_name="Inspection Date")
+    survey_team = models.CharField(max_length=255, blank=True, null=True, verbose_name="Survey Team (Officers/Engineers)")
+    inspection_notes = models.TextField(blank=True, null=True, verbose_name="Inspection Notes / Existing Infrastructure")
+    gis_reference = models.CharField(max_length=255, blank=True, null=True, verbose_name="GIS Reference (Selected site)")
+    latitude = models.FloatField(blank=True, null=True, verbose_name="Site Latitude")
+    longitude = models.FloatField(blank=True, null=True, verbose_name="Site Longitude")
+
+    # Step 3: Technical DPR
+    technical_scope = models.TextField(blank=True, null=True, verbose_name="Technical Scope & Execution Method")
+    engineering_notes = models.TextField(blank=True, null=True, verbose_name="Engineering Notes & Dependencies")
+    estimated_timeline = models.CharField(max_length=100, default="90 days", verbose_name="Estimated Timeline")
+
+    # Step 4: Financial Estimation
+    civil_works = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, verbose_name="Civil Works (INR)")
+    equipment_cost = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, verbose_name="Equipment Cost (INR)")
+    electrical_cost = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, verbose_name="Electrical Cost (INR)")
+    contingency_cost = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, verbose_name="Contingency Cost (INR)")
+    maintenance_cost = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, verbose_name="Maintenance Cost (INR)")
+    estimated_cost = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, verbose_name="Grand Total Estimated Cost (INR)")
+    delegated_power_note = models.CharField(max_length=255, default="Within DM delegated power", verbose_name="Delegated Power Note")
+
+    # Step 5: Clearances
+    clearances = models.JSONField(default=dict, blank=True, verbose_name="Departmental Clearances (JSONB)")
+
+    # Step 6: Attachments
+    attachments = models.JSONField(default=list, blank=True, verbose_name="Attached DPR Files & Drawings")
+
+    # Step 7: Review, Submission & Approvals
+    review_notes = models.TextField(blank=True, null=True, verbose_name="Reviewer Notes / Observations")
+    reviewed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="reviewed_proposals", verbose_name="Reviewed By")
+    reviewed_at = models.DateTimeField(blank=True, null=True, verbose_name="Reviewed At")
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="approved_proposals", verbose_name="Approved By")
+    approved_at = models.DateTimeField(blank=True, null=True, verbose_name="Approved At")
+
+    is_deleted = models.BooleanField(default=False, verbose_name="Deleted")
+    deleted_at = models.DateTimeField(null=True, blank=True, verbose_name="Deleted At")
     
     created_at = models.DateTimeField(auto_now_add=True, db_index=True, verbose_name="Created At")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Updated At")
@@ -502,9 +584,25 @@ class Proposal(models.Model):
         db_table = "txn_proposal"
         verbose_name = "Department Proposal"
         verbose_name_plural = "Department Proposals"
+        ordering = ["-created_at"]
+
+    def save(self, *args, **kwargs):
+        # Auto-calculate Grand Total cost if individual line items exist
+        computed_total = (self.civil_works or 0) + (self.equipment_cost or 0) + (self.electrical_cost or 0) + (self.contingency_cost or 0) + (self.maintenance_cost or 0)
+        if computed_total > 0 and (self.estimated_cost == 0 or self.estimated_cost != computed_total):
+            self.estimated_cost = computed_total
+
+        # Auto-generate proposal_id if missing
+        if not self.proposal_id:
+            import datetime, random
+            year = datetime.datetime.now().year
+            rand_code = random.randint(10000, 99999)
+            self.proposal_id = f"PRP-{year}-{rand_code}"
+            
+        super().save(*args, **kwargs)
 
     def __str__(self) -> str:
-        return self.title
+        return f"{self.proposal_id or 'PRP'} - {self.title} ({self.status})"
 
 
 class BudgetApproval(models.Model):

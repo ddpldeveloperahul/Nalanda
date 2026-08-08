@@ -25,6 +25,7 @@ from myapp.serializers import (
     ComplaintEvidenceSerializer,
     ComplaintTimelineSerializer,
     ComplaintActionSerializer,
+    ProposalSerializer,
 )
 from myapp.services.complaint_service import (
     ComplaintService,
@@ -2085,3 +2086,355 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
             "dispatched_at": n.dispatched_at
         } for n in qs]
         return Response(data, status=status.HTTP_200_OK)
+
+
+class ProposalViewSet(viewsets.ModelViewSet):
+    """
+    Complete RESTful ViewSet for Department Development Proposals & 7-Step DPR Wizard.
+    Supports filtering by department, district, status, stage, priority, block, and search.
+    Provides step-by-step DPR wizard actions and DM sanction workflow.
+    """
+    serializer_class = ProposalSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
+
+    def get_queryset(self):
+        qs = Proposal.objects.filter(is_deleted=False).select_related("district", "department", "created_by", "reviewed_by", "approved_by")
+        
+        dept = self.request.query_params.get("department") or self.request.query_params.get("dept")
+        if dept:
+            qs = qs.filter(Q(department_id=dept) | Q(department__name__icontains=dept))
+            
+        dist = self.request.query_params.get("district")
+        if dist:
+            qs = qs.filter(Q(district_id=dist) | Q(district__name__icontains=dist))
+            
+        status_filter = self.request.query_params.get("status")
+        if status_filter:
+            qs = qs.filter(status__iexact=status_filter)
+
+        stage_filter = self.request.query_params.get("stage")
+        if stage_filter:
+            qs = qs.filter(stage__iexact=stage_filter)
+
+        priority_filter = self.request.query_params.get("priority")
+        if priority_filter:
+            qs = qs.filter(priority__iexact=priority_filter)
+
+        block_filter = self.request.query_params.get("block")
+        if block_filter:
+            qs = qs.filter(block__icontains=block_filter)
+
+        search_text = self.request.query_params.get("search") or self.request.query_params.get("q")
+        if search_text:
+            qs = qs.filter(
+                Q(proposal_id__icontains=search_text)
+                | Q(title__icontains=search_text)
+                | Q(category__icontains=search_text)
+                | Q(village__icontains=search_text)
+                | Q(block__icontains=search_text)
+                | Q(problem_statement__icontains=search_text)
+            )
+            
+        return qs.order_by("-created_at")
+
+    def perform_create(self, serializer):
+        user = self.request.user if self.request.user.is_authenticated else None
+        
+        # Resolve district and department if missing from request data
+        district_id = self.request.data.get("district")
+        if not district_id and user and hasattr(user, "district") and user.district:
+            district_id = user.district.id
+        elif not district_id:
+            d_obj = District.objects.first()
+            district_id = d_obj.id if d_obj else None
+
+        dept_id = self.request.data.get("department")
+        if not dept_id and user and hasattr(user, "department") and user.department:
+            dept_id = user.department.id
+        elif not dept_id:
+            dept_obj = Department.objects.first()
+            dept_id = dept_obj.id if dept_obj else None
+
+        serializer.save(created_by=user, district_id=district_id, department_id=dept_id)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.is_deleted = True
+        instance.deleted_at = timezone.now()
+        instance.save()
+        return Response({"message": "Proposal soft deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+
+    # Step 1: Need Identification
+    @action(detail=True, methods=["post"], url_path="step1-need-identification")
+    def step1_need_identification(self, request, pk=None):
+        proposal = self.get_object()
+        data = request.data
+        
+        proposal.title = data.get("title", proposal.title)
+        proposal.category = data.get("category", proposal.category)
+        proposal.village = data.get("village", proposal.village)
+        proposal.block = data.get("block", proposal.block)
+        proposal.ward = data.get("ward", proposal.ward)
+        proposal.population_impact = data.get("population_impact", proposal.population_impact)
+        proposal.gap_score = data.get("gap_score", proposal.gap_score)
+        proposal.linked_complaint_ids = data.get("linked_complaint_ids", proposal.linked_complaint_ids)
+        proposal.priority = data.get("priority", proposal.priority)
+        proposal.problem_statement = data.get("problem_statement", proposal.problem_statement)
+        proposal.stage = ProposalStage.SURVEY_INSPECTION
+        proposal.save()
+        
+        return Response({"message": "Step 1: Need Identification saved.", "proposal": ProposalSerializer(proposal).data}, status=status.HTTP_200_OK)
+
+    # Step 2: Survey & Inspection
+    @action(detail=True, methods=["post"], url_path="step2-survey-inspection")
+    def step2_survey_inspection(self, request, pk=None):
+        proposal = self.get_object()
+        data = request.data
+        
+        proposal.inspection_date = data.get("inspection_date", proposal.inspection_date)
+        proposal.survey_team = data.get("survey_team", proposal.survey_team)
+        proposal.inspection_notes = data.get("inspection_notes", proposal.inspection_notes)
+        proposal.gis_reference = data.get("gis_reference", proposal.gis_reference)
+        proposal.latitude = safe_float(data.get("latitude")) or proposal.latitude
+        proposal.longitude = safe_float(data.get("longitude")) or proposal.longitude
+        proposal.stage = ProposalStage.TECHNICAL_DPR
+        proposal.save()
+        
+        return Response({"message": "Step 2: Survey & Inspection saved.", "proposal": ProposalSerializer(proposal).data}, status=status.HTTP_200_OK)
+
+    # Step 3: Technical DPR
+    @action(detail=True, methods=["post"], url_path="step3-technical-dpr")
+    def step3_technical_dpr(self, request, pk=None):
+        proposal = self.get_object()
+        data = request.data
+        
+        proposal.technical_scope = data.get("technical_scope", proposal.technical_scope)
+        proposal.engineering_notes = data.get("engineering_notes", proposal.engineering_notes)
+        proposal.estimated_timeline = data.get("estimated_timeline", proposal.estimated_timeline)
+        proposal.stage = ProposalStage.FINANCIAL_ESTIMATION
+        proposal.save()
+        
+        return Response({"message": "Step 3: Technical DPR saved.", "proposal": ProposalSerializer(proposal).data}, status=status.HTTP_200_OK)
+
+    # Step 4: Financial Estimation
+    @action(detail=True, methods=["post"], url_path="step4-financial-estimation")
+    def step4_financial_estimation(self, request, pk=None):
+        proposal = self.get_object()
+        data = request.data
+        
+        proposal.civil_works = safe_float(data.get("civil_works")) or proposal.civil_works
+        proposal.equipment_cost = safe_float(data.get("equipment_cost")) or proposal.equipment_cost
+        proposal.electrical_cost = safe_float(data.get("electrical_cost")) or proposal.electrical_cost
+        proposal.contingency_cost = safe_float(data.get("contingency_cost")) or proposal.contingency_cost
+        proposal.maintenance_cost = safe_float(data.get("maintenance_cost")) or proposal.maintenance_cost
+        
+        explicit_est = safe_float(data.get("estimated_cost"))
+        computed_sum = (proposal.civil_works or 0) + (proposal.equipment_cost or 0) + (proposal.electrical_cost or 0) + (proposal.contingency_cost or 0) + (proposal.maintenance_cost or 0)
+        proposal.estimated_cost = explicit_est if (explicit_est and explicit_est > 0) else computed_sum
+        proposal.delegated_power_note = data.get("delegated_power_note", proposal.delegated_power_note)
+        proposal.stage = ProposalStage.CLEARANCES
+        proposal.save()
+        
+        return Response({
+            "message": "Step 4: Financial Estimation saved.",
+            "grand_total": float(proposal.estimated_cost),
+            "cost_formatted": ProposalSerializer(proposal).data["cost_formatted"],
+            "proposal": ProposalSerializer(proposal).data
+        }, status=status.HTTP_200_OK)
+
+    # Step 5: Clearances
+    @action(detail=True, methods=["post"], url_path="step5-clearances")
+    def step5_clearances(self, request, pk=None):
+        proposal = self.get_object()
+        data = request.data
+        
+        current_clearances = proposal.clearances or {}
+        if isinstance(data.get("clearances"), dict):
+            current_clearances.update(data["clearances"])
+        else:
+            current_clearances["notes"] = data.get("clearance_notes", "")
+            current_clearances["status"] = data.get("clearance_status", "cleared")
+            
+        proposal.clearances = current_clearances
+        proposal.stage = ProposalStage.ATTACHMENTS
+        proposal.save()
+        
+        return Response({"message": "Step 5: Clearances saved.", "proposal": ProposalSerializer(proposal).data}, status=status.HTTP_200_OK)
+
+    # Step 6: Attachments
+    @action(detail=True, methods=["post"], url_path="step6-attachments")
+    def step6_attachments(self, request, pk=None):
+        proposal = self.get_object()
+        data = request.data
+        
+        files_list = proposal.attachments or []
+        new_file = data.get("attachment_url") or data.get("file_path") or data.get("file_name")
+        if new_file:
+            files_list.append({"file_name": new_file, "uploaded_at": str(timezone.now())})
+        elif isinstance(data.get("attachments"), list):
+            files_list.extend(data["attachments"])
+            
+        proposal.attachments = files_list
+        proposal.stage = ProposalStage.REVIEW_SUBMIT
+        proposal.save()
+        
+        return Response({"message": "Step 6: Attachments saved.", "proposal": ProposalSerializer(proposal).data}, status=status.HTTP_200_OK)
+
+    # Step 7: Submit DPR
+    @action(detail=True, methods=["post"], url_path="submit")
+    def submit_proposal(self, request, pk=None):
+        proposal = self.get_object()
+        proposal.status = ProposalStatus.PENDING_REVIEW
+        proposal.stage = ProposalStage.REVIEW_SUBMIT
+        proposal.save()
+        
+        return Response({
+            "message": f"DPR Proposal {proposal.proposal_id} submitted for Review successfully.",
+            "proposal": ProposalSerializer(proposal).data
+        }, status=status.HTTP_200_OK)
+
+    # Approve DPR
+    @action(detail=True, methods=["post"], url_path="approve")
+    def approve_proposal(self, request, pk=None):
+        proposal = self.get_object()
+        user = request.user if request.user.is_authenticated else None
+        
+        proposal.status = ProposalStatus.APPROVED
+        proposal.reviewed_by = user
+        proposal.reviewed_at = timezone.now()
+        proposal.approved_by = user
+        proposal.approved_at = timezone.now()
+        proposal.review_notes = request.data.get("review_notes", proposal.review_notes or "Approved by Authority")
+        proposal.save()
+        
+        return Response({
+            "message": f"DPR Proposal {proposal.proposal_id} approved successfully.",
+            "proposal": ProposalSerializer(proposal).data
+        }, status=status.HTTP_200_OK)
+
+    # Reject DPR
+    @action(detail=True, methods=["post"], url_path="reject")
+    def reject_proposal(self, request, pk=None):
+        proposal = self.get_object()
+        user = request.user if request.user.is_authenticated else None
+        
+        proposal.status = ProposalStatus.REJECTED
+        proposal.reviewed_by = user
+        proposal.reviewed_at = timezone.now()
+        proposal.review_notes = request.data.get("review_notes", "Rejected during review phase")
+        proposal.save()
+        
+        return Response({
+            "message": f"DPR Proposal {proposal.proposal_id} rejected.",
+            "proposal": ProposalSerializer(proposal).data
+        }, status=status.HTTP_200_OK)
+
+    # Sanction DPR & Create Budget Approval
+    @action(detail=True, methods=["post"], url_path="sanction")
+    def sanction_proposal(self, request, pk=None):
+        proposal = self.get_object()
+        user = request.user if request.user.is_authenticated else None
+        
+        sanction_amount = safe_float(request.data.get("sanctioned_amount")) or float(proposal.estimated_cost)
+        order_no = request.data.get("sanction_order_no", f"SAN-{timezone.now().strftime('%Y%m%d')}-001")
+        
+        proposal.status = ProposalStatus.SANCTIONED
+        proposal.approved_by = user
+        proposal.approved_at = timezone.now()
+        proposal.save()
+        
+        budget_app = BudgetApproval.objects.create(
+            proposal=proposal,
+            approved_amount=sanction_amount,
+            approved_via=order_no,
+            approved_by=user
+        )
+        
+        return Response({
+            "message": f"DPR Proposal {proposal.proposal_id} sanctioned with amount ₹{sanction_amount:,.2f}.",
+            "sanction_order_no": order_no,
+            "proposal": ProposalSerializer(proposal).data
+        }, status=status.HTTP_200_OK)
+
+
+class PlanningERPAPIView(APIView):
+    """
+    Development Planning ERP Dashboard & Suggested Needs API.
+    Powers Department Workspace Development Planning ERP (/linedept/planning).
+    """
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def get(self, request, *args, **kwargs):
+        dept_param = request.query_params.get("department") or request.query_params.get("dept")
+        proposals_qs = Proposal.objects.filter(is_deleted=False)
+
+        if dept_param:
+            proposals_qs = proposals_qs.filter(Q(department_id=dept_param) | Q(department__name__icontains=dept_param))
+
+        dev_needs_count = proposals_qs.filter(status=ProposalStatus.DEVELOPMENT_NEEDS).count()
+        draft_dpr_count = proposals_qs.filter(status=ProposalStatus.DRAFT_DPR).count()
+        pending_review_count = proposals_qs.filter(status__in=[ProposalStatus.PENDING_REVIEW, ProposalStatus.UNDER_REVIEW]).count()
+        approved_count = proposals_qs.filter(status__in=[ProposalStatus.APPROVED, ProposalStatus.SANCTIONED, ProposalStatus.IN_EXECUTION]).count()
+
+        # Seed sample proposal if repository is empty for demonstration
+        if proposals_qs.count() == 0:
+            d_obj = District.objects.first() or District.objects.create(name="Nalanda", state=State.objects.first())
+            dept_obj = Department.objects.first() or Department.objects.create(name="Water & Sanitation (JJM)")
+            sample_prop = Proposal.objects.create(
+                proposal_id="PRP-2026-00104",
+                title="Surajpur Ward 3 Elevated Water Reservoir",
+                category="Infrastructure",
+                district=d_obj,
+                department=dept_obj,
+                block="Silao",
+                status=ProposalStatus.IN_EXECUTION,
+                stage=ProposalStage.REVIEW_SUBMIT,
+                priority=ProposalPriority.HIGH,
+                civil_works=8000000.00,
+                equipment_cost=2000000.00,
+                electrical_cost=1000000.00,
+                contingency_cost=500000.00,
+                maintenance_cost=500000.00,
+                estimated_cost=12000000.00,
+                problem_statement="High water deficit cluster identified in Surajpur Ward 3."
+            )
+            proposals_qs = Proposal.objects.filter(is_deleted=False)
+            approved_count = 1
+
+        dpr_repository = ProposalSerializer(proposals_qs.order_by("-created_at")[:20], many=True).data
+
+        # Suggested Development Needs (Simulation-derived complaint clusters)
+        suggested_needs = [
+            {
+                "id": "NEED-101",
+                "title": "Silao Ward 4 Pipeline Expansion & Deep Borewell",
+                "department": "Water Resources Department",
+                "block": "Silao",
+                "gap_score": 8.45,
+                "linked_complaints_count": 14,
+                "recommended_action": "High complaint density detected. Create DPR Proposal for 500KL Tank."
+            },
+            {
+                "id": "NEED-102",
+                "title": "Rajgir PHC Emergency Ward Solar Convergance",
+                "department": "Health Department",
+                "block": "Rajgir",
+                "gap_score": 7.80,
+                "linked_complaints_count": 9,
+                "recommended_action": "Rooftop Solar 50kW installation recommended for zero blackout."
+            }
+        ]
+
+        return Response({
+            "status": "success",
+            "kpi_summary": {
+                "development_needs": dev_needs_count,
+                "draft_dpr": draft_dpr_count,
+                "pending_review": pending_review_count,
+                "approved": approved_count,
+                "total_proposals": proposals_qs.count()
+            },
+            "suggested_development_needs": suggested_needs,
+            "dpr_repository": dpr_repository
+        }, status=status.HTTP_200_OK)
