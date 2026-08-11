@@ -279,8 +279,8 @@ Registered Models in Django Admin (`/admin/`):
   - Powers `/linedept/planning`. Returns KPI summary metrics (`development_needs`, `draft_dpr`, `pending_review`, `approved`), simulation-derived complaint clusters (`suggested_development_needs`), and the DPR repository table.
 - **Proposals ViewSet Endpoint:** `GET` / `POST` / `PUT` / `PATCH` / `DELETE` `/api/proposals/` & `/api/proposals/{id}/`
   - Supports filtering by `department`, `district`, `status`, `stage`, `priority`, `block`, `search`.
-- **7-Step DPR Wizard Actions:**
-  - `POST /api/proposals/{id}/step1-need-identification/`: Need identification (village, block, ward, population impact, gap score, problem statement).
+- **DPR Wizard Actions:**
+  - `POST /api/proposals/`: Create proposal with Need Identification fields (`title`, `category`, `village`, `block`, `ward`, `population_impact`, `gap_score`, `linked_complaint`, `linked_complaint_ids`, `problem_statement`, `priority`).
   - `POST /api/proposals/{id}/step2-survey-inspection/`: Survey & site inspection (inspection date, team, notes, GIS location coordinates).
   - `POST /api/proposals/{id}/step3-technical-dpr/`: Technical scope, engineering notes, timeline.
   - `POST /api/proposals/{id}/step4-financial-estimation/`: Financial estimation breakdown (civil, equipment, electrical, contingency, maintenance) with auto-calculated Grand Total.
@@ -310,7 +310,6 @@ Registered Models in Django Admin (`/admin/`):
 | `/api/planning/dashboard/` | `GET` | Bearer / Public | Development Planning ERP dashboard KPIs, suggested needs & DPR repository |
 | `/api/proposals/` | `GET` / `POST` | Bearer | Proposals CRUD list & create (filters: `department`, `district`, `status`, `stage`, `priority`, `block`, `search`) |
 | `/api/proposals/{id}/` | `GET` / `PUT` / `PATCH` / `DELETE` | Bearer | Proposal details retrieve, update, and soft delete |
-| `/api/proposals/{id}/step1-need-identification/` | `POST` | Bearer | Step 1: Save Need Identification fields |
 | `/api/proposals/{id}/step2-survey-inspection/` | `POST` | Bearer | Step 2: Save Survey & Site Inspection notes and GIS coordinates |
 | `/api/proposals/{id}/step3-technical-dpr/` | `POST` | Bearer | Step 3: Save Technical Scope and engineering notes |
 | `/api/proposals/{id}/step4-financial-estimation/` | `POST` | Bearer | Step 4: Save Financial Line Items and auto-compute Grand Total |

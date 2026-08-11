@@ -432,15 +432,7 @@ class ProposalDPRWizardTests(TestCase):
             "category": "Infrastructure",
             "district": self.district.id,
             "department": self.dept.id,
-            "priority": "high"
-        }
-        res_create = self.client.post("/api/proposals/", create_payload, format="json")
-        self.assertEqual(res_create.status_code, status.HTTP_201_CREATED)
-        prop_id = res_create.data["id"]
-        self.assertTrue(res_create.data["proposal_id"].startswith("PRP-"))
-
-        # 2. Step 1: Need Identification
-        step1_payload = {
+            "priority": "high",
             "village": "Silao",
             "block": "Silao",
             "ward": "Ward 3",
@@ -448,9 +440,11 @@ class ProposalDPRWizardTests(TestCase):
             "gap_score": 8.5,
             "problem_statement": "Severe water shortage in peak summer."
         }
-        res_step1 = self.client.post(f"/api/proposals/{prop_id}/step1-need-identification/", step1_payload, format="json")
-        self.assertEqual(res_step1.status_code, status.HTTP_200_OK)
-        self.assertEqual(res_step1.data["proposal"]["block"], "Silao")
+        res_create = self.client.post("/api/proposals/", create_payload, format="json")
+        self.assertEqual(res_create.status_code, status.HTTP_201_CREATED)
+        prop_id = res_create.data["id"]
+        self.assertTrue(res_create.data["proposal_id"].startswith("PRP-"))
+        self.assertEqual(res_create.data["block"], "Silao")
 
         # 3. Step 2: Survey & Inspection
         step2_payload = {
@@ -510,4 +504,49 @@ class ProposalDPRWizardTests(TestCase):
         res_sanction = self.client.post(f"/api/proposals/{prop_id}/sanction/", {"sanctioned_amount": 12000000.00}, format="json")
         self.assertEqual(res_sanction.status_code, status.HTTP_200_OK)
         self.assertEqual(res_sanction.data["proposal"]["status"], "SANCTIONED")
+
+
+class ProjectExecutionAPITests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.user = User.objects.create_user(username="engineer1", password="password123")
+        self.client.force_authenticate(user=self.user)
+        self.state = State.objects.create(name="Bihar")
+        self.district = District.objects.create(state=self.state, name="Nalanda")
+        self.department = Department.objects.create(name="Water Resources Department")
+
+    def test_project_crud_and_summary(self):
+        # 1. Create Project
+        payload = {
+            "title": "Surajpur Ward 3 Elevated Water Reservoir",
+            "sanction_amount": 12000000.00,
+            "expenditure_amount": 11400000.00,
+            "progress_percentage": 100.00,
+            "status": "completed",
+            "risk_level": "high",
+            "block": "Surajpur"
+        }
+        res_create = self.client.post("/api/projects/", payload, format="json")
+        self.assertEqual(res_create.status_code, status.HTTP_201_CREATED)
+        prj_id = res_create.data["id"]
+
+        # 2. Get Summary KPIs
+        res_summary = self.client.get("/api/projects/summary/")
+        self.assertEqual(res_summary.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_summary.data["completed"], 1)
+
+        # 3. Post Daily Progress Action
+        progress_payload = {
+            "progress_percentage": 100.00,
+            "work_description": "Final concrete inspection complete",
+            "risk_signal": "Waterlogging issue resolved",
+            "severity": "medium"
+        }
+        res_daily = self.client.post(f"/api/projects/{prj_id}/daily-progress/", progress_payload, format="json")
+        self.assertEqual(res_daily.status_code, status.HTTP_200_OK)
+
+        # 4. List Site Diaries, MBs, Bills & Risks
+        res_diaries = self.client.get(f"/api/site-diaries/?project={prj_id}")
+        self.assertEqual(res_diaries.status_code, status.HTTP_200_OK)
+        self.assertGreaterEqual(len(res_diaries.data), 1)
 

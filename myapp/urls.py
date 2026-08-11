@@ -9,7 +9,9 @@ router = DefaultRouter()
 router.register(r'gis/catalog-crud', views.GISCatalogViewSet, basename='gis-catalog-crud')
 router.register(r'gis/features', views.GISFeatureViewSet, basename='gis-feature')
 router.register(r'departments', views.DepartmentViewSet, basename='departments')
+router.register(r'states', views.StateViewSet, basename='states')
 router.register(r'districts', views.DistrictViewSet, basename='districts')
+router.register(r'blocks', views.BlockViewSet, basename='blocks')
 router.register(r'department-officers', views.DepartmentOfficerViewSet, basename='department-officers')
 router.register(r'asset-categories', views.AssetCategoryViewSet, basename='asset-categories')
 router.register(r'facilities', views.FacilityViewSet, basename='facilities')
@@ -19,6 +21,13 @@ router.register(r'users', views.UserViewSet, basename='users')
 router.register(r'proposals', views.ProposalViewSet, basename='proposals')
 router.register(r'dashboards', views.DashboardViewSet, basename='dashboards')
 router.register(r'notifications', views.NotificationViewSet, basename='notifications')
+router.register(r'projects', views.ProjectExecutionViewSet, basename='projects')
+router.register(r'site-diaries', views.SiteDiaryViewSet, basename='site-diaries')
+router.register(r'measurement-books', views.MeasurementBookViewSet, basename='measurement-books')
+router.register(r'bills', views.ProjectBillViewSet, basename='project-bills')
+router.register(r'execution-risks', views.ExecutionRiskViewSet, basename='execution-risks')
+router.register(r'reports', views.ReportViewSet, basename='reports')
+router.register(r'employees', views.EmployeeViewSet, basename='employees')
 
 
 
@@ -27,6 +36,10 @@ urlpatterns = [
     path('map/', views.index, name='map-view'),
     path('facilities/', views.facilities_page, name='facilities-page'),
     path('facilities/search/', views.facilities_page, name='facilities-search'),
+    path('reports/', views.reports_page, name='reports-page'),
+    path('linedept/reports/', views.reports_page, name='linedept-reports-page'),
+    path('employees/', views.employees_page, name='employees-page'),
+    path('linedept/employees/', views.employees_page, name='linedept-employees-page'),
     path('login/', views.login_page, name='login-page'),
     path('signup/', views.signup_page, name='signup-page'),
     path('api/auth/signup/', views.SignupView.as_view(), name='signup'),

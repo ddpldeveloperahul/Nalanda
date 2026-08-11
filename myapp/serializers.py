@@ -7,6 +7,7 @@ from myapp.models import (
     User,
     State,
     District,
+    Block,
     Department,
     Role,
     DepartmentOfficer,
@@ -24,6 +25,14 @@ from myapp.models import (
     GapScore,
     Proposal,
     BudgetApproval,
+    ProjectExecution,
+    SiteDiary,
+    MeasurementBook,
+    ProjectBill,
+    ExecutionRisk,
+    Report,
+    Employee,
+    EmployeeInvitation,
 )
 
 
@@ -284,12 +293,27 @@ class GISLayerUploadSerializer(serializers.Serializer):
     category = serializers.CharField(max_length=100, required=False, allow_blank=True, default="Custom Uploads", help_text="Category name (Optional)")
     file = serializers.FileField(required=True, help_text="Shapefile (.zip) or GeoJSON (.json / .geojson) file")
 
+class StateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = State
+        fields = ["id", "name"]
+
+
 class DistrictSerializer(serializers.ModelSerializer):
     state_name = serializers.CharField(source="state.name", read_only=True)
 
     class Meta:
         model = District
         fields = ["id", "name", "state", "state_name"]
+
+
+class BlockSerializer(serializers.ModelSerializer):
+    district_id = serializers.IntegerField(source="subdivision.district.id", read_only=True)
+    district_name = serializers.CharField(source="subdivision.district.name", read_only=True)
+
+    class Meta:
+        model = Block
+        fields = ["id", "name", "district_id", "district_name"]
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
@@ -651,6 +675,7 @@ class ComplaintActionSerializer(serializers.Serializer):
 
 
 class ProposalSerializer(serializers.ModelSerializer):
+    state_name = serializers.CharField(source="state.name", read_only=True)
     district_name = serializers.CharField(source="district.name", read_only=True)
     department_name = serializers.CharField(source="department.name", read_only=True)
     created_by_name = serializers.SerializerMethodField(read_only=True)
@@ -659,6 +684,30 @@ class ProposalSerializer(serializers.ModelSerializer):
     cost_formatted = serializers.SerializerMethodField(read_only=True)
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     stage_display = serializers.CharField(source="get_stage_display", read_only=True)
+    linked_complaint_number = serializers.CharField(source="linked_complaint.complaint_number", read_only=True)
+    funding_source = serializers.CharField(required=False, allow_blank=True, default="District")
+
+    def validate_funding_source(self, value):
+        if not value:
+            return "District"
+        v_lower = str(value).strip().lower()
+        mapping = {
+            "district": "District",
+            "distict": "District",
+            "state": "State",
+            "central": "Central",
+            "csr": "CSR",
+            "world bank": "World Bank",
+            "worldbank": "World Bank",
+            "adb": "ADB",
+            "other": "Other",
+        }
+        if v_lower in mapping:
+            return mapping[v_lower]
+        for key, val in mapping.items():
+            if key in v_lower:
+                return val
+        return "District"
 
     class Meta:
         model = Proposal
@@ -667,6 +716,8 @@ class ProposalSerializer(serializers.ModelSerializer):
             "proposal_id",
             "title",
             "category",
+            "state",
+            "state_name",
             "district",
             "district_name",
             "department",
@@ -685,6 +736,8 @@ class ProposalSerializer(serializers.ModelSerializer):
             "ward",
             "population_impact",
             "gap_score",
+            "linked_complaint",
+            "linked_complaint_number",
             "linked_complaint_ids",
             "problem_statement",
             
@@ -712,6 +765,8 @@ class ProposalSerializer(serializers.ModelSerializer):
             "delegated_power_note",
             
             # Step 5: Clearances
+            "funding_source",
+            "clearances_notes",
             "clearances",
             
             # Step 6: Attachments
@@ -753,6 +808,260 @@ class ProposalSerializer(serializers.ModelSerializer):
         elif cost >= 100000:
             return f"₹{round(cost / 100000.0, 2)} Lakh"
         return f"₹{cost:,.2f}"
+
+
+# ==========================================
+# PROJECT EXECUTION ERP SERIALIZERS
+# ==========================================
+
+class ProjectExecutionSerializer(serializers.ModelSerializer):
+    department_name = serializers.CharField(source="department.name", read_only=True)
+    district_name = serializers.CharField(source="district.name", read_only=True)
+    proposal_id_str = serializers.CharField(source="proposal.proposal_id", read_only=True)
+    proposed_amount_formatted = serializers.SerializerMethodField(read_only=True)
+    budget_formatted = serializers.SerializerMethodField(read_only=True)
+    expenditure_formatted = serializers.SerializerMethodField(read_only=True)
+    bill_amount = serializers.SerializerMethodField(read_only=True)
+    bill_amount_formatted = serializers.SerializerMethodField(read_only=True)
+    net_payable_amount = serializers.SerializerMethodField(read_only=True)
+    net_payable_amount_formatted = serializers.SerializerMethodField(read_only=True)
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+    risk_display = serializers.CharField(source="get_risk_level_display", read_only=True)
+
+    class Meta:
+        model = ProjectExecution
+        fields = "__all__"
+
+    def get_proposed_amount_formatted(self, obj):
+        amt = float(obj.proposed_amount or 0)
+        if amt >= 10000000:
+            return f"₹{round(amt / 10000000.0, 2)} Cr"
+        elif amt >= 100000:
+            return f"₹{round(amt / 100000.0, 2)} Lakh"
+        return f"₹{amt:,.2f}"
+
+    def get_budget_formatted(self, obj):
+        amt = float(obj.sanction_amount or 0)
+        if amt >= 10000000:
+            return f"₹{round(amt / 10000000.0, 2)} Cr"
+        elif amt >= 100000:
+            return f"₹{round(amt / 100000.0, 2)} Lakh"
+        return f"₹{amt:,.2f}"
+
+    def get_expenditure_formatted(self, obj):
+        amt = float(obj.expenditure_amount or 0)
+        if amt >= 10000000:
+            return f"₹{round(amt / 10000000.0, 2)} Cr"
+        elif amt >= 100000:
+            return f"₹{round(amt / 100000.0, 2)} Lakh"
+        return f"₹{amt:,.2f}"
+
+    def get_bill_amount(self, obj):
+        bills = getattr(obj, "bills", None)
+        if bills is not None:
+            return sum(float(b.claimed_amount or 0) for b in bills.all())
+        return 0.0
+
+    def get_bill_amount_formatted(self, obj):
+        amt = self.get_bill_amount(obj)
+        if amt >= 10000000:
+            return f"₹{round(amt / 10000000.0, 2)} Cr"
+        elif amt >= 100000:
+            return f"₹{round(amt / 100000.0, 2)} Lakh"
+        return f"₹{amt:,.2f}"
+
+    def get_net_payable_amount(self, obj):
+        bills = getattr(obj, "bills", None)
+        if bills is not None:
+            return sum(float(b.net_payable_amount or 0) for b in bills.all())
+        return 0.0
+
+    def get_net_payable_amount_formatted(self, obj):
+        amt = self.get_net_payable_amount(obj)
+        if amt >= 10000000:
+            return f"₹{round(amt / 10000000.0, 2)} Cr"
+        elif amt >= 100000:
+            return f"₹{round(amt / 100000.0, 2)} Lakh"
+        return f"₹{amt:,.2f}"
+
+
+class SiteDiarySerializer(serializers.ModelSerializer):
+    project_id_str = serializers.CharField(source="project.project_id", read_only=True)
+    project_title = serializers.CharField(source="project.title", read_only=True)
+    logged_by_name = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = SiteDiary
+        fields = "__all__"
+
+    def get_logged_by_name(self, obj):
+        if obj.logged_by:
+            return obj.logged_by.get_full_name() or obj.logged_by.username
+        return "Field Engineer"
+
+    def to_internal_value(self, data):
+        data_copy = data.copy() if hasattr(data, 'copy') else dict(data)
+        
+        # Map modal fields from screenshot
+        if "physical_progress" in data_copy and "progress_logged" not in data_copy:
+            data_copy["progress_logged"] = data_copy["physical_progress"]
+        elif "physical_progress_%" in data_copy and "progress_logged" not in data_copy:
+            data_copy["progress_logged"] = data_copy["physical_progress_%"]
+        elif "progress_percentage" in data_copy and "progress_logged" not in data_copy:
+            data_copy["progress_logged"] = data_copy["progress_percentage"]
+            
+        if "labour_deployed" in data_copy and "labour_count" not in data_copy:
+            data_copy["labour_count"] = data_copy["labour_deployed"]
+            
+        if "materials_consumed" in data_copy and "materials_used" not in data_copy:
+            data_copy["materials_used"] = data_copy["materials_consumed"]
+            
+        if "remarks" in data_copy and "work_description" not in data_copy:
+            data_copy["work_description"] = data_copy["remarks"]
+        elif "observations" in data_copy and "work_description" not in data_copy:
+            data_copy["work_description"] = data_copy["observations"]
+
+        return super().to_internal_value(data_copy)
+
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        rep["physical_progress"] = float(instance.progress_logged or 0)
+        rep["labour_deployed"] = instance.labour_count
+        rep["materials_consumed"] = instance.materials_used
+        rep["remarks"] = instance.work_description
+        rep["observations"] = instance.work_description
+        return rep
+
+
+class MeasurementBookSerializer(serializers.ModelSerializer):
+    project_id_str = serializers.CharField(source="project.project_id", read_only=True)
+    project_title = serializers.CharField(source="project.title", read_only=True)
+
+    class Meta:
+        model = MeasurementBook
+        fields = "__all__"
+
+    def to_internal_value(self, data):
+        data_copy = data.copy() if hasattr(data, 'copy') else dict(data)
+        
+        # Modal field mappings for Measurement Book Entry screenshot
+        if "work_item" in data_copy and "item_description" not in data_copy:
+            data_copy["item_description"] = data_copy["work_item"]
+        elif "remarks" in data_copy and "item_description" not in data_copy:
+            data_copy["item_description"] = data_copy["remarks"]
+        elif "observations" in data_copy and "item_description" not in data_copy:
+            data_copy["item_description"] = data_copy["observations"]
+
+        if "executed_quantity" in data_copy and "quantity_measured" not in data_copy:
+            data_copy["quantity_measured"] = data_copy["executed_quantity"]
+
+        return super().to_internal_value(data_copy)
+
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        rep["work_item"] = instance.item_description
+        rep["executed_quantity"] = float(instance.quantity_measured or 0)
+        rep["estimated_quantity"] = float(instance.estimated_quantity or 0)
+        rep["remarks"] = instance.item_description
+        rep["observations"] = instance.item_description
+        return rep
+
+
+class ProjectBillSerializer(serializers.ModelSerializer):
+    project_id_str = serializers.CharField(source="project.project_id", read_only=True)
+    project_title = serializers.CharField(source="project.title", read_only=True)
+
+    class Meta:
+        model = ProjectBill
+        fields = "__all__"
+
+    def to_internal_value(self, data):
+        data_copy = data.copy() if hasattr(data, 'copy') else dict(data)
+        
+        # Modal field mappings for Submit Running Bill screenshot
+        if "bill_amount" in data_copy and "claimed_amount" not in data_copy:
+            data_copy["claimed_amount"] = data_copy["bill_amount"]
+            if "verified_amount" not in data_copy:
+                data_copy["verified_amount"] = data_copy["bill_amount"]
+            if "net_payable_amount" not in data_copy:
+                data_copy["net_payable_amount"] = data_copy["bill_amount"]
+
+        if "observations" in data_copy and "remarks" not in data_copy:
+            data_copy["remarks"] = data_copy["observations"]
+
+        return super().to_internal_value(data_copy)
+
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        rep["bill_amount"] = float(instance.claimed_amount or 0)
+        rep["remarks"] = instance.remarks or f"Bill {instance.bill_number}"
+        rep["observations"] = instance.remarks or f"Bill {instance.bill_number}"
+        return rep
+
+
+class ExecutionRiskSerializer(serializers.ModelSerializer):
+    project_id_str = serializers.CharField(source="project.project_id", read_only=True)
+    project_title = serializers.CharField(source="project.title", read_only=True)
+    severity_display = serializers.CharField(source="get_severity_display", read_only=True)
+
+    class Meta:
+        model = ExecutionRisk
+        fields = "__all__"
+
+
+class ReportSerializer(serializers.ModelSerializer):
+    department_name = serializers.CharField(source="department.name", read_only=True)
+    district_name = serializers.CharField(source="district.name", read_only=True)
+    generated_by_name = serializers.SerializerMethodField(read_only=True)
+    generated_date_str = serializers.DateTimeField(source="generated_at", format="%Y-%m-%d", read_only=True)
+    size = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = Report
+        fields = "__all__"
+
+    def get_generated_by_name(self, obj):
+        if obj.generated_by:
+            return obj.generated_by.get_full_name() or obj.generated_by.username
+        return "System Admin"
+
+    def get_size(self, obj):
+        if obj.file and hasattr(obj.file, 'size') and obj.file.size:
+            return f"{round(obj.file.size / (1024 * 1024), 1)} MB"
+class EmployeeSerializer(serializers.ModelSerializer):
+    department_name = serializers.CharField(source="department.name", read_only=True)
+    state_name = serializers.CharField(source="state.name", read_only=True)
+    district_name = serializers.CharField(source="district.name", read_only=True)
+    reports_to_name = serializers.CharField(source="reports_to.full_name", read_only=True)
+    role_display = serializers.CharField(source="role_name", read_only=True)
+    role_id = serializers.SerializerMethodField(read_only=True)
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+    user_username = serializers.CharField(source="user.username", read_only=True)
+
+    class Meta:
+        model = Employee
+        fields = "__all__"
+        extra_kwargs = {
+            'employee_code': {'required': False, 'allow_blank': True}
+        }
+
+    def get_role_id(self, obj):
+        return obj.role.id if obj.role else None
+
+
+class EmployeeInvitationSerializer(serializers.ModelSerializer):
+    role_name = serializers.CharField(source="role.name", read_only=True)
+    invited_by_name = serializers.SerializerMethodField(read_only=True)
+    is_expired = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = EmployeeInvitation
+        fields = "__all__"
+
+    def get_invited_by_name(self, obj):
+        if obj.invited_by:
+            return obj.invited_by.get_full_name() or obj.invited_by.username
+        return "System Admin"
 
 
 

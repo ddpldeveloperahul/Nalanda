@@ -421,6 +421,187 @@ class FacilityHistory(models.Model):
         return f"History for {self.facility.name} at {self.valid_from}"
 
 
+
+
+# ==========================================
+# 10. COMPLAINT & GRIEVANCE MANAGEMENT MODULE (cmp_*)
+# ==========================================
+
+class ComplaintStatus(models.TextChoices):
+    SUBMITTED = "SUBMITTED", "Submitted"
+    ASSIGNED = "ASSIGNED", "Assigned"
+    ACCEPTED = "ACCEPTED", "Accepted"
+    INSPECTION_STARTED = "INSPECTION_STARTED", "Inspection Started"
+    EVIDENCE_UPLOADED = "EVIDENCE_UPLOADED", "Evidence Uploaded"
+    RESOLVED = "RESOLVED", "Resolved"
+    CITIZEN_VERIFICATION = "CITIZEN_VERIFICATION", "Citizen Verification"
+    CLOSED = "CLOSED", "Closed"
+    REOPENED = "REOPENED", "Reopened"
+    ESCALATED = "ESCALATED", "Escalated"
+    TRANSFERRED = "TRANSFERRED", "Transferred"
+    REJECTED = "REJECTED", "Rejected"
+
+
+class ComplaintPriority(models.TextChoices):
+    LOW = "LOW", "Low (72h SLA)"
+    MEDIUM = "MEDIUM", "Medium (48h SLA)"
+    HIGH = "HIGH", "High (24h SLA)"
+    CRITICAL = "CRITICAL", "Critical (6h SLA)"
+
+
+class ComplaintCategory(models.Model):
+    """
+    Defect / Complaint Categories mapping auto-routing targets and default SLAs.
+    """
+    name = models.CharField(max_length=150, unique=True, verbose_name="Category Name")
+    department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name="complaint_categories", verbose_name="Auto-Route Department")
+    default_priority = models.CharField(max_length=20, choices=ComplaintPriority.choices, default=ComplaintPriority.MEDIUM, verbose_name="Default Priority")
+    default_sla_hours = models.IntegerField(default=24, verbose_name="Default SLA (Hours)")
+    icon = models.CharField(max_length=50, default="fa-circle-exclamation", verbose_name="FontAwesome Icon")
+    description = models.TextField(blank=True, verbose_name="Description")
+
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "cmp_category"
+        verbose_name = "Complaint Category"
+        verbose_name_plural = "Complaint Categories"
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return f"{self.name} -> {self.department.name} ({self.default_sla_hours}h SLA)"
+
+
+class Complaint(models.Model):
+    """
+    Core Complaint / Grievance Record for NDIS Enterprise Grievance Management.
+    """
+    tracking_no = models.CharField(max_length=50, unique=True, db_index=True, verbose_name="Tracking Number")
+    title = models.CharField(max_length=255, verbose_name="Complaint Title")
+    description = models.TextField(verbose_name="Detailed Description")
+    
+    # Auto-routing & Department/Role mapping
+    category = models.ForeignKey(ComplaintCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name="complaints")
+    department = models.ForeignKey(Department, on_delete=models.CASCADE, null=True, blank=True, related_name="complaints", verbose_name="Responsible Department")
+    
+    # Assignees & Citizen
+    citizen_user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="submitted_complaints")
+    citizen_name = models.CharField(max_length=150, blank=True, default="", verbose_name="Citizen Name")
+    citizen_phone = models.CharField(max_length=20, blank=True, default="", verbose_name="Phone Number")
+    citizen_email = models.EmailField(blank=True, null=True, verbose_name="Email Address")
+    is_identity_masked = models.BooleanField(default=False, verbose_name="Mask Identity on Public Portals")
+    
+    assigned_officer = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="assigned_complaints", verbose_name="Assigned Department Officer / Engineer")
+    assigned_inspector = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="inspected_complaints", verbose_name="Assigned Field Inspector")
+    
+    # Workflow State & Priority
+    status = models.CharField(max_length=30, choices=ComplaintStatus.choices, default=ComplaintStatus.SUBMITTED, db_index=True, verbose_name="Status")
+    priority = models.CharField(max_length=20, choices=ComplaintPriority.choices, default=ComplaintPriority.MEDIUM, verbose_name="Priority")
+    sla_target_hours = models.IntegerField(default=24, verbose_name="SLA Target (Hours)")
+    sla_deadline = models.DateTimeField(null=True, blank=True, db_index=True, verbose_name="SLA Deadline")
+    is_sla_breached = models.BooleanField(default=False, db_index=True, verbose_name="SLA Breached Flag")
+    
+    # GIS Spatial Coordinates & Nearest Administrative Units
+    latitude = models.FloatField(null=True, blank=True, verbose_name="Latitude")
+    longitude = models.FloatField(null=True, blank=True, verbose_name="Longitude")
+    geom = get_spatial_field("point")
+    
+    district = models.ForeignKey(District, on_delete=models.SET_NULL, null=True, blank=True, related_name="complaints")
+    subdivision = models.ForeignKey(SubDivision, on_delete=models.SET_NULL, null=True, blank=True, related_name="complaints")
+    block = models.ForeignKey(Block, on_delete=models.SET_NULL, null=True, blank=True, related_name="complaints")
+    village_ward = models.ForeignKey(VillageWard, on_delete=models.SET_NULL, null=True, blank=True, related_name="complaints")
+    
+    nearest_facility = models.ForeignKey(Facility, on_delete=models.SET_NULL, null=True, blank=True, related_name="nearest_complaints")
+    nearest_facility_name = models.CharField(max_length=255, blank=True, null=True, verbose_name="Nearest Facility Name")
+    nearest_facility_distance_m = models.FloatField(null=True, blank=True, verbose_name="Distance to Nearest Facility (Meters)")
+    nearest_gis_feature = models.ForeignKey("GISLayerFeature", on_delete=models.SET_NULL, null=True, blank=True, related_name="nearest_complaints")
+    
+    # Resolution & Feedback Details
+    resolution_summary = models.TextField(blank=True, null=True, verbose_name="Resolution Summary")
+    rejection_reason = models.TextField(blank=True, null=True, verbose_name="Rejection Reason")
+    transfer_reason = models.TextField(blank=True, null=True, verbose_name="Transfer Reason")
+    escalation_reason = models.TextField(blank=True, null=True, verbose_name="Escalation Reason")
+    
+    rating = models.IntegerField(null=True, blank=True, verbose_name="Citizen Feedback Rating (1-5)")
+    feedback_comment = models.TextField(blank=True, null=True, verbose_name="Citizen Feedback Comment")
+    
+    # Timestamps
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "cmp_complaint"
+        verbose_name = "Complaint / Grievance"
+        verbose_name_plural = "Complaints & Grievances"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["status", "department"]),
+            models.Index(fields=["assigned_officer", "status"]),
+            models.Index(fields=["citizen_user"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.tracking_no} - {self.title} [{self.status}]"
+
+
+class ComplaintEvidence(models.Model):
+    """
+    Multiple evidence attachments (Photos, Videos, PDFs, Geotagged images).
+    """
+    EVIDENCE_STAGE_CHOICES = [
+        ("SUBMISSION", "Citizen Submission"),
+        ("INSPECTION", "Field Inspection"),
+        ("RESOLUTION", "Resolution Verification"),
+    ]
+    complaint = models.ForeignKey(Complaint, on_delete=models.CASCADE, related_name="evidences")
+    file = models.FileField(upload_to="complaints/evidence/%Y/%m/")
+    file_name = models.CharField(max_length=255)
+    file_type = models.CharField(max_length=50, default="IMAGE")
+    stage = models.CharField(max_length=20, choices=EVIDENCE_STAGE_CHOICES, default="SUBMISSION")
+    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    latitude = models.FloatField(null=True, blank=True, verbose_name="EXIF Geotag Latitude")
+    longitude = models.FloatField(null=True, blank=True, verbose_name="EXIF Geotag Longitude")
+    is_geotag_verified = models.BooleanField(default=True, verbose_name="Geotag Matches Pin Tolerance")
+    distance_from_pin_m = models.FloatField(null=True, blank=True, verbose_name="Distance from Pin (Meters)")
+    
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = "cmp_evidence"
+        verbose_name = "Complaint Evidence"
+        verbose_name_plural = "Complaint Evidences"
+
+    def __str__(self) -> str:
+        return f"Evidence for {self.complaint.tracking_no} ({self.file_name})"
+
+
+class ComplaintTimeline(models.Model):
+    """
+    Audit timeline recording every status transition, assignment, inspection, and comment.
+    """
+    complaint = models.ForeignKey(Complaint, on_delete=models.CASCADE, related_name="timeline")
+    action = models.CharField(max_length=50, verbose_name="Action Taken")
+    from_status = models.CharField(max_length=30, blank=True, null=True)
+    to_status = models.CharField(max_length=30, blank=True, null=True)
+    performed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    performer_role = models.CharField(max_length=100, blank=True, null=True)
+    remarks = models.TextField(blank=True, null=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = "cmp_timeline"
+        verbose_name = "Complaint Timeline Event"
+        verbose_name_plural = "Complaint Timeline Events"
+        ordering = ["created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.action} on {self.complaint.tracking_no} by {self.performed_by}"
+
 # ==========================================
 # 4. WORKFLOW & TRANSACTION MODULE (txn_*)
 # ==========================================
@@ -514,10 +695,21 @@ class ProposalStage(models.TextChoices):
     REVIEW_SUBMIT = "7_REVIEW_SUBMIT", "7. Review & Submit"
 
 
+class FundingSource(models.TextChoices):
+    DISTRICT = "District", "District"
+    STATE = "State", "State"
+    CENTRAL = "Central", "Central"
+    CSR = "CSR", "CSR"
+    WORLD_BANK = "World Bank", "World Bank"
+    ADB = "ADB", "ADB"
+    OTHER = "Other", "Other"
+
+
 class Proposal(models.Model):
     """Department Development Proposal / Scheme Project Application (DPR Wizard ERP)."""
     proposal_id = models.CharField(max_length=50, unique=True, null=True, blank=True, verbose_name="Proposal ID (e.g. PRP-2026-00104)")
     title = models.CharField(max_length=255, verbose_name="Proposal Title")
+    state = models.ForeignKey(State, on_delete=models.SET_NULL, null=True, blank=True, related_name="proposals", verbose_name="State")
     category = models.CharField(max_length=150, default="Infrastructure", verbose_name="Proposal Category")
     district = models.ForeignKey(District, on_delete=models.CASCADE, related_name="proposals", verbose_name="District")
     department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name="proposals", verbose_name="Department")
@@ -536,6 +728,7 @@ class Proposal(models.Model):
     ward = models.CharField(max_length=150, blank=True, null=True, verbose_name="Ward")
     population_impact = models.IntegerField(default=0, verbose_name="Population Impact")
     gap_score = models.DecimalField(max_digits=8, decimal_places=2, default=0.00, verbose_name="Gap Score Metric")
+    linked_complaint = models.ForeignKey(Complaint, on_delete=models.SET_NULL, null=True, blank=True, related_name="proposals", verbose_name="Linked Primary Complaint")
     linked_complaint_ids = models.JSONField(default=list, blank=True, verbose_name="Linked Complaint IDs")
     problem_statement = models.TextField(blank=True, null=True, verbose_name="Problem Statement and Reason")
 
@@ -562,6 +755,8 @@ class Proposal(models.Model):
     delegated_power_note = models.CharField(max_length=255, default="Within DM delegated power", verbose_name="Delegated Power Note")
 
     # Step 5: Clearances
+    funding_source = models.CharField(max_length=150, choices=FundingSource.choices, default=FundingSource.DISTRICT, verbose_name="Funding Source")
+    clearances_notes = models.TextField(blank=True, null=True, verbose_name="Clearances & NOCs Notes")
     clearances = models.JSONField(default=dict, blank=True, verbose_name="Departmental Clearances (JSONB)")
 
     # Step 6: Attachments
@@ -624,30 +819,30 @@ class BudgetApproval(models.Model):
         return f"Sanction {self.approved_amount} for {self.proposal.title}"
 
 
-class Citizengrievance(models.Model):
-    """Citizen Public Grievance Submission."""
-    tracking_no = models.CharField(max_length=50, unique=True, verbose_name="Tracking Number")
-    facility = models.ForeignKey(Facility, on_delete=models.SET_NULL, null=True, blank=True, related_name="grievances")
-    citizen_user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="grievances")
-    citizen_name = models.CharField(max_length=150, verbose_name="Citizen Name")
-    citizen_phone = models.CharField(max_length=20, verbose_name="Phone Number")
-    workflow_instance = models.ForeignKey(WorkflowInstance, on_delete=models.SET_NULL, null=True, blank=True, related_name="grievances")
-    description = models.TextField(verbose_name="Grievance Description")
-    geom = get_spatial_field("point")
+# class Citizengrievance(models.Model):
+#     """Citizen Public Grievance Submission."""
+#     tracking_no = models.CharField(max_length=50, unique=True, verbose_name="Tracking Number")
+#     facility = models.ForeignKey(Facility, on_delete=models.SET_NULL, null=True, blank=True, related_name="grievances")
+#     citizen_user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="grievances")
+#     citizen_name = models.CharField(max_length=150, verbose_name="Citizen Name")
+#     citizen_phone = models.CharField(max_length=20, verbose_name="Phone Number")
+#     workflow_instance = models.ForeignKey(WorkflowInstance, on_delete=models.SET_NULL, null=True, blank=True, related_name="grievances")
+#     description = models.TextField(verbose_name="Grievance Description")
+#     geom = get_spatial_field("point")
     
-    created_at = models.DateTimeField(auto_now_add=True, db_index=True, verbose_name="Created At")
-    updated_at = models.DateTimeField(auto_now=True, verbose_name="Updated At")
+#     created_at = models.DateTimeField(auto_now_add=True, db_index=True, verbose_name="Created At")
+#     updated_at = models.DateTimeField(auto_now=True, verbose_name="Updated At")
     
-    is_deleted = models.BooleanField(default=False, verbose_name="Deleted")
-    deleted_at = models.DateTimeField(null=True, blank=True, verbose_name="Deleted At")
+#     is_deleted = models.BooleanField(default=False, verbose_name="Deleted")
+#     deleted_at = models.DateTimeField(null=True, blank=True, verbose_name="Deleted At")
     
-    class Meta:
-        db_table = "txn_citizen_grievance"
-        verbose_name = "Citizen grievance"
-        verbose_name_plural = "Citizen grievances"
+#     class Meta:
+#         db_table = "txn_citizen_grievance"
+#         verbose_name = "Citizen grievance"
+#         verbose_name_plural = "Citizen grievances"
 
-    def __str__(self) -> str:
-        return f"Grievance {self.tracking_no} - {self.citizen_name}"
+#     def __str__(self) -> str:
+#         return f"Grievance {self.tracking_no} - {self.citizen_name}"
 
 
 # ==========================================
@@ -891,180 +1086,300 @@ class GISProcessingJob(models.Model):
 
 
 # ==========================================
-# 10. COMPLAINT & GRIEVANCE MANAGEMENT MODULE (cmp_*)
+# 10. PROJECT EXECUTION ERP MODELS
 # ==========================================
 
-class ComplaintStatus(models.TextChoices):
-    SUBMITTED = "SUBMITTED", "Submitted"
-    ASSIGNED = "ASSIGNED", "Assigned"
-    ACCEPTED = "ACCEPTED", "Accepted"
-    INSPECTION_STARTED = "INSPECTION_STARTED", "Inspection Started"
-    EVIDENCE_UPLOADED = "EVIDENCE_UPLOADED", "Evidence Uploaded"
-    RESOLVED = "RESOLVED", "Resolved"
-    CITIZEN_VERIFICATION = "CITIZEN_VERIFICATION", "Citizen Verification"
-    CLOSED = "CLOSED", "Closed"
-    REOPENED = "REOPENED", "Reopened"
-    ESCALATED = "ESCALATED", "Escalated"
-    TRANSFERRED = "TRANSFERRED", "Transferred"
-    REJECTED = "REJECTED", "Rejected"
+class ProjectStatus(models.TextChoices):
+    PLANNING = "planning", "Planning"
+    IN_EXECUTION = "in_execution", "In Execution"
+    COMPLETED = "completed", "Completed"
+    SUSPENDED = "suspended", "Suspended"
+    HANDED_OVER = "handed_over", "Handed Over"
 
 
-class ComplaintPriority(models.TextChoices):
-    LOW = "LOW", "Low (72h SLA)"
-    MEDIUM = "MEDIUM", "Medium (48h SLA)"
-    HIGH = "HIGH", "High (24h SLA)"
-    CRITICAL = "CRITICAL", "Critical (6h SLA)"
+class RiskSeverity(models.TextChoices):
+    LOW = "low", "Low"
+    MEDIUM = "medium", "Medium"
+    HIGH = "high", "High"
+    CRITICAL = "critical", "Critical"
 
 
-class ComplaintCategory(models.Model):
-    """
-    Defect / Complaint Categories mapping auto-routing targets and default SLAs.
-    """
-    name = models.CharField(max_length=150, unique=True, verbose_name="Category Name")
-    department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name="complaint_categories", verbose_name="Auto-Route Department")
-    default_priority = models.CharField(max_length=20, choices=ComplaintPriority.choices, default=ComplaintPriority.MEDIUM, verbose_name="Default Priority")
-    default_sla_hours = models.IntegerField(default=24, verbose_name="Default SLA (Hours)")
-    icon = models.CharField(max_length=50, default="fa-circle-exclamation", verbose_name="FontAwesome Icon")
-    description = models.TextField(blank=True, verbose_name="Description")
+class ProjectExecution(models.Model):
+    """Sanctioned Government Project Execution ERP Entity."""
+    project_id = models.CharField(max_length=50, unique=True, verbose_name="Project ID (e.g. PRJ-2026-00103)")
+    proposal = models.ForeignKey(Proposal, on_delete=models.SET_NULL, null=True, blank=True, related_name="execution_projects", verbose_name="Linked DPR Proposal")
+    title = models.CharField(max_length=255, verbose_name="Project Name")
+    department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True, related_name="projects", verbose_name="Department")
+    district = models.ForeignKey(District, on_delete=models.SET_NULL, null=True, blank=True, related_name="projects", verbose_name="District")
+    block = models.CharField(max_length=150, blank=True, verbose_name="Block")
+    ward = models.CharField(max_length=100, blank=True, verbose_name="Ward")
+    contractor_name = models.CharField(max_length=200, blank=True, verbose_name="Contractor Name")
+    proposed_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0.00, verbose_name="Proposed Budget (INR)")
+    sanction_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0.00, verbose_name="Sanctioned Budget (INR)")
+    expenditure_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0.00, verbose_name="Budget Utilized (INR)")
+    sanction_order_no = models.CharField(max_length=100, blank=True, verbose_name="Sanction Order No")
+    sanctioned_at = models.DateTimeField(null=True, blank=True, verbose_name="Sanctioned At")
+    progress_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0.00, verbose_name="Progress %")
+    status = models.CharField(max_length=50, choices=ProjectStatus.choices, default=ProjectStatus.IN_EXECUTION, verbose_name="Execution Status")
+    risk_level = models.CharField(max_length=20, choices=RiskSeverity.choices, default=RiskSeverity.LOW, verbose_name="Risk Level")
+    inspection_due = models.BooleanField(default=False, verbose_name="Inspection Due")
+    inspection_due_date = models.DateField(null=True, blank=True, verbose_name="Inspection Due Date")
+    start_date = models.DateField(null=True, blank=True, verbose_name="Start Date")
+    target_completion_date = models.DateField(null=True, blank=True, verbose_name="Target Completion Date")
+    actual_completion_date = models.DateField(null=True, blank=True, verbose_name="Actual Completion Date")
+    created_by = models.ForeignKey("User", on_delete=models.SET_NULL, null=True, blank=True, related_name="created_projects", verbose_name="Created By")
+    is_deleted = models.BooleanField(default=False, verbose_name="Is Deleted")
 
-    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        db_table = "cmp_category"
-        verbose_name = "Complaint Category"
-        verbose_name_plural = "Complaint Categories"
-        ordering = ["name"]
-
-    def __str__(self) -> str:
-        return f"{self.name} -> {self.department.name} ({self.default_sla_hours}h SLA)"
-
-
-class Complaint(models.Model):
-    """
-    Core Complaint / Grievance Record for NDIS Enterprise Grievance Management.
-    """
-    tracking_no = models.CharField(max_length=50, unique=True, db_index=True, verbose_name="Tracking Number")
-    title = models.CharField(max_length=255, verbose_name="Complaint Title")
-    description = models.TextField(verbose_name="Detailed Description")
-    
-    # Auto-routing & Department/Role mapping
-    category = models.ForeignKey(ComplaintCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name="complaints")
-    department = models.ForeignKey(Department, on_delete=models.CASCADE, null=True, blank=True, related_name="complaints", verbose_name="Responsible Department")
-    
-    # Assignees & Citizen
-    citizen_user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="submitted_complaints")
-    citizen_name = models.CharField(max_length=150, blank=True, default="", verbose_name="Citizen Name")
-    citizen_phone = models.CharField(max_length=20, blank=True, default="", verbose_name="Phone Number")
-    citizen_email = models.EmailField(blank=True, null=True, verbose_name="Email Address")
-    is_identity_masked = models.BooleanField(default=False, verbose_name="Mask Identity on Public Portals")
-    
-    assigned_officer = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="assigned_complaints", verbose_name="Assigned Department Officer / Engineer")
-    assigned_inspector = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="inspected_complaints", verbose_name="Assigned Field Inspector")
-    
-    # Workflow State & Priority
-    status = models.CharField(max_length=30, choices=ComplaintStatus.choices, default=ComplaintStatus.SUBMITTED, db_index=True, verbose_name="Status")
-    priority = models.CharField(max_length=20, choices=ComplaintPriority.choices, default=ComplaintPriority.MEDIUM, verbose_name="Priority")
-    sla_target_hours = models.IntegerField(default=24, verbose_name="SLA Target (Hours)")
-    sla_deadline = models.DateTimeField(null=True, blank=True, db_index=True, verbose_name="SLA Deadline")
-    is_sla_breached = models.BooleanField(default=False, db_index=True, verbose_name="SLA Breached Flag")
-    
-    # GIS Spatial Coordinates & Nearest Administrative Units
-    latitude = models.FloatField(null=True, blank=True, verbose_name="Latitude")
-    longitude = models.FloatField(null=True, blank=True, verbose_name="Longitude")
-    geom = get_spatial_field("point")
-    
-    district = models.ForeignKey(District, on_delete=models.SET_NULL, null=True, blank=True, related_name="complaints")
-    subdivision = models.ForeignKey(SubDivision, on_delete=models.SET_NULL, null=True, blank=True, related_name="complaints")
-    block = models.ForeignKey(Block, on_delete=models.SET_NULL, null=True, blank=True, related_name="complaints")
-    village_ward = models.ForeignKey(VillageWard, on_delete=models.SET_NULL, null=True, blank=True, related_name="complaints")
-    
-    nearest_facility = models.ForeignKey(Facility, on_delete=models.SET_NULL, null=True, blank=True, related_name="nearest_complaints")
-    nearest_facility_name = models.CharField(max_length=255, blank=True, null=True, verbose_name="Nearest Facility Name")
-    nearest_facility_distance_m = models.FloatField(null=True, blank=True, verbose_name="Distance to Nearest Facility (Meters)")
-    nearest_gis_feature = models.ForeignKey(GISLayerFeature, on_delete=models.SET_NULL, null=True, blank=True, related_name="nearest_complaints")
-    
-    # Resolution & Feedback Details
-    resolution_summary = models.TextField(blank=True, null=True, verbose_name="Resolution Summary")
-    rejection_reason = models.TextField(blank=True, null=True, verbose_name="Rejection Reason")
-    transfer_reason = models.TextField(blank=True, null=True, verbose_name="Transfer Reason")
-    escalation_reason = models.TextField(blank=True, null=True, verbose_name="Escalation Reason")
-    
-    rating = models.IntegerField(null=True, blank=True, verbose_name="Citizen Feedback Rating (1-5)")
-    feedback_comment = models.TextField(blank=True, null=True, verbose_name="Citizen Feedback Comment")
-    
-    # Timestamps
-    resolved_at = models.DateTimeField(null=True, blank=True)
-    closed_at = models.DateTimeField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True, verbose_name="Created At")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Updated At")
 
     class Meta:
-        db_table = "cmp_complaint"
-        verbose_name = "Complaint / Grievance"
-        verbose_name_plural = "Complaints & Grievances"
+        db_table = "prj_project_execution"
+        verbose_name = "Project Execution"
+        verbose_name_plural = "Project Executions"
         ordering = ["-created_at"]
-        indexes = [
-            models.Index(fields=["status", "department"]),
-            models.Index(fields=["assigned_officer", "status"]),
-            models.Index(fields=["citizen_user"]),
-        ]
 
     def __str__(self) -> str:
-        return f"{self.tracking_no} - {self.title} [{self.status}]"
+        return f"{self.project_id} - {self.title}"
 
 
-class ComplaintEvidence(models.Model):
-    """
-    Multiple evidence attachments (Photos, Videos, PDFs, Geotagged images).
-    """
-    EVIDENCE_STAGE_CHOICES = [
-        ("SUBMISSION", "Citizen Submission"),
-        ("INSPECTION", "Field Inspection"),
-        ("RESOLUTION", "Resolution Verification"),
-    ]
-    complaint = models.ForeignKey(Complaint, on_delete=models.CASCADE, related_name="evidences")
-    file = models.FileField(upload_to="complaints/evidence/%Y/%m/")
-    file_name = models.CharField(max_length=255)
-    file_type = models.CharField(max_length=50, default="IMAGE")
-    stage = models.CharField(max_length=20, choices=EVIDENCE_STAGE_CHOICES, default="SUBMISSION")
-    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
-    
-    latitude = models.FloatField(null=True, blank=True, verbose_name="EXIF Geotag Latitude")
-    longitude = models.FloatField(null=True, blank=True, verbose_name="EXIF Geotag Longitude")
-    is_geotag_verified = models.BooleanField(default=True, verbose_name="Geotag Matches Pin Tolerance")
-    distance_from_pin_m = models.FloatField(null=True, blank=True, verbose_name="Distance from Pin (Meters)")
-    
-    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+def get_today_date():
+    return timezone.now().date()
+
+
+class SiteDiary(models.Model):
+    """Daily Site Progress & Engineer Notes Log."""
+    project = models.ForeignKey(ProjectExecution, on_delete=models.CASCADE, related_name="site_diaries", verbose_name="Project")
+    log_date = models.DateField(default=get_today_date, verbose_name="Log Date")
+    work_description = models.TextField(verbose_name="Engineer Notes / Work Executed")
+    labour_count = models.IntegerField(default=0, verbose_name="Labour Count")
+    materials_used = models.TextField(blank=True, verbose_name="Materials Used")
+    weather_condition = models.CharField(max_length=100, default="Sunny", verbose_name="Weather Condition")
+    progress_logged = models.DecimalField(max_digits=5, decimal_places=2, default=0.00, verbose_name="Progress % Logged")
+    latitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True, verbose_name="Latitude")
+    longitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True, verbose_name="Longitude")
+    logged_by = models.ForeignKey("User", on_delete=models.SET_NULL, null=True, blank=True, related_name="site_logs", verbose_name="Logged By")
+
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True, verbose_name="Created At")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Updated At")
 
     class Meta:
-        db_table = "cmp_evidence"
-        verbose_name = "Complaint Evidence"
-        verbose_name_plural = "Complaint Evidences"
+        db_table = "prj_site_diary"
+        verbose_name = "Site Diary Log"
+        verbose_name_plural = "Site Diary Logs"
+        ordering = ["-log_date", "-created_at"]
 
     def __str__(self) -> str:
-        return f"Evidence for {self.complaint.tracking_no} ({self.file_name})"
+        return f"Log {self.log_date} - {self.project.project_id}"
 
 
-class ComplaintTimeline(models.Model):
-    """
-    Audit timeline recording every status transition, assignment, inspection, and comment.
-    """
-    complaint = models.ForeignKey(Complaint, on_delete=models.CASCADE, related_name="timeline")
-    action = models.CharField(max_length=50, verbose_name="Action Taken")
-    from_status = models.CharField(max_length=30, blank=True, null=True)
-    to_status = models.CharField(max_length=30, blank=True, null=True)
-    performed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
-    performer_role = models.CharField(max_length=100, blank=True, null=True)
-    remarks = models.TextField(blank=True, null=True)
-    metadata = models.JSONField(default=dict, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+class MeasurementBook(models.Model):
+    """Government Measurement Book (MB) Verification Entries."""
+    mb_number = models.CharField(max_length=50, unique=True, verbose_name="MB Entry Number")
+    project = models.ForeignKey(ProjectExecution, on_delete=models.CASCADE, related_name="measurement_entries", verbose_name="Project")
+    item_description = models.TextField(verbose_name="Quantity / Work Item Description")
+    unit = models.CharField(max_length=50, default="Cum", verbose_name="Unit of Measurement")
+    estimated_quantity = models.DecimalField(max_digits=12, decimal_places=3, default=0.000, verbose_name="Estimated Quantity")
+    quantity_measured = models.DecimalField(max_digits=12, decimal_places=3, default=0.000, verbose_name="Quantity Measured / Executed")
+    rate = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name="Rate per Unit (INR)")
+    total_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0.00, verbose_name="Total Valuation (INR)")
+    measurement_date = models.DateField(default=get_today_date, verbose_name="Measurement Date")
+    measured_by = models.CharField(max_length=150, blank=True, verbose_name="Measured By (Junior Engineer)")
+    verified_by = models.CharField(max_length=150, blank=True, verbose_name="Verified By (Executive Engineer)")
+    status = models.CharField(max_length=50, default="submitted", verbose_name="Verification Status")
+
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True, verbose_name="Created At")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Updated At")
 
     class Meta:
-        db_table = "cmp_timeline"
-        verbose_name = "Complaint Timeline Event"
-        verbose_name_plural = "Complaint Timeline Events"
-        ordering = ["created_at"]
+        db_table = "prj_measurement_book"
+        verbose_name = "Measurement Book Entry"
+        verbose_name_plural = "Measurement Book Entries"
+        ordering = ["-measurement_date", "-created_at"]
 
     def __str__(self) -> str:
-        return f"{self.action} on {self.complaint.tracking_no} by {self.performed_by}"
+        return f"{self.mb_number} - {self.project.project_id}"
+
+
+class ProjectBill(models.Model):
+    """Running Account (RA) Bills & Payment Tracking."""
+    bill_number = models.CharField(max_length=50, unique=True, verbose_name="Bill Number")
+    project = models.ForeignKey(ProjectExecution, on_delete=models.CASCADE, related_name="bills", verbose_name="Project")
+    bill_type = models.CharField(max_length=50, default="RA_BILL", verbose_name="Bill Type (RA / Advance / Final)")
+    claimed_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0.00, verbose_name="Claimed Amount (INR)")
+    verified_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0.00, verbose_name="Verified Amount (INR)")
+    deductions = models.DecimalField(max_digits=14, decimal_places=2, default=0.00, verbose_name="Deductions (TDS/Security) (INR)")
+    net_payable_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0.00, verbose_name="Net Payable Amount (INR)")
+    submission_date = models.DateField(default=get_today_date, verbose_name="Submission Date")
+    payment_status = models.CharField(max_length=50, default="submitted", verbose_name="Payment Status")
+    payment_date = models.DateField(null=True, blank=True, verbose_name="Payment Date")
+    transaction_reference = models.CharField(max_length=100, blank=True, verbose_name="PFMS / Treasury Reference")
+    remarks = models.TextField(blank=True, verbose_name="Remarks / Observations")
+
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True, verbose_name="Created At")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Updated At")
+
+    class Meta:
+        db_table = "prj_project_bill"
+        verbose_name = "Project Bill & Payment"
+        verbose_name_plural = "Project Bills & Payments"
+        ordering = ["-submission_date", "-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.bill_number} - {self.project.project_id}"
+
+
+class ExecutionRisk(models.Model):
+    """Execution Risk Center - Schedule, Budget & Quality Risk Signals."""
+    project = models.ForeignKey(ProjectExecution, on_delete=models.CASCADE, related_name="risk_signals", verbose_name="Project")
+    risk_type = models.CharField(max_length=100, default="schedule_delay", verbose_name="Risk Category")
+    severity = models.CharField(max_length=20, choices=RiskSeverity.choices, default=RiskSeverity.MEDIUM, verbose_name="Severity")
+    risk_signal = models.TextField(verbose_name="Risk Signal / Issue Statement")
+    recommendation = models.TextField(verbose_name="Recommendation / Mitigation Plan")
+    status = models.CharField(max_length=50, default="active", verbose_name="Risk Status")
+    reported_at = models.DateTimeField(default=timezone.now, verbose_name="Reported At")
+
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True, verbose_name="Created At")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Updated At")
+
+    class Meta:
+        db_table = "prj_execution_risk"
+        verbose_name = "Execution Risk Signal"
+        verbose_name_plural = "Execution Risk Signals"
+        ordering = ["-reported_at"]
+
+    def __str__(self) -> str:
+        return f"Risk [{self.severity}] - {self.project.project_id}"
+
+
+class ReportCategory(models.TextChoices):
+    SLA_AUDIT = "SLA Audit", "SLA Audit"
+    ASSET_AUDIT = "Asset Audit", "Asset Audit"
+    GRIEVANCE_LOG = "Grievance Log", "Grievance Log"
+    WORKFLOW_AUDIT = "Workflow Audit", "Workflow Audit"
+
+
+class Report(models.Model):
+    """Report Generation & Export Center Model."""
+    code = models.CharField(max_length=50, unique=True, verbose_name="Report Code (e.g. REP-001)")
+    title = models.CharField(max_length=255, verbose_name="Report Title")
+    category = models.CharField(max_length=50, choices=ReportCategory.choices, default=ReportCategory.SLA_AUDIT, verbose_name="Category")
+    file = models.FileField(upload_to="reports/", null=True, blank=True, verbose_name="Report File")
+    file_size_str = models.CharField(max_length=50, default="2.4 MB", verbose_name="File Size (e.g. 2.4 MB)")
+    download_format = models.CharField(max_length=20, default="PDF", verbose_name="Format (PDF/CSV)")
+
+    generated_at = models.DateTimeField(auto_now_add=True, db_index=True, verbose_name="Generated Date")
+    generated_by = models.ForeignKey("User", on_delete=models.SET_NULL, null=True, blank=True, related_name="generated_reports", verbose_name="Generated By")
+
+    district = models.ForeignKey(District, on_delete=models.SET_NULL, null=True, blank=True, related_name="reports", verbose_name="District")
+    department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True, related_name="reports", verbose_name="Department")
+
+    class Meta:
+        db_table = "rpt_report"
+        verbose_name = "Report"
+        verbose_name_plural = "Reports"
+        ordering = ["code", "-generated_at"]
+
+    def __str__(self) -> str:
+        return f"{self.code} - {self.title}"
+
+
+class EmployeeStatus(models.TextChoices):
+    INVITED = "invited", "Invited"
+    PENDING = "pending", "Pending"
+    ACTIVE = "active", "Active"
+    SUSPENDED = "suspended", "Suspended"
+
+
+class EmployeeInvitationStatus(models.TextChoices):
+    PENDING = "pending", "Pending"
+    ACCEPTED = "accepted", "Accepted"
+    EXPIRED = "expired", "Expired"
+    CANCELLED = "cancelled", "Cancelled"
+
+
+class Employee(models.Model):
+    """
+    Employee Profile Model per enterprise architecture rules.
+    Links 1-to-1 to User (User -> Role -> Permissions is authoritative).
+    """
+    user = models.OneToOneField("User", on_delete=models.SET_NULL, null=True, blank=True, related_name="employee_profile")
+    employee_code = models.CharField(max_length=50, unique=True, verbose_name="Employee Code (e.g. GOV-100101)")
+
+    full_name = models.CharField(max_length=255, verbose_name="Full Name")
+    email = models.EmailField(unique=True, verbose_name="Official Email")
+    designation = models.CharField(max_length=100, verbose_name="Designation")
+
+    department = models.ForeignKey(Department, on_delete=models.CASCADE, null=True, blank=True, related_name="employees")
+    state = models.ForeignKey(State, on_delete=models.SET_NULL, null=True, blank=True, related_name="employees")
+    district = models.ForeignKey(District, on_delete=models.CASCADE, null=True, blank=True, related_name="employees")
+
+    office = models.CharField(max_length=255, null=True, blank=True, default="District Water Office")
+    block = models.CharField(max_length=100, null=True, blank=True, default="Silao")
+
+    reports_to = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="subordinates")
+
+    status = models.CharField(max_length=20, choices=EmployeeStatus.choices, default=EmployeeStatus.INVITED)
+    invited_at = models.DateTimeField(null=True, blank=True)
+    joined_at = models.DateTimeField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "emp_employee"
+        verbose_name = "Employee Profile"
+        verbose_name_plural = "Employee Profiles"
+        ordering = ["employee_code", "-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.full_name} ({self.employee_code})"
+
+    @property
+    def role(self):
+        """Authoritative RBAC Role comes from User -> Role."""
+        return self.user.role if (self.user and hasattr(self.user, 'role')) else None
+
+    @property
+    def role_name(self) -> str:
+        """Authoritative Role Name from User -> Role."""
+        if self.user and self.user.role:
+            return self.user.role.name
+        # Fallback for pending invitation
+        inv = getattr(self, 'invitation', None)
+        if inv and inv.role:
+            return inv.role.name
+        return "Department Officer"
+
+
+class EmployeeInvitation(models.Model):
+    """
+    Employee Secure Invitation Lifecycle Model.
+    Tracks token, recipient email, assigned RBAC role, status and timestamps.
+    """
+    token = models.CharField(max_length=100, unique=True, default=uuid.uuid4, db_index=True)
+    employee = models.OneToOneField(Employee, on_delete=models.CASCADE, related_name="invitation")
+    email = models.EmailField()
+    role = models.ForeignKey("Role", on_delete=models.CASCADE, related_name="invitations")
+    invited_by = models.ForeignKey("User", on_delete=models.SET_NULL, null=True, blank=True, related_name="sent_invitations")
+
+    status = models.CharField(max_length=20, choices=EmployeeInvitationStatus.choices, default=EmployeeInvitationStatus.PENDING)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    accepted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "emp_invitation"
+        verbose_name = "Employee Invitation"
+        verbose_name_plural = "Employee Invitations"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"Invitation for {self.email} [{self.status}] (Role: {self.role.name})"
+
+    @property
+    def is_expired(self) -> bool:
+        return timezone.now() > self.expires_at
+
+

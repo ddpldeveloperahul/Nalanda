@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Directory - NDIS Government Portal</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
+
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+    <style>
+        :root {
+            --bg-body: #f8fafc;
+            --bg-sidebar: #ffffff;
+            --bg-card: #ffffff;
+            --border-color: #e2e8f0;
+            --brand-primary: #0f2b48;
+            --brand-hover: #1e3a8a;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: 240px;
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            z-index: 10;
+        }
+
+        .brand-header {
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .brand-logo {
+            width: 32px;
+            height: 32px;
+            background: #f97316;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            font-weight: 700;
+            font-size: 16px;
+        }
+
+        .brand-text h3 {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-main);
+            line-height: 1.2;
+        }
+
+        .brand-text p {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .nav-list {
+            padding: 12px 8px;
+            overflow-y: auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 9px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            color: #475569;
+            text-decoration: none;
+            transition: all 0.15s ease;
+        }
+
+        .nav-item i {
+            font-size: 14px;
+            width: 18px;
+            text-align: center;
+        }
+
+        .nav-item:hover {
+            background-color: #f1f5f9;
+            color: var(--text-main);
+        }
+
+        .nav-item.active {
+            background-color: var(--brand-primary);
+            color: #ffffff;
+        }
+
+        /* MAIN WRAPPER */
+        .main-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .top-navbar {
+            height: 56px;
+            background: #ffffff;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            flex-shrink: 0;
+        }
+
+        .top-left-info h2 {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .top-left-info p {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .top-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .search-box {
+            position: relative;
+        }
+
+        .search-box input {
+            padding: 6px 12px 6px 32px;
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 12px;
+            width: 220px;
+        }
+
+        .search-box i {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #94a3b8;
+            font-size: 12px;
+        }
+
+        .user-pill {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .avatar {
+            width: 28px;
+            height: 28px;
+            background: #f97316;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        /* PAGE BODY */
+        .page-content {
+            flex: 1;
+            padding: 24px 32px;
+            overflow-y: auto;
+        }
+
+        .breadcrumb {
+            font-size: 11px;
+            font-weight: 600;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+
+        .page-header {
+            margin-bottom: 24px;
+        }
+
+        .page-header h1 {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 4px;
+        }
+
+        .page-header p {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        /* SUB HEADER CARD */
+        .sub-header-card {
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .sub-header-info {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .sub-header-icon {
+            width: 36px;
+            height: 36px;
+            background: #e0f2fe;
+            color: #0369a1;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        .sub-header-info h3 {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .sub-header-info p {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .btn-primary {
+            background-color: var(--brand-primary);
+            color: #ffffff;
+            padding: 9px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: var(--shadow-sm);
+            transition: all 0.15s ease;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--brand-hover);
+        }
+
+        /* SEARCH INPUT BAR */
+        .search-bar-wrap {
+            margin-bottom: 20px;
+        }
+
+        .search-bar-wrap input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 13px;
+            outline: none;
+            background: #ffffff;
+            transition: border 0.15s ease;
+        }
+
+        .search-bar-wrap input:focus {
+            border-color: var(--brand-primary);
+        }
+
+        /* TABLE CARD */
+        .table-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: var(--shadow-sm);
+            overflow: hidden;
+        }
+
+        .employee-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        .employee-table th {
+            background: #f8fafc;
+            padding: 14px 20px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .employee-table td {
+            padding: 16px 20px;
+            font-size: 13px;
+            color: var(--text-main);
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .employee-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .employee-table tr:hover td {
+            background-color: #f8fafc;
+        }
+
+        .emp-name-group {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .emp-name {
+            font-weight: 700;
+            color: var(--text-main);
+            font-size: 13px;
+        }
+
+        .emp-subtext {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-family: monospace;
+        }
+
+        .badge-status {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .badge-active {
+            background-color: #dcfce7;
+            color: #15803d;
+        }
+
+        .badge-suspended {
+            background-color: #fee2e2;
+            color: #b91c1c;
+        }
+
+        .btn-action {
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #334155;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .btn-action:hover {
+            background: #f1f5f9;
+            border-color: #94a3b8;
+            color: var(--brand-primary);
+        }
+
+        /* MODAL STYLES */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(15, 23, 42, 0.45);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-box {
+            background: #ffffff;
+            border-radius: 12px;
+            width: 580px;
+            max-width: 90%;
+            box-shadow: var(--shadow-lg);
+            overflow: hidden;
+            transform: translateY(12px);
+            transition: all 0.2s ease;
+        }
+
+        .modal-overlay.active .modal-box {
+            transform: translateY(0);
+        }
+
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-header h3 {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .btn-close {
+            background: none;
+            border: none;
+            font-size: 18px;
+            color: #94a3b8;
+            cursor: pointer;
+        }
+
+        .btn-close:hover {
+            color: var(--text-main);
+        }
+
+        .modal-body {
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-group label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #475569;
+        }
+
+        .form-control {
+            padding: 10px 14px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 13px;
+            outline: none;
+            transition: border 0.15s ease;
+        }
+
+        .form-control:focus {
+            border-color: var(--brand-primary);
+        }
+
+        .modal-footer {
+            padding: 16px 24px;
+            background: #f8fafc;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        .btn-cancel {
+            background: none;
+            border: none;
+            font-size: 13px;
+            font-weight: 600;
+            color: #64748b;
+            cursor: pointer;
+            padding: 8px 16px;
+        }
+
+        .btn-cancel:hover {
+            color: var(--text-main);
+        }
+
+        /* TOAST NOTIFICATION */
+        .toast-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 2000;
+        }
+
+        .toast {
+            background: #0f172a;
+            color: #ffffff;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            box-shadow: var(--shadow-lg);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.2s ease;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- LEFT SIDEBAR -->
+    <aside class="sidebar">
+        <div class="brand-header">
+            <div class="brand-logo">N</div>
+            <div class="brand-text">
+                <h3>Water & Sanitation</h3>
+                <p>(JJM) Enterprise</p>
+            </div>
+        </div>
+
+        <nav class="nav-list">
+            <a href="#" class="nav-item"><i class="fa-solid fa-chart-pie"></i> Dashboard</a>
+            <a href="#" class="nav-item"><i class="fa-solid fa-list-check"></i> Assigned Complaints</a>
+            <a href="#" class="nav-item"><i class="fa-solid fa-map"></i> Department GIS</a>
+            <a href="/facilities/" class="nav-item"><i class="fa-solid fa-building-user"></i> Assets</a>
+            <a href="#" class="nav-item"><i class="fa-solid fa-diagram-project"></i> Workflow</a>
+            <a href="#" class="nav-item"><i class="fa-solid fa-file-contract"></i> Planning & Proposals</a>
+            <a href="#" class="nav-item"><i class="fa-solid fa-screwdriver-wrench"></i> Projects & Execution</a>
+            <a href="#" class="nav-item"><i class="fa-solid fa-coins"></i> Resources & Finance</a>
+            <a href="/reports/" class="nav-item"><i class="fa-solid fa-file-lines"></i> Reports</a>
+            <a href="/employees/" class="nav-item active"><i class="fa-solid fa-users"></i> Employees</a>
+            <a href="#" class="nav-item"><i class="fa-solid fa-sitemap"></i> Organization</a>
+            <a href="#" class="nav-item"><i class="fa-solid fa-gear"></i> Department Settings</a>
+        </nav>
+    </aside>
+
+    <!-- MAIN WRAPPER -->
+    <div class="main-wrapper">
+        <header class="top-navbar">
+            <div class="top-left-info">
+                <h2>Department Workspace</h2>
+                <p>Water & Sanitation (JJM) · Nalanda District</p>
+            </div>
+            <div class="top-actions">
+                <div class="search-box">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" placeholder="Search NDISP... ⌘K">
+                </div>
+                <div class="user-pill">
+                    <div class="avatar">E</div>
+                    <span>Eng. Vijay Kumar</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="page-content">
+            <div class="breadcrumb">WATR · WORKFORCE & IDENTITY</div>
+            <div class="page-header">
+                <h1>Employee Directory</h1>
+                <p>Onboard, search and manage employees within this department.</p>
+            </div>
+
+            <!-- SUB HEADER CARD -->
+            <div class="sub-header-card">
+                <div class="sub-header-info">
+                    <div class="sub-header-icon"><i class="fa-solid fa-users-gear"></i></div>
+                    <div>
+                        <h3>Department employees</h3>
+                        <p id="empCountSubtext">2 registered workforce members</p>
+                    </div>
+                </div>
+                <button class="btn-primary" id="openInviteModalBtn">
+                    <i class="fa-solid fa-plus"></i> Invite employee
+                </button>
+            </div>
+
+            <!-- SEARCH BAR -->
+            <div class="search-bar-wrap">
+                <input type="text" id="employeeSearchInput" placeholder="Search name, email or designation">
+            </div>
+
+            <!-- TABLE CARD -->
+            <div class="table-card">
+                <table class="employee-table">
+                    <thead>
+                        <tr>
+                            <th>Employee</th>
+                            <th>Designation</th>
+                            <th>Office / Block</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="employeeTableBody">
+                        <!-- Loaded dynamically via JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <!-- INVITE EMPLOYEE MODAL -->
+    <div class="modal-overlay" id="inviteModal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3>Invite department employee</h3>
+                <button class="btn-close" id="closeModalBtn"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Full name</label>
+                        <input type="text" class="form-control" id="modalFullName" placeholder="Full name">
+                    </div>
+                    <div class="form-group">
+                        <label>Official email</label>
+                        <input type="email" class="form-control" id="modalEmail" placeholder="Official email">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Designation</label>
+                        <input type="text" class="form-control" id="modalDesignation" placeholder="e.g. Executive Engineer / AE">
+                    </div>
+                    <div class="form-group">
+                        <label>Office</label>
+                        <input type="text" class="form-control" id="modalOffice" placeholder="District Office" value="District Water Office">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-map-location-dot" style="color: #0284c7;"></i> State</label>
+                        <select class="form-control" id="modalState">
+                            <option value="">Loading States...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-city" style="color: #0284c7;"></i> District</label>
+                        <select class="form-control" id="modalDistrict">
+                            <option value="">Select State First...</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-location-dot" style="color: #0284c7;"></i> Block</label>
+                        <select class="form-control" id="modalBlock">
+                            <option value="">Select District First...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-user-shield" style="color: #0284c7;"></i> Role</label>
+                        <select class="form-control" id="modalRole">
+                            <option value="">Loading Roles...</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Reports to department head</label>
+                    <select class="form-control" id="modalReportsTo">
+                        <option value="">Reports to department head</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" id="cancelModalBtn">Cancel</button>
+                <button class="btn-primary" id="submitInviteBtn">
+                    <i class="fa-solid fa-paper-plane"></i> Send invitation
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION -->
+    <div class="toast-container">
+        <div class="toast" id="toast">
+            <i class="fa-solid fa-circle-check" style="color: #4ade80;"></i>
+            <span id="toastMessage">Employee invited successfully!</span>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const tableBody = document.getElementById('employeeTableBody');
+            const empCountSubtext = document.getElementById('empCountSubtext');
+            const searchInput = document.getElementById('employeeSearchInput');
+            const modal = document.getElementById('inviteModal');
+            const openModalBtn = document.getElementById('openInviteModalBtn');
+            const closeModalBtn = document.getElementById('closeModalBtn');
+            const cancelModalBtn = document.getElementById('cancelModalBtn');
+            const submitInviteBtn = document.getElementById('submitInviteBtn');
+            const reportsToSelect = document.getElementById('modalReportsTo');
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+
+            // Modal Controls
+            openModalBtn.addEventListener('click', () => modal.classList.add('active'));
+            const closeModal = () => modal.classList.remove('active');
+            closeModalBtn.addEventListener('click', closeModal);
+            cancelModalBtn.addEventListener('click', closeModal);
+
+            // Toast Helper
+            function showToast(msg) {
+                toastMessage.textContent = msg;
+                toast.classList.add('show');
+                setTimeout(() => toast.classList.remove('show'), 3500);
+            }
+
+            // Fetch and Render Employees
+            async function loadEmployees(query = '') {
+                try {
+                    let url = '/api/employees/';
+                    if (query) url += `?search=${encodeURIComponent(query)}`;
+                    const res = await fetch(url);
+                    if (!res.ok) throw new Error('Failed to load employees');
+                    const data = await res.json();
+                    renderTable(data);
+                    updateReportsToDropdown(data);
+                } catch (err) {
+                    console.error(err);
+                    showToast('Error loading employee directory data.');
+                }
+            }
+
+            function renderTable(employees) {
+                tableBody.innerHTML = '';
+                const count = employees ? employees.length : 0;
+                empCountSubtext.textContent = `${count} registered workforce members`;
+
+                if (!employees || employees.length === 0) {
+                    tableBody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #94a3b8; padding: 24px;">No employees registered yet. Click "+ Invite employee" to invite one.</td></tr>`;
+                    return;
+                }
+
+                employees.forEach(emp => {
+                    const statusClass = emp.status === 'suspended' ? 'badge-suspended' : 'badge-active';
+                    const statusText = emp.status === 'suspended' ? 'Suspended' : 'Active';
+                    const actionText = emp.status === 'suspended' ? 'Activate' : 'Suspend';
+
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>
+                            <div class="emp-name-group">
+                                <span class="emp-name">${emp.full_name}</span>
+                                <span class="emp-subtext">${emp.employee_code} · ${emp.email}</span>
+                            </div>
+                        </td>
+                        <td>${emp.designation}</td>
+                        <td>
+                            <div class="emp-name-group">
+                                <span>${emp.office || 'District Water Office'}</span>
+                                <span class="emp-subtext">${emp.block || 'Silao'}</span>
+                            </div>
+                        </td>
+                        <td><span class="badge-status ${statusClass}">${statusText}</span></td>
+                        <td>
+                            <button class="btn-action" onclick="toggleSuspend(${emp.id})">
+                                ${actionText}
+                            </button>
+                        </td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+            }
+
+            function updateReportsToDropdown(employees) {
+                reportsToSelect.innerHTML = '<option value="">Reports to department head</option>';
+                if (!employees) return;
+                employees.forEach(emp => {
+                    const opt = document.createElement('option');
+                    opt.value = emp.id;
+                    opt.textContent = `Reports to ${emp.full_name} (${emp.designation})`;
+                    reportsToSelect.appendChild(opt);
+                });
+            }
+
+            // Search filter handler
+            let searchTimeout = null;
+            searchInput.addEventListener('input', (e) => {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    loadEmployees(e.target.value.trim());
+                }, 250);
+            });
+
+            // Suspend Action
+            window.toggleSuspend = async function(id) {
+                try {
+                    const res = await fetch(`/api/employees/${id}/suspend/`, { method: 'POST' });
+                    if (!res.ok) throw new Error('Suspend failed');
+                    const data = await res.json();
+                    showToast(data.message || 'Employee status updated.');
+                    loadEmployees(searchInput.value.trim());
+                } catch (err) {
+                    showToast('Failed to update employee status.');
+                }
+            };
+
+            // Location & Role Cascading Logic
+            const stateSelect = document.getElementById('modalState');
+            const districtSelect = document.getElementById('modalDistrict');
+            const blockSelect = document.getElementById('modalBlock');
+            const roleSelect = document.getElementById('modalRole');
+
+            async function loadStates() {
+                try {
+                    const res = await fetch('/api/states/');
+                    if (!res.ok) throw new Error('Failed to load states');
+                    const states = await res.json();
+                    stateSelect.innerHTML = '';
+                    let biharId = null;
+                    states.forEach(s => {
+                        const opt = document.createElement('option');
+                        opt.value = s.id;
+                        opt.textContent = s.name;
+                        if (s.name.toLowerCase() === 'bihar') {
+                            opt.selected = true;
+                            biharId = s.id;
+                        }
+                        stateSelect.appendChild(opt);
+                    });
+                    const selectedState = stateSelect.value || biharId || (states[0] ? states[0].id : null);
+                    if (selectedState) {
+                        await loadDistricts(selectedState);
+                    }
+                } catch (err) {
+                    console.error('Error loading states:', err);
+                    stateSelect.innerHTML = '<option value="1">Bihar</option>';
+                    await loadDistricts(1);
+                }
+            }
+
+            async function loadDistricts(stateId) {
+                try {
+                    districtSelect.innerHTML = '<option value="">Loading Districts...</option>';
+                    blockSelect.innerHTML = '<option value="">Select District First...</option>';
+                    const res = await fetch(`/api/districts/?state_id=${stateId}`);
+                    if (!res.ok) throw new Error('Failed to load districts');
+                    const districts = await res.json();
+                    districtSelect.innerHTML = '';
+                    if (!districts || districts.length === 0) {
+                        districtSelect.innerHTML = '<option value="">No Districts Found</option>';
+                        blockSelect.innerHTML = '<option value="">No Blocks Found</option>';
+                        return;
+                    }
+                    let nalandaId = null;
+                    districts.forEach(d => {
+                        const opt = document.createElement('option');
+                        opt.value = d.id;
+                        opt.textContent = d.name;
+                        if (d.name.toLowerCase() === 'nalanda') {
+                            opt.selected = true;
+                            nalandaId = d.id;
+                        }
+                        districtSelect.appendChild(opt);
+                    });
+                    const selectedDistrict = districtSelect.value || nalandaId || (districts[0] ? districts[0].id : null);
+                    if (selectedDistrict) {
+                        await loadBlocks(selectedDistrict);
+                    }
+                } catch (err) {
+                    console.error('Error loading districts:', err);
+                    districtSelect.innerHTML = '<option value="25">Nalanda</option>';
+                    await loadBlocks(25);
+                }
+            }
+
+            async function loadBlocks(districtId) {
+                try {
+                    blockSelect.innerHTML = '<option value="">Loading Blocks...</option>';
+                    const res = await fetch(`/api/blocks/?district_id=${districtId}`);
+                    if (!res.ok) throw new Error('Failed to load blocks');
+                    const blocks = await res.json();
+                    blockSelect.innerHTML = '';
+                    if (!blocks || blocks.length === 0) {
+                        blockSelect.innerHTML = '<option value="Silao">Silao</option>';
+                        return;
+                    }
+                    blocks.forEach(b => {
+                        const opt = document.createElement('option');
+                        opt.value = b.name;
+                        opt.textContent = b.name;
+                        if (b.name.toLowerCase() === 'silao') {
+                            opt.selected = true;
+                        }
+                        blockSelect.appendChild(opt);
+                    });
+                } catch (err) {
+                    console.error('Error loading blocks:', err);
+                    blockSelect.innerHTML = '<option value="Silao">Silao</option><option value="Rajgir">Rajgir</option><option value="Biharsharif">Biharsharif</option>';
+                }
+            }
+
+            async function loadRoles() {
+                try {
+                    const res = await fetch('/api/auth/roles/?scope=department');
+                    if (!res.ok) throw new Error('Failed to load roles');
+                    const roles = await res.json();
+                    roleSelect.innerHTML = '';
+                    roles.forEach(r => {
+                        const opt = document.createElement('option');
+                        opt.value = r.id;
+                        opt.textContent = r.name;
+                        if (r.code === 'DEPARTMENT_OFFICER' || r.name.toLowerCase().includes('officer')) {
+                            opt.selected = true;
+                        }
+                        roleSelect.appendChild(opt);
+                    });
+                } catch (err) {
+                    console.error('Error loading roles:', err);
+                    roleSelect.innerHTML = `
+                        <option value="5" selected>Department Officer</option>
+                        <option value="6">Field Engineer / Data Entry Operator</option>
+                        <option value="12">Executive / Assistant Engineer</option>
+                        <option value="13">Field Inspector / Junior Engineer</option>
+                        <option value="14">Field Supervisor</option>
+                    `;
+                }
+            }
+
+            stateSelect.addEventListener('change', (e) => {
+                loadDistricts(e.target.value);
+            });
+
+            districtSelect.addEventListener('change', (e) => {
+                loadBlocks(e.target.value);
+            });
+
+            // Submit Invite Employee Form
+            submitInviteBtn.addEventListener('click', async () => {
+                const fullName = document.getElementById('modalFullName').value.trim();
+                const email = document.getElementById('modalEmail').value.trim();
+                const designation = document.getElementById('modalDesignation').value.trim();
+                const office = document.getElementById('modalOffice').value.trim();
+                const districtId = districtSelect.value;
+                const block = blockSelect.value;
+                const role = roleSelect.value;
+                const reportsTo = document.getElementById('modalReportsTo').value;
+
+                if (!fullName || !email) {
+                    showToast('Please enter full name and official email.');
+                    return;
+                }
+
+                submitInviteBtn.disabled = true;
+                submitInviteBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Inviting...';
+
+                try {
+                    const res = await fetch('/api/employees/invite/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            full_name: fullName,
+                            email: email,
+                            designation: designation || 'Assistant Engineer',
+                            office: office || 'District Water Office',
+                            district: districtId || 25,
+                            block: block || 'Silao',
+                            role: role,
+                            reports_to: reportsTo || null,
+                            department: 6
+                        })
+                    });
+
+                    if (!res.ok) throw new Error('Invitation failed');
+                    const result = await res.json();
+
+                    showToast(result.message || 'Employee invited successfully!');
+                    closeModal();
+                    document.getElementById('modalFullName').value = '';
+                    document.getElementById('modalEmail').value = '';
+                    document.getElementById('modalDesignation').value = '';
+                    loadEmployees();
+                } catch (err) {
+                    showToast('Failed to invite employee. Please try again.');
+                } finally {
+                    submitInviteBtn.disabled = false;
+                    submitInviteBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send invitation';
+                }
+            });
+
+            // Initial Load
+            loadEmployees();
+            loadStates();
+            loadRoles();
+        });
+    </script>
+</body>
+
+</html>

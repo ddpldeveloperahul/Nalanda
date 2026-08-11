@@ -6,7 +6,8 @@ from myapp.models import (
     WorkflowInstance, WorkflowTransition, GapScore, Proposal, BudgetApproval,
     DocumentFile, NotificationTemplate, NotificationDispatchLog, AuditEventLog, Recommendation,
     GISCatalogEntry, GISDatasetVersionHistory, GISDataProvenance, GISProcessingJob, GISLayerFeature,
-    Complaint, ComplaintCategory, ComplaintStatus, ComplaintEvidence, ComplaintPriority, ComplaintTimeline
+    Complaint, ComplaintCategory, ComplaintStatus, ComplaintEvidence, ComplaintPriority, ComplaintTimeline,
+    ProjectExecution, SiteDiary, MeasurementBook, ProjectBill, ExecutionRisk, Report, Employee, EmployeeInvitation
 )
 
 try:
@@ -236,11 +237,14 @@ class WorkflowInstanceAdmin(admin.ModelAdmin):
 
 @admin.register(Proposal)
 class ProposalAdmin(admin.ModelAdmin):
-    list_display = ["id", "proposal_id", "title", "department", "block", "status", "stage", "priority", "estimated_cost", "created_at"]
+    list_display = ["id", "proposal_id", "title", "department", "block", "status", "stage", "priority", "estimated_cost", "is_deleted", "created_at"]
     search_fields = ["proposal_id", "title", "department__name", "district__name", "block", "village"]
-    list_filter = ["status", "stage", "priority", "department", "district", "block"]
+    list_filter = ["is_deleted", "status", "stage", "priority", "department", "district", "block"]
     autocomplete_fields = ["district", "department", "created_by", "reviewed_by", "approved_by", "workflow_instance", "gap_score_ref"]
     inlines = [BudgetApprovalInline]
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).filter(is_deleted=False)
 
 
 # ==========================================
@@ -373,3 +377,65 @@ class ComplaintTimelineAdmin(admin.ModelAdmin):
     list_display = ["id", "complaint", "action", "from_status", "to_status", "performed_by", "performer_role", "created_at"]
     list_filter = ["action", "to_status"]
     search_fields = ["complaint__tracking_no", "remarks", "performer_role"]
+
+
+# ==========================================
+# 9. PROJECT EXECUTION ERP ADMIN
+# ==========================================
+
+@admin.register(ProjectExecution)
+class ProjectExecutionAdmin(admin.ModelAdmin):
+    list_display = ["id", "project_id", "title", "department", "block", "sanction_amount", "expenditure_amount", "progress_percentage", "status", "risk_level", "inspection_due", "created_at"]
+    list_filter = ["status", "risk_level", "inspection_due", "department", "district"]
+    search_fields = ["project_id", "title", "contractor_name", "block"]
+    def get_queryset(self, request):
+        return super().get_queryset(request).filter(is_deleted=False)
+
+
+@admin.register(SiteDiary)
+class SiteDiaryAdmin(admin.ModelAdmin):
+    list_display = ["id", "project", "log_date", "labour_count", "weather_condition", "progress_logged", "logged_by", "created_at"]
+    list_filter = ["log_date", "weather_condition"]
+    search_fields = ["project__project_id", "work_description"]
+
+
+@admin.register(MeasurementBook)
+class MeasurementBookAdmin(admin.ModelAdmin):
+    list_display = ["id", "mb_number", "project", "item_description", "unit", "quantity_measured", "rate", "total_amount", "status", "measurement_date"]
+    list_filter = ["status", "measurement_date"]
+    search_fields = ["mb_number", "project__project_id", "item_description"]
+
+
+@admin.register(ProjectBill)
+class ProjectBillAdmin(admin.ModelAdmin):
+    list_display = ["id", "bill_number", "project", "bill_type", "claimed_amount", "verified_amount", "net_payable_amount", "payment_status", "submission_date"]
+    list_filter = ["bill_type", "payment_status"]
+    search_fields = ["bill_number", "project__project_id", "transaction_reference"]
+
+
+@admin.register(ExecutionRisk)
+class ExecutionRiskAdmin(admin.ModelAdmin):
+    list_display = ["id", "project", "risk_type", "severity", "risk_signal", "status", "reported_at"]
+    list_filter = ["severity", "status", "risk_type"]
+    search_fields = ["project__project_id", "risk_signal", "recommendation"]
+
+
+@admin.register(Report)
+class ReportAdmin(admin.ModelAdmin):
+    list_display = ["id", "code", "title", "category", "file_size_str", "download_format", "department", "district", "generated_at"]
+    list_filter = ["category", "download_format", "generated_at"]
+    search_fields = ["code", "title", "department__name"]
+
+
+@admin.register(Employee)
+class EmployeeAdmin(admin.ModelAdmin):
+    list_display = ["id", "employee_code", "full_name", "email", "designation", "office", "block", "status", "created_at"]
+    list_filter = ["status", "department", "district"]
+    search_fields = ["employee_code", "full_name", "email", "designation", "office"]
+
+
+@admin.register(EmployeeInvitation)
+class EmployeeInvitationAdmin(admin.ModelAdmin):
+    list_display = ["id", "token", "email", "role", "invited_by", "status", "created_at", "expires_at"]
+    list_filter = ["status", "role"]
+    search_fields = ["email", "token"]

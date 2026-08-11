@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Report Generation & Export Center - NDIS Government Portal</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
+
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+    <style>
+        :root {
+            --bg-body: #f8fafc;
+            --bg-sidebar: #ffffff;
+            --bg-card: #ffffff;
+            --border-color: #e2e8f0;
+            --brand-primary: #0f2b48;
+            --brand-hover: #1e3a8a;
+            --brand-light: #e0f2fe;
+            --accent-blue: #0284c7;
+            --accent-cyan: #0891b2;
+            --accent-purple: #7c3aed;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: 240px;
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            z-index: 10;
+        }
+
+        .brand-header {
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .brand-logo {
+            width: 32px;
+            height: 32px;
+            background: #f97316;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            font-weight: 700;
+            font-size: 16px;
+        }
+
+        .brand-text h3 {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-main);
+            line-height: 1.2;
+        }
+
+        .brand-text p {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .nav-list {
+            padding: 12px 8px;
+            overflow-y: auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 9px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            color: #475569;
+            text-decoration: none;
+            transition: all 0.15s ease;
+        }
+
+        .nav-item i {
+            font-size: 14px;
+            width: 18px;
+            text-align: center;
+        }
+
+        .nav-item:hover {
+            background-color: #f1f5f9;
+            color: var(--text-main);
+        }
+
+        .nav-item.active {
+            background-color: var(--brand-primary);
+            color: #ffffff;
+        }
+
+        /* MAIN CONTENT AREA */
+        .main-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .top-navbar {
+            height: 56px;
+            background: #ffffff;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            flex-shrink: 0;
+        }
+
+        .top-left-info h2 {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .top-left-info p {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .top-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .search-box {
+            position: relative;
+        }
+
+        .search-box input {
+            padding: 6px 12px 6px 32px;
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 12px;
+            width: 220px;
+        }
+
+        .search-box i {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #94a3b8;
+            font-size: 12px;
+        }
+
+        .user-pill {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .avatar {
+            width: 28px;
+            height: 28px;
+            background: #f97316;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        /* PAGE BODY */
+        .page-content {
+            flex: 1;
+            padding: 24px 32px;
+            overflow-y: auto;
+        }
+
+        .breadcrumb {
+            font-size: 11px;
+            font-weight: 600;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+
+        .page-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 24px;
+        }
+
+        .page-title-group h1 {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 4px;
+        }
+
+        .page-title-group p {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .btn-primary {
+            background-color: var(--brand-primary);
+            color: #ffffff;
+            padding: 10px 18px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: var(--shadow-sm);
+            transition: all 0.15s ease;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--brand-hover);
+        }
+
+        /* TABLE CARD */
+        .table-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: var(--shadow-sm);
+            overflow: hidden;
+        }
+
+        .reports-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        .reports-table th {
+            background: #f8fafc;
+            padding: 14px 20px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .reports-table td {
+            padding: 16px 20px;
+            font-size: 13px;
+            color: var(--text-main);
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .reports-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .reports-table tr:hover td {
+            background-color: #f8fafc;
+        }
+
+        .report-code {
+            font-weight: 700;
+            color: var(--brand-primary);
+            font-family: monospace;
+            font-size: 13px;
+        }
+
+        .report-title {
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .badge-category {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .badge-sla {
+            background-color: #e0f2fe;
+            color: #0369a1;
+        }
+
+        .badge-asset {
+            background-color: #cff4fc;
+            color: #055160;
+        }
+
+        .badge-grievance {
+            background-color: #f3e8ff;
+            color: #6b21a8;
+        }
+
+        .badge-default {
+            background-color: #f1f5f9;
+            color: #475569;
+        }
+
+        .btn-download {
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            padding: 6px 12px;
+            border-radius: 5px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #334155;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.15s ease;
+        }
+
+        .btn-download:hover {
+            background: #f1f5f9;
+            border-color: #94a3b8;
+            color: var(--brand-primary);
+        }
+
+        /* MODAL STYLES */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(15, 23, 42, 0.45);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-box {
+            background: #ffffff;
+            border-radius: 12px;
+            width: 520px;
+            max-width: 90%;
+            box-shadow: var(--shadow-lg);
+            overflow: hidden;
+            transform: translateY(12px);
+            transition: all 0.2s ease;
+        }
+
+        .modal-overlay.active .modal-box {
+            transform: translateY(0);
+        }
+
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-header h3 {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .btn-close {
+            background: none;
+            border: none;
+            font-size: 18px;
+            color: #94a3b8;
+            cursor: pointer;
+        }
+
+        .btn-close:hover {
+            color: var(--text-main);
+        }
+
+        .modal-body {
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-group label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #475569;
+        }
+
+        .form-control {
+            padding: 10px 14px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 13px;
+            outline: none;
+            transition: border 0.15s ease;
+        }
+
+        .form-control:focus {
+            border-color: var(--brand-primary);
+        }
+
+        .modal-footer {
+            padding: 16px 24px;
+            background: #f8fafc;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        .btn-cancel {
+            background: none;
+            border: none;
+            font-size: 13px;
+            font-weight: 600;
+            color: #64748b;
+            cursor: pointer;
+            padding: 8px 16px;
+        }
+
+        .btn-cancel:hover {
+            color: var(--text-main);
+        }
+
+        /* TOAST NOTIFICATION */
+        .toast-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 2000;
+        }
+
+        .toast {
+            background: #0f172a;
+            color: #ffffff;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            box-shadow: var(--shadow-lg);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.2s ease;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- LEFT SIDEBAR -->
+    <aside class="sidebar">
+        <div class="brand-header">
+            <div class="brand-logo">N</div>
+            <div class="brand-text">
+                <h3>Water & Sanitation</h3>
+                <p>(JJM) Enterprise</p>
+            </div>
+        </div>
+
+        <nav class="nav-list">
+            <a href="#" class="nav-item"><i class="fa-solid fa-chart-pie"></i> Dashboard</a>
+            <a href="#" class="nav-item"><i class="fa-solid fa-list-check"></i> Assigned Complaints</a>
+            <a href="#" class="nav-item"><i class="fa-solid fa-map"></i> Department GIS</a>
+            <a href="/facilities/" class="nav-item"><i class="fa-solid fa-building-user"></i> Assets</a>
+            <a href="#" class="nav-item"><i class="fa-solid fa-diagram-project"></i> Workflow</a>
+            <a href="#" class="nav-item"><i class="fa-solid fa-file-contract"></i> Planning & Proposals</a>
+            <a href="#" class="nav-item"><i class="fa-solid fa-screwdriver-wrench"></i> Projects & Execution</a>
+            <a href="#" class="nav-item"><i class="fa-solid fa-coins"></i> Resources & Finance</a>
+            <a href="/reports/" class="nav-item active"><i class="fa-solid fa-file-lines"></i> Reports</a>
+            <a href="#" class="nav-item"><i class="fa-solid fa-users"></i> Employees</a>
+            <a href="#" class="nav-item"><i class="fa-solid fa-sitemap"></i> Organization</a>
+            <a href="#" class="nav-item"><i class="fa-solid fa-gear"></i> Department Settings</a>
+        </nav>
+    </aside>
+
+    <!-- MAIN WRAPPER -->
+    <div class="main-wrapper">
+        <header class="top-navbar">
+            <div class="top-left-info">
+                <h2>Department Workspace</h2>
+                <p>Water & Sanitation (JJM) · Nalanda District</p>
+            </div>
+            <div class="top-actions">
+                <div class="search-box">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" placeholder="Search NDISP... ⌘K">
+                </div>
+                <div class="user-pill">
+                    <div class="avatar">E</div>
+                    <span>Eng. Vijay Kumar</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="page-content">
+            <div class="breadcrumb">Report Center · WATR</div>
+            <div class="page-header">
+                <div class="page-title-group">
+                    <h1>Water & Sanitation (JJM) Report Generation & Export Center</h1>
+                    <p>Generate on-demand spatial, asset, SLA, and workflow audit reports.</p>
+                </div>
+                <button class="btn-primary" id="openGenerateModalBtn">
+                    <i class="fa-solid fa-file-circle-plus"></i> Generate On-Demand Report
+                </button>
+            </div>
+
+            <!-- TABLE CARD -->
+            <div class="table-card">
+                <table class="reports-table">
+                    <thead>
+                        <tr>
+                            <th>Report Code</th>
+                            <th>Report Title</th>
+                            <th>Category</th>
+                            <th>Generated Date</th>
+                            <th>Size</th>
+                            <th>Download</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reportsTableBody">
+                        <!-- Loaded dynamically via JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <!-- GENERATE REPORT MODAL -->
+    <div class="modal-overlay" id="generateModal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3>Generate On-Demand Report</h3>
+                <button class="btn-close" id="closeModalBtn"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Report Type / Category</label>
+                    <select class="form-control" id="modalReportType">
+                        <option value="sla_audit">SLA Audit (Monthly Sector Performance)</option>
+                        <option value="asset_audit">Asset Audit (Geotag Verification Log)</option>
+                        <option value="grievance">Grievance Log (Citizen Complaints Summary)</option>
+                        <option value="workflow">Workflow Audit (Department Operations)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Department</label>
+                    <select class="form-control" id="modalDepartment">
+                        <option value="6">Water & Sanitation (JJM)</option>
+                        <option value="7">Urban Development & Infra</option>
+                        <option value="4">Education Department</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Custom Report Title (Optional)</label>
+                    <input type="text" class="form-control" id="modalReportTitle" placeholder="e.g. Water & Sanitation Monthly SLA Audit">
+                </div>
+
+                <div class="form-group">
+                    <label>Export Format</label>
+                    <select class="form-control" id="modalFormat">
+                        <option value="PDF">PDF Document (.pdf)</option>
+                        <option value="CSV">Excel CSV Data Sheet (.csv)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" id="cancelModalBtn">Cancel</button>
+                <button class="btn-primary" id="submitGenerateBtn">
+                    <i class="fa-solid fa-file-export"></i> Generate & Download
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION -->
+    <div class="toast-container">
+        <div class="toast" id="toast">
+            <i class="fa-solid fa-circle-check" style="color: #4ade80;"></i>
+            <span id="toastMessage">Report generated successfully!</span>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const tableBody = document.getElementById('reportsTableBody');
+            const modal = document.getElementById('generateModal');
+            const openModalBtn = document.getElementById('openGenerateModalBtn');
+            const closeModalBtn = document.getElementById('closeModalBtn');
+            const cancelModalBtn = document.getElementById('cancelModalBtn');
+            const submitGenerateBtn = document.getElementById('submitGenerateBtn');
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+
+            // Modal Controls
+            openModalBtn.addEventListener('click', () => modal.classList.add('active'));
+            const closeModal = () => modal.classList.remove('active');
+            closeModalBtn.addEventListener('click', closeModal);
+            cancelModalBtn.addEventListener('click', closeModal);
+
+            // Toast helper
+            function showToast(msg) {
+                toastMessage.textContent = msg;
+                toast.classList.add('show');
+                setTimeout(() => toast.classList.remove('show'), 3500);
+            }
+
+            // Category Badge Helper
+            function getCategoryBadgeClass(cat) {
+                if (!cat) return 'badge-default';
+                const lower = cat.toLowerCase();
+                if (lower.includes('sla')) return 'badge-sla';
+                if (lower.includes('asset')) return 'badge-asset';
+                if (lower.includes('grievance')) return 'badge-grievance';
+                return 'badge-default';
+            }
+
+            // Fetch and Render Reports List
+            async function loadReports() {
+                try {
+                    const res = await fetch('/api/reports/');
+                    if (!res.ok) throw new Error('Failed to fetch reports');
+                    const data = await res.json();
+                    renderTable(data);
+                } catch (err) {
+                    console.error(err);
+                    showToast('Error loading reports data.');
+                }
+            }
+
+            function renderTable(reports) {
+                tableBody.innerHTML = '';
+                if (!reports || reports.length === 0) {
+                    tableBody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #94a3b8; padding: 24px;">No reports generated yet. Click "+ Generate On-Demand Report" to generate one.</td></tr>`;
+                    return;
+                }
+
+                reports.forEach(rpt => {
+                    const badgeClass = getCategoryBadgeClass(rpt.category);
+                    const format = rpt.download_format || 'PDF';
+                    const iconClass = format === 'CSV' ? 'fa-file-csv' : 'fa-file-pdf';
+                    
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td class="report-code">${rpt.code}</td>
+                        <td class="report-title">${rpt.title}</td>
+                        <td><span class="badge-category ${badgeClass}">${rpt.category}</span></td>
+                        <td>${rpt.generated_date_str || rpt.generated_at ? rpt.generated_at.split('T')[0] : '2026-08-04'}</td>
+                        <td>${rpt.size || rpt.file_size_str || '1.8 MB'}</td>
+                        <td>
+                            <button class="btn-download" onclick="downloadReport(${rpt.id}, '${rpt.code}', '${format}')">
+                                <i class="fa-solid ${iconClass}"></i> Export ${format}
+                            </button>
+                        </td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+            }
+
+            // Download Action (Robust Blob Download)
+            window.downloadReport = async function(id, code, format) {
+                showToast(`Preparing ${code}.${format.toLowerCase()} download...`);
+                try {
+                    const res = await fetch(`/api/reports/${id}/download/`);
+                    if (!res.ok) throw new Error('Download failed');
+                    const blob = await res.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `${code}.${format.toLowerCase()}`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    window.URL.revokeObjectURL(url);
+                    showToast(`Downloaded ${code}.${format.toLowerCase()} successfully!`);
+                } catch (err) {
+                    console.error(err);
+                    showToast(`Error downloading ${code}.${format.toLowerCase()}`);
+                }
+            };
+
+            // Submit Generate On-Demand Report
+            submitGenerateBtn.addEventListener('click', async () => {
+                const reportType = document.getElementById('modalReportType').value;
+                const department = document.getElementById('modalDepartment').value;
+                const customTitle = document.getElementById('modalReportTitle').value;
+                const format = document.getElementById('modalFormat').value;
+
+                submitGenerateBtn.disabled = true;
+                submitGenerateBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating...';
+
+                try {
+                    const res = await fetch('/api/reports/generate/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            type: reportType,
+                            department: department,
+                            title: customTitle,
+                            format: format
+                        })
+                    });
+
+                    if (!res.ok) throw new Error('Generation failed');
+                    const result = await res.json();
+
+                    showToast(result.message || 'Report generated successfully!');
+                    closeModal();
+                    loadReports();
+                } catch (err) {
+                    showToast('Failed to generate report. Please try again.');
+                } finally {
+                    submitGenerateBtn.disabled = false;
+                    submitGenerateBtn.innerHTML = '<i class="fa-solid fa-file-export"></i> Generate & Download';
+                }
+            });
+
+            // Initial Load
+            loadReports();
+        });
+    </script>
+</body>
+
+</html>
