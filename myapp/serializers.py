@@ -33,6 +33,11 @@ from myapp.models import (
     Report,
     Employee,
     EmployeeInvitation,
+    StateBudget,
+    DepartmentBudget,
+    DistrictAllocation,
+    SchemeMaster,
+    FinancialLedgerEntry,
 )
 
 
@@ -162,9 +167,14 @@ class SignupSerializer(serializers.ModelSerializer):
         return value
 
     def validate_email(self, value):
-        if User.objects.filter(email__iexact=value).exists():
+        email = str(value).strip().lower()
+        import re
+        email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_regex, email):
+            raise serializers.ValidationError("Please enter a valid email address (e.g., user@gmail.com).")
+        if User.objects.filter(email__iexact=email).exists():
             raise serializers.ValidationError("A user with this email address already exists.")
-        return value
+        return email
 
     def validate(self, attrs):
         confirm_pwd = attrs.pop("confirm_password", None)
@@ -248,25 +258,148 @@ from myapp.models import GISCatalogEntry, GISLayerFeature
 
 
 class GISLayerFeatureSerializer(serializers.ModelSerializer):
-    """Serializer for individual GIS spatial features."""
+    """
+    Comprehensive Serializer for individual GIS spatial features with support for:
+    - GeoJSON & Spatial point coordinates (lat, lng)
+    - Automatic catalog entry binding & layer name resolution
+    - Dynamic attribute properties JSONB
+    """
+    layer_name = serializers.CharField(source="catalog_entry.layer_name", read_only=True)
+    category = serializers.CharField(source="catalog_entry.category", read_only=True)
+    latitude = serializers.FloatField(write_only=True, required=False, allow_null=True)
+    longitude = serializers.FloatField(write_only=True, required=False, allow_null=True)
+
     class Meta:
         model = GISLayerFeature
         fields = [
             "id",
             "catalog_entry",
+            "layer_name",
+            "category",
             "feature_id",
             "name",
             "properties",
             "geom_geojson",
+            "latitude",
+            "longitude",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        read_only_fields = ["id", "layer_name", "category", "created_at", "updated_at"]
+
+    def to_internal_value(self, data):
+        if hasattr(data, 'dict'):
+            data_dict = data.dict()
+        elif hasattr(data, 'copy'):
+            data_dict = data.copy()
+        else:
+            data_dict = dict(data)
+
+        # Parse stringified properties or geom_geojson if sent as JSON string
+        import json
+        if "properties" in data_dict and isinstance(data_dict["properties"], str):
+            try:
+                data_dict["properties"] = json.loads(data_dict["properties"])
+            except Exception:
+                pass
+
+        if "geom_geojson" in data_dict and isinstance(data_dict["geom_geojson"], str):
+            try:
+                data_dict["geom_geojson"] = json.loads(data_dict["geom_geojson"])
+            except Exception:
+                pass
+
+        # Handle latitude & longitude inputs
+        lat_val = None
+        for k in ["latitude", "lat"]:
+            if k in data_dict and data_dict[k] not in [None, "", "null"]:
+                try:
+                    lat_val = float(data_dict[k])
+                    break
+                except (ValueError, TypeError):
+                    pass
+
+        lng_val = None
+        for k in ["longitude", "lng", "long", "lon"]:
+            if k in data_dict and data_dict[k] not in [None, "", "null"]:
+                try:
+                    lng_val = float(data_dict[k])
+                    break
+                except (ValueError, TypeError):
+                    pass
+
+        if lat_val is not None and lng_val is not None:
+            data_dict["latitude"] = lat_val
+            data_dict["longitude"] = lng_val
+            data_dict["geom_geojson"] = {
+                "type": "Point",
+                "coordinates": [lng_val, lat_val]
+            }
+
+        return super().to_internal_value(data_dict)
+
+    def _sync_geos_geometry(self, instance, validated_data):
+        geom_dict = instance.geom_geojson or validated_data.get("geom_geojson")
+        from myapp.models import HAS_GEODJANGO
+        if HAS_GEODJANGO and geom_dict:
+            import json
+            from django.contrib.gis.geos import GEOSGeometry
+            try:
+                instance.geom = GEOSGeometry(json.dumps(geom_dict))
+            except Exception:
+                pass
+
+    def create(self, validated_data):
+        lat = validated_data.pop("latitude", None)
+        lng = validated_data.pop("longitude", None)
+        if lat is not None and lng is not None and "geom_geojson" not in validated_data:
+            validated_data["geom_geojson"] = {
+                "type": "Point",
+                "coordinates": [float(lng), float(lat)]
+            }
+
+        catalog = validated_data.get("catalog_entry")
+        if catalog and not validated_data.get("feature_id"):
+            next_num = catalog.features.count() + 1
+            validated_data["feature_id"] = str(next_num)
+
+        feature = super().create(validated_data)
+        self._sync_geos_geometry(feature, validated_data)
+        feature.save(update_fields=["geom"] if getattr(feature, "geom", None) else [])
+        
+        # Update feature_count on catalog entry
+        if catalog:
+            catalog.feature_count = catalog.features.count()
+            catalog.save(update_fields=["feature_count", "updated_at"])
+
+        return feature
+
+    def update(self, instance, validated_data):
+        lat = validated_data.pop("latitude", None)
+        lng = validated_data.pop("longitude", None)
+        if lat is not None and lng is not None:
+            validated_data["geom_geojson"] = {
+                "type": "Point",
+                "coordinates": [float(lng), float(lat)]
+            }
+
+        feature = super().update(instance, validated_data)
+        self._sync_geos_geometry(feature, validated_data)
+        feature.save()
+
+        # Update feature_count on catalog entry
+        catalog = feature.catalog_entry
+        if catalog:
+            catalog.feature_count = catalog.features.count()
+            catalog.save(update_fields=["feature_count", "updated_at"])
+
+        return feature
 
 
 class GISCatalogSerializer(serializers.ModelSerializer):
     """Serializer for GIS Catalog Entries (Layers)."""
     display_name = serializers.SerializerMethodField()
+    feature_count = serializers.SerializerMethodField()
 
     class Meta:
         model = GISCatalogEntry
@@ -285,6 +418,15 @@ class GISCatalogSerializer(serializers.ModelSerializer):
 
     def get_display_name(self, obj):
         return obj.layer_name.replace("_", " ")
+
+    def get_feature_count(self, obj):
+        # Return real-time feature count from database
+        cnt = obj.features.count()
+        if obj.feature_count != cnt:
+            obj.feature_count = cnt
+            obj.save(update_fields=["feature_count"])
+        return cnt
+
 
 
 class GISLayerUploadSerializer(serializers.Serializer):
@@ -1062,6 +1204,210 @@ class EmployeeInvitationSerializer(serializers.ModelSerializer):
         if obj.invited_by:
             return obj.invited_by.get_full_name() or obj.invited_by.username
         return "System Admin"
+
+
+class StateBudgetSerializer(serializers.ModelSerializer):
+    financial_year = serializers.CharField(max_length=20, required=True)
+    total_state_budget_cr = serializers.DecimalField(max_digits=14, decimal_places=2, required=True)
+    department_allocation_cr = serializers.DecimalField(max_digits=14, decimal_places=2, required=True)
+    available_balance_cr = serializers.SerializerMethodField()
+    class Meta:
+        model = StateBudget
+        fields = "__all__"
+        extra_kwargs = {
+            "financial_year": {
+                "required": True,
+                "error_messages": {
+                    "required": "Financial year (e.g. '2026-27' or '2027-28') is required.",
+                    "unique": "State Master Budget for this Financial Year already exists."
+                }
+            },
+            "total_state_budget_cr": {
+                "required": True,
+                "error_messages": {"required": "Total State Budget amount in Cr is required."}
+            },
+            "department_allocation_cr": {
+                "required": True,
+                "error_messages": {"required": "Department Allocation amount in Cr is required."}
+            }
+        }
+    
+    def get_available_balance_cr(self, obj):
+        tot = obj.total_state_budget_cr or 0
+        dept = obj.department_allocation_cr or 0
+        return float(tot - dept)
+
+
+class DepartmentBudgetSerializer(serializers.ModelSerializer):
+    financial_year = serializers.CharField(max_length=20, required=True)
+    authorized_budget_cr = serializers.DecimalField(max_digits=14, decimal_places=2, required=True)
+    department_name = serializers.CharField(source="department.name", read_only=True)
+    utilization_percentage = serializers.ReadOnlyField()
+
+    class Meta:
+        model = DepartmentBudget
+        fields = "__all__"
+        extra_kwargs = {
+            "financial_year": {
+                "required": True,
+                "error_messages": {"required": "Financial year (e.g. '2026-27') is required."}
+            },
+            "department": {
+                "required": True,
+                "error_messages": {"required": "Department ID is required."}
+            },
+            "authorized_budget_cr": {
+                "required": True,
+                "error_messages": {"required": "Authorized budget amount in Cr is required."}
+            }
+        }
+
+
+class DistrictAllocationSerializer(serializers.ModelSerializer):
+    financial_year = serializers.CharField(max_length=20, required=True)
+    allocation_amount_cr = serializers.DecimalField(max_digits=14, decimal_places=2, required=True)
+    district_name = serializers.CharField(source="district.name", read_only=True)
+    department_name = serializers.CharField(source="department.name", read_only=True, default="")
+
+    class Meta:
+        model = DistrictAllocation
+        fields = "__all__"
+        extra_kwargs = {
+            "financial_year": {
+                "required": True,
+                "error_messages": {"required": "Financial year (e.g. '2026-27') is required."}
+            },
+            "district": {
+                "required": True,
+                "error_messages": {"required": "District ID is required."}
+            },
+            "allocation_amount_cr": {
+                "required": True,
+                "error_messages": {"required": "Allocation amount in Cr is required."}
+            }
+        }
+
+
+class SchemeMasterSerializer(serializers.ModelSerializer):
+    code = serializers.CharField(max_length=50, required=True)
+    name = serializers.CharField(max_length=255, required=True)
+    total_allocation_cr = serializers.DecimalField(max_digits=14, decimal_places=2, required=True)
+    department_name = serializers.CharField(source="department.name", read_only=True)
+
+    class Meta:
+        model = SchemeMaster
+        fields = "__all__"
+        extra_kwargs = {
+            "code": {
+                "required": True,
+                "error_messages": {
+                    "required": "Scheme Code (e.g. 'SCH-HEALTH-001') is required.",
+                    "unique": "Scheme Code must be unique."
+                }
+            },
+            "name": {
+                "required": True,
+                "error_messages": {"required": "Scheme Name is required."}
+            },
+            "department": {
+                "required": True,
+                "error_messages": {"required": "Department ID is required."}
+            },
+            "total_allocation_cr": {
+                "required": True,
+                "error_messages": {"required": "Total Scheme Allocation amount in Cr is required."}
+            }
+        }
+
+
+class FinancialLedgerEntrySerializer(serializers.ModelSerializer):
+    transaction_id = serializers.CharField(max_length=100, required=True)
+    financial_year = serializers.CharField(max_length=20, required=True)
+    amount_cr = serializers.DecimalField(max_digits=14, decimal_places=2, required=True)
+    department_name = serializers.CharField(source="department.name", read_only=True, default="")
+    district_name = serializers.CharField(source="district.name", read_only=True, default="")
+    scheme_name = serializers.CharField(source="scheme.name", read_only=True, default="")
+
+    class Meta:
+        model = FinancialLedgerEntry
+        fields = "__all__"
+        extra_kwargs = {
+            "transaction_id": {
+                "required": True,
+                "error_messages": {
+                    "required": "Transaction ID (e.g. 'TXN-FIN-2026-001') is required.",
+                    "unique": "Transaction ID must be unique."
+                }
+            },
+            "financial_year": {
+                "required": True,
+                "error_messages": {"required": "Financial year (e.g. '2026-27') is required."}
+            },
+            "entry_type": {
+                "required": True,
+                "error_messages": {"required": "Entry Type (PROVISION, ALLOCATION, SANCTION, RELEASE, COMMITMENT, UTILIZATION) is required."}
+            },
+            "amount_cr": {
+                "required": True,
+                "error_messages": {"required": "Amount in Cr is required."}
+            }
+        }
+
+
+# ==========================================
+# AUTH PASSWORD MANAGEMENT SERIALIZERS
+# ==========================================
+
+class ForgotPasswordRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=True, help_text="Registered email address")
+
+    def validate_email(self, value):
+        email_str = str(value).strip().lower()
+        import re
+        email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_regex, email_str):
+            raise serializers.ValidationError("Please enter a valid email address (e.g., user@gmail.com).")
+        if not User.objects.filter(Q(email__iexact=email_str) | Q(username__iexact=email_str)).exists():
+            raise serializers.ValidationError(f"No user account found registered with email '{email_str}'.")
+        return email_str
+
+
+class ResetPasswordWithOTPSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=True, help_text="Registered email address")
+    otp = serializers.CharField(max_length=10, required=True, help_text="6-digit verification code")
+    new_password = serializers.CharField(min_length=6, write_only=True, required=True)
+    confirm_password = serializers.CharField(min_length=6, write_only=True, required=True)
+
+    def validate_email(self, value):
+        email_str = str(value).strip().lower()
+        import re
+        email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_regex, email_str):
+            raise serializers.ValidationError("Please enter a valid email address (e.g., user@gmail.com).")
+        return email_str
+
+    def validate(self, attrs):
+        if attrs["new_password"] != attrs["confirm_password"]:
+            raise serializers.ValidationError({"confirm_password": "New password and Confirm password do not match."})
+        return attrs
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(required=True, write_only=True)
+    new_password = serializers.CharField(min_length=6, required=True, write_only=True)
+    confirm_password = serializers.CharField(min_length=6, required=True, write_only=True)
+
+    def validate(self, attrs):
+        if attrs["new_password"] != attrs["confirm_password"]:
+            raise serializers.ValidationError({"confirm_password": "New password and Confirm password do not match."})
+        if attrs["old_password"] == attrs["new_password"]:
+            raise serializers.ValidationError({"new_password": "New password cannot be the same as your old password."})
+        return attrs
+
+
+class LogoutSerializer(serializers.Serializer):
+    refresh = serializers.CharField(required=False, allow_blank=True, help_text="JWT Refresh token to blacklist")
+
 
 
 

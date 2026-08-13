@@ -3,15 +3,15 @@ from myapp.models import Role, RoleName, ScopeLevel
 
 
 class Command(BaseCommand):
-    help = "Seeds official NDISP RBAC roles per Blueprint Section 9.1 specification"
+    help = "Seeds official NDISP RBAC roles including State Administration roles"
 
     def handle(self, *args, **options):
         roles_data = [
             {
-                "name": "National Admin",
-                "code": RoleName.NATIONAL_ADMIN,
-                "scope_level": ScopeLevel.NATIONAL,
-                "description": "Full system control across all states and districts",
+                "name": "State Super Admin",
+                "code": RoleName.STATE_SUPER_ADMIN,
+                "scope_level": ScopeLevel.STATE,
+                "description": "State Super Admin with full system level administration and governance",
             },
             {
                 "name": "State Admin",
@@ -20,10 +20,46 @@ class Command(BaseCommand):
                 "description": "Full administrative control across all districts in assigned state",
             },
             {
-                "name": "District Collector / DM",
+                "name": "State Finance Admin",
+                "code": RoleName.STATE_FINANCE_ADMIN,
+                "scope_level": ScopeLevel.STATE,
+                "description": "State Finance Administrator for scheme budget mapping, fund releases & financial ledger",
+            },
+            {
+                "name": "State Department Admin",
+                "code": RoleName.STATE_DEPARTMENT_ADMIN,
+                "scope_level": ScopeLevel.STATE,
+                "description": "State Department Administrator for sector-wide line department oversight",
+            },
+            {
+                "name": "State Monitoring Officer",
+                "code": RoleName.STATE_MONITORING_OFFICER,
+                "scope_level": ScopeLevel.STATE,
+                "description": "State Monitoring & Evaluation Officer for audit tracking and KPI metrics",
+            },
+            {
+                "name": "State GIS Admin",
+                "code": RoleName.STATE_GIS_ADMIN,
+                "scope_level": ScopeLevel.STATE,
+                "description": "State GIS & Asset Management Administrator for geospatial layer cataloging",
+            },
+            {
+                "name": "System Administrator",
+                "code": RoleName.SYSTEM_ADMINISTRATOR,
+                "scope_level": ScopeLevel.STATE,
+                "description": "System Administrator for user directory, workflow authority & security settings",
+            },
+            {
+                "name": "District Collector",
                 "code": RoleName.DISTRICT_COLLECTOR,
                 "scope_level": ScopeLevel.DISTRICT,
                 "description": "Full control within assigned district across all departments",
+            },
+            {
+                "name": "District Magistrate (DM)",
+                "code": RoleName.DISTRICT_MAGISTRATE,
+                "scope_level": ScopeLevel.DISTRICT,
+                "description": "Executive oversight, financial sanction & override authority",
             },
             {
                 "name": "Additional District Magistrate (ADM)",
@@ -32,28 +68,40 @@ class Command(BaseCommand):
                 "description": "Delegated control within assigned district and assigned departments",
             },
             {
+                "name": "Department Head",
+                "code": RoleName.DEPARTMENT_HEAD,
+                "scope_level": ScopeLevel.DEPARTMENT,
+                "description": "Line department queue management, officer tasking, employee onboarding",
+            },
+            {
                 "name": "Department Officer",
                 "code": RoleName.DEPARTMENT_OFFICER,
                 "scope_level": ScopeLevel.DEPARTMENT,
-                "description": "Full control within assigned district and department",
+                "description": "Manage assigned complaints queue, schedule inspections, resolve tickets",
             },
             {
-                "name": "Field Engineer / Data Entry Operator",
-                "code": RoleName.FIELD_ENGINEER_DEO,
+                "name": "Executive / Assistant Engineer",
+                "code": RoleName.EXECUTIVE_ENGINEER,
                 "scope_level": ScopeLevel.DEPARTMENT,
-                "description": "Asset CRUD & inspection updates within assigned district and department",
+                "description": "Job execution, site progress, e-MB verification & bill submission",
             },
             {
-                "name": "Registered Citizen",
-                "code": RoleName.CITIZEN_REGISTERED,
+                "name": "Field Inspector / Junior Engineer",
+                "code": RoleName.FIELD_INSPECTOR,
+                "scope_level": ScopeLevel.DEPARTMENT,
+                "description": "Site geotag verification & evidence upload",
+            },
+            {
+                "name": "Field Supervisor",
+                "code": RoleName.FIELD_SUPERVISOR,
+                "scope_level": ScopeLevel.DEPARTMENT,
+                "description": "Field operations supervision & inspection report verification",
+            },
+            {
+                "name": "Citizen",
+                "code": RoleName.CITIZEN,
                 "scope_level": ScopeLevel.SELF,
                 "description": "Public user managing own grievances and viewing public maps",
-            },
-            {
-                "name": "Anonymous Citizen",
-                "code": RoleName.CITIZEN_ANONYMOUS,
-                "scope_level": ScopeLevel.ANONYMOUS,
-                "description": "Public read-only user",
             },
         ]
 

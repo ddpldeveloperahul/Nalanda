@@ -1,6 +1,6 @@
 # NDIS & Nalanda GIS Portal - Enterprise Backend API & System Guide
 
-Welcome to the **Nalanda District Information System (NDIS) & GIS Portal** complete architecture and REST API documentation. This platform powers spatial governance, thematic GIS infrastructure layer management, facilities directory sync, and an end-to-end multi-role **Complaint Management & Infrastructure Grievance System** for Bihar district administration.
+Welcome to the **Nalanda District Information System (NDIS) & GIS Portal** complete architecture and REST API documentation. This platform powers spatial governance, thematic GIS infrastructure layer management, facilities directory sync, an end-to-end multi-role **Complaint Management & Infrastructure Grievance System**, **Development Planning ERP with 7-Step DPR Wizard**, **Government Project Execution & Contract Monitoring ERP**, **Enterprise Reports Export Center**, **Line Department Staff Directory & Onboarding**, and **State Governance Budget & Finance Module** for Bihar district administration.
 
 ---
 
@@ -8,7 +8,7 @@ Welcome to the **Nalanda District Information System (NDIS) & GIS Portal** compl
 
 1. [Architecture & System Overview](#1-architecture--system-overview)
 2. [Quickstart & Deployment Guide](#2-quickstart--deployment-guide)
-3. [Official 10 System Fixed Roles](#3-official-10-system-fixed-roles)
+3. [Official System Fixed Roles (State & District Levels)](#3-official-system-fixed-roles-state--district-levels)
 4. [Authentication & JWT Token Security](#4-authentication--jwt-token-security)
 5. [Complaint Management & Auto-Routing System](#5-complaint-management--auto-routing-system)
    - [5.1 Workflow State Machine](#51-workflow-state-machine)
@@ -16,13 +16,23 @@ Welcome to the **Nalanda District Information System (NDIS) & GIS Portal** compl
    - [5.3 Geotagged Evidence Verification](#53-geotagged-evidence-verification)
    - [5.4 Spatial GIS & Nearest Facility Calculations](#54-spatial-gis--nearest-facility-calculations)
    - [5.5 Complaint API Endpoints](#55-complaint-api-endpoints)
-6. [Executive Analytics Dashboards & Notifications](#6-executive-analytics-dashboards--notifications)
-7. [Geospatial & Shapefile Management Module](#7-geospatial--shapefile-management-module)
-8. [Facilities Directory & SCD Type 2 Audit Module](#8-facilities-directory--scd-type-2-audit-module)
-9. [Django Admin Panel Integration](#9-django-admin-panel-integration)
-10. [Web UI Portals](#10-web-ui-portals)
-11. [Smart Spatial Query Engine & User Management Modules](#11-smart-spatial-query-engine--user-management-modules)
-12. [Complete REST API Reference Table](#12-complete-rest-api-reference-table)
+6. [Development Planning ERP & 7-Step DPR Wizard Module](#6-development-planning-erp--7-step-dpr-wizard-module)
+7. [Government Project Execution & Contract Monitoring ERP Module](#7-government-project-execution--contract-monitoring-erp-module)
+   - [7.1 Project KPI Summary & Running Projects](#71-project-kpi-summary--running-projects)
+   - [7.2 Site Diary & Daily Progress Logging](#72-site-diary--daily-progress-logging)
+   - [7.3 Electronic Measurement Book (e-MB)](#73-electronic-measurement-book-e-mb)
+   - [7.4 Financial Bill Processing & Approval Workflow](#74-financial-bill-processing--approval-workflow)
+   - [7.5 Automated Execution Risk Signals](#75-automated-execution-risk-signals)
+8. [Enterprise Reports Generation & Export Center Module](#8-enterprise-reports-generation--export-center-module)
+9. [Line Department Staff Directory & Employee Onboarding Module](#9-line-department-staff-directory--employee-onboarding-module)
+10. [State Governance Budget & Finance Module](#10-state-governance-budget--finance-module)
+11. [Executive Analytics Dashboards & Notifications](#11-executive-analytics-dashboards--notifications)
+12. [Geospatial & Shapefile Management Module](#12-geospatial--shapefile-management-module)
+13. [Facilities Directory & SCD Type 2 Audit Module](#13-facilities-directory--scd-type-2-audit-module)
+14. [Smart Spatial Query Engine & User Management Modules](#14-smart-spatial-query-engine--user-management-modules)
+15. [Django Admin Panel Integration](#15-django-admin-panel-integration)
+16. [Web UI Portals Matrix](#16-web-ui-portals-matrix)
+17. [Complete Master REST API Reference Table](#17-complete-master-rest-api-reference-table)
 
 ---
 
@@ -51,39 +61,57 @@ venv\Scripts\activate  # Windows
 pip install -r requirements.txt
 ```
 
-### 2.2 Database Migration & Seeding
+### 2.2 Database Migration & Seeding Commands
 ```bash
 # 1. Run database migrations
 python manage.py migrate
 
-# 2. Seed 10 Fixed System Roles & Defect Categories
+# 2. Seed 10 Fixed System Roles
+python manage.py seed_roles
+
+# 3. Seed Defect Categories & SLA Defaults
 python manage.py seed_complaint_categories
 
-# 3. Ingest GIS Shapefiles & Sync 8,334 Facilities (Optional)
+# 4. Seed Line Department Employee Profiles
+python manage.py seed_employees
+
+# 5. Seed Government Project Execution ERP Data (Projects, Site Diaries, MB, Bills, Risks)
+python manage.py seed_project_erp
+
+# 6. Seed Enterprise Reports Center Catalog Data
+python manage.py seed_reports
+
+# 7. Ingest GIS Shapefiles & Sync 8,334 Facilities (Optional)
 python import_layer.py
 
-# 4. Start local development server
+# 8. Start local development server
 python manage.py runserver
 ```
 
 ---
 
-## 3. Official 10 System Fixed Roles
+## 3. Official System Fixed Roles (State & District Levels)
 
-The system enforces 10 fixed roles with defined scope levels across citizens, department staff, and district administrators:
+The system enforces 16 official fixed roles with defined scope levels across citizens, department staff, district administrators, and state governance:
 
 | # | Role Name | Role Code | Scope Level | Access Scope & Permissions |
 | :---: | :--- | :--- | :--- | :--- |
 | **1** | **Citizen** | `CITIZEN` | `SELF` | Public grievance submission, view own complaints, reopen, submit 1-5 star ratings |
 | **2** | **District Collector** | `DISTRICT_COLLECTOR` | `DISTRICT` | District command center, SLA leaderboards, executive oversight |
-| **3** | **District Magistrate (DM)** | `DISTRICT_MAGISTRATE` | `DISTRICT` | District Magistrate approvals, executive override, proposal review |
+| **3** | **District Magistrate (DM)** | `DISTRICT_MAGISTRATE` | `DISTRICT` | District Magistrate approvals, executive override, financial bill & DPR sanction |
 | **4** | **Additional District Magistrate (ADM)** | `ADM` | `DISTRICT` | Delegated administrative oversight & sector grievance monitoring |
-| **5** | **Department Head** | `DEPARTMENT_HEAD` | `DEPARTMENT` | Line department queue management, officer tasking, resource allocation |
+| **5** | **Department Head** | `DEPARTMENT_HEAD` | `DEPARTMENT` | Line department queue management, officer tasking, employee onboarding, financial bill review |
 | **6** | **Department Officer** | `DEPARTMENT_OFFICER` | `DEPARTMENT` | Manage assigned complaints queue, schedule inspections, resolve tickets |
-| **7** | **Executive / Assistant Engineer** | `EXECUTIVE_ENGINEER` | `DEPARTMENT` | Assistant/Executive Engineer job execution & material inspection logging |
+| **7** | **Executive / Assistant Engineer** | `EXECUTIVE_ENGINEER` | `DEPARTMENT` | Executive Engineer job execution, site progress, e-MB verification & bill submission |
 | **8** | **Field Inspector / Junior Engineer** | `FIELD_INSPECTOR` | `DEPARTMENT` | Field inspector mobile PWA, site geotag verification & evidence upload |
 | **9** | **Field Supervisor** | `FIELD_SUPERVISOR` | `DEPARTMENT` | Field operations supervision & inspection report verification |
-| **10** | **State Admin** | `STATE_ADMIN` | `STATE` | State-level cross-district KPI comparison & radar analytics |
+| **10** | **State Super Admin** | `STATE_SUPER_ADMIN` | `STATE` | State Super Admin with full system level administration and governance |
+| **11** | **State Admin** | `STATE_ADMIN` | `STATE` | State-level cross-district KPI comparison, radar analytics & administration |
+| **12** | **State Finance Admin** | `STATE_FINANCE_ADMIN` | `STATE` | State Finance Admin for scheme budget mapping, fund releases & financial ledger |
+| **13** | **State Department Admin** | `STATE_DEPARTMENT_ADMIN` | `STATE` | State Department Admin for sector-wide line department oversight (Health, Education, PWD) |
+| **14** | **State Monitoring Officer** | `STATE_MONITORING_OFFICER` | `STATE` | State Monitoring & Evaluation Officer for project & grievance audit tracking |
+| **15** | **State GIS Admin** | `STATE_GIS_ADMIN` | `STATE` | State GIS & Asset Management Administrator for geospatial layer cataloging |
+| **16** | **System Administrator** | `SYSTEM_ADMINISTRATOR` | `STATE` | System Administrator for user directory, workflow authority & security settings |
 
 ---
 
@@ -121,6 +149,10 @@ Path Prefix: `/api/auth/`
 ### 4.3 Token Refresh API
 - **Endpoint:** `POST /api/auth/token/refresh/`
 - **Request Body:** `{"refresh": "<refresh_token>"}`
+
+### 4.4 Authenticated User Profile API
+- **Endpoint:** `GET /api/auth/me/`
+- **Response:** Current logged-in user details with role code, scope, and department details.
 
 ---
 
@@ -187,7 +219,7 @@ For every dropped pin location (`latitude, longitude`):
 - **Escalate:** `POST /api/complaints/{id}/escalate/` `{"reason": "..."}`
 - **Reject:** `POST /api/complaints/{id}/reject/` `{"reason": "..."}`
 - **Timeline Log:** `GET /api/complaints/{id}/timeline/`
-- **Department Complaint Breakdown & List:** `GET /api/department/{department_id}/complain/` *(Also supports name e.g. `/api/department/Health/complain/`)*
+- **Department Complaint Breakdown:** `GET /api/department/{department_id}/complain/` *(Also supports name e.g. `/api/department/Health/complain/`)*
 
 #### Spatial & Heatmap Endpoints
 - **GeoJSON Export:** `GET /api/complaints/geojson/`
@@ -197,14 +229,251 @@ For every dropped pin location (`latitude, longitude`):
 
 ---
 
-## 6. Executive Analytics Dashboards & Notifications (Strict Role RBAC)
+## 6. Development Planning ERP & 7-Step DPR Wizard Module
+
+### 6.1 Planning Dashboard ERP
+- **Endpoint:** `GET /api/planning/dashboard/`
+- **Description:** Returns KPI metrics (`development_needs`, `draft_dpr`, `pending_review`, `approved`), grievance cluster recommendations (`suggested_development_needs`), and active DPR proposal repository.
+
+### 6.2 Proposals ViewSet & 7-Step DPR Lifecycle Actions
+- **Proposals Endpoint:** `GET` / `POST` / `PUT` / `PATCH` / `DELETE` `/api/proposals/` & `/api/proposals/{id}/`
+- **DPR Wizard Steps:**
+  1. `POST /api/proposals/`: Step 1 - Need Identification (`title`, `category`, `village`, `block`, `population_impact`, `gap_score`, `linked_complaint_ids`).
+  2. `POST /api/proposals/{id}/step2-survey-inspection/`: Step 2 - Survey & Site Inspection notes & GIS location coordinates.
+  3. `POST /api/proposals/{id}/step3-technical-dpr/`: Step 3 - Technical Scope & engineering specifications.
+  4. `POST /api/proposals/{id}/step4-financial-estimation/`: Step 4 - Financial estimation breakdown (civil, electrical, equipment, contingency, maintenance).
+  5. `POST /api/proposals/{id}/step5-clearances/`: Step 5 - Environmental & land clearances checklist.
+  6. `POST /api/proposals/{id}/step6-attachments/`: Step 6 - Upload DPR drawing PDFs & CAD attachments.
+  7. `POST /api/proposals/{id}/submit/`: Step 7 - Submit DPR proposal for review (`DRAFT_DPR` $\rightarrow$ `PENDING_REVIEW`).
+
+### 6.3 DM Sanction & Approval Actions
+- **Approve Proposal:** `POST /api/proposals/{id}/approve/`
+- **Reject Proposal:** `POST /api/proposals/{id}/reject/` `{"review_notes": "..."}`
+- **Sanction Budget:** `POST /api/proposals/{id}/sanction/` `{"sanctioned_amount": 12000000.00}`
+
+---
+
+## 7. Government Project Execution & Contract Monitoring ERP Module
+
+The Project Execution ERP module manages running infrastructure projects from sanction through field execution, daily site diaries, electronic Measurement Books (e-MB), financial bill submissions, and risk tracking.
+
+### 7.1 Project KPI Summary & Running Projects
+- **Project List & Create:** `GET` / `POST` `/api/projects/`
+  - Filters: `department`, `district`, `status`, `risk` / `risk_level`, `search`.
+- **Project KPI Summary:** `GET /api/projects/summary/`
+  - Returns total running projects, completed projects, inspection due count, budget utilization formatted in Cr/Lakh, total claimed bill amounts, total net payable amounts, and project lists grouped by status.
+- **Budget Sanction Action:** `POST /api/projects/{id}/sanction/`
+  - Sanctions project budget, assigns sanction order number (`SAN-2026-NLD-XXX`), and transitions status to `IN_EXECUTION`.
+
+### 7.2 Site Diary & Daily Progress Logging
+- **Site Diary CRUD:** `GET` / `POST` `/api/site-diaries/` & `/api/site-diaries/{id}/`
+- **Daily Progress Action:** `POST /api/projects/{id}/daily-progress/`
+  - Logs daily physical progress %, deployed labour count, materials consumed, weather condition, and optional execution risk signal.
+  - Automatically marks project as `COMPLETED` when progress reaches 100%.
+
+### 7.3 Electronic Measurement Book (e-MB)
+- **MB Entries Endpoint:** `GET` / `POST` / `PUT` / `PATCH` / `DELETE` `/api/measurement-books/` & `/api/measurement-books/{id}/`
+  - Records item descriptions, unit of measurement, measured quantities, item rates, total calculated amounts, measuring officer (JE/AE), and verifying engineer (EE).
+
+### 7.4 Financial Bill Processing & Approval Workflow
+- **Project Bills Endpoint:** `GET` / `POST` / `PUT` / `PATCH` / `DELETE` `/api/bills/` & `/api/bills/{id}/`
+- **RBAC Financial Access Control:** Restricted to District Magistrate (DM) and Department Heads. Department Heads see bills scoped to their department; DM has district-wide financial authorization access.
+- **Bill Fields:** Bill number (`RA-BILL-2026-XXX`), bill type (`ADVANCE_BILL`, `RUNNING_BILL`, `FINAL_BILL`), claimed amount, verified amount, deductions, net payable amount, payment status (`draft`, `pending_approval`, `approved`, `disbursed`, `rejected`), PFMS transaction reference.
+
+### 7.5 Automated Execution Risk Signals
+- **Execution Risks Endpoint:** `GET` / `POST` / `PUT` / `PATCH` / `DELETE` `/api/execution-risks/` & `/api/execution-risks/{id}/`
+  - Filters by project and severity (`low`, `medium`, `high`, `critical`).
+  - Records active risk signals (e.g. monsoon waterlogging, material delivery delay), recommendations, and resolution status.
+
+---
+
+## 8. Enterprise Reports Generation & Export Center Module
+
+Path Prefix: `/api/reports/`
+
+### 8.1 Overview & Report Categories
+Provides a central repository for scheduled and on-demand government audit and operational reports across 4 primary categories:
+1. **`SLA Audit`**: Monthly line department SLA breach rate, resolution speed, and escalation metrics.
+2. **`Asset Audit`**: Geotagged facility & asset verification logs with PostGIS coordinate validation.
+3. **`Grievance Log`**: Citizen complaint volume, status breakdown, and satisfaction ratings.
+4. **`Workflow Audit`**: Immutable audit logs of state machine transitions and officer handoffs.
+
+### 8.2 API Endpoints
+- **Report List & Search:** `GET /api/reports/?category=sla_audit&department=6`
+- **Generate On-Demand Report Action:** `POST /api/reports/generate/`
+  - **Request Body:** `{"type": "sla_audit", "department": 6, "district": 25}`
+  - **Response (`201 Created`):** Instantly creates report record with code (`REP-XXX`), formatted file size, and PDF/CSV download path.
+- **Download Report Document:** `GET /api/reports/{id}/download/`
+  - Serves generated PDF or CSV document file.
+
+### 8.3 Web UI Portals
+- **Enterprise Reports Center:** `http://127.0.0.1:8000/reports/` and `/linedept/reports/`
+
+---
+
+## 9. Line Department Staff Directory & Employee Onboarding Module
+
+Path Prefix: `/api/employees/`
+
+### 9.1 Enterprise Architecture & Role Binding
+- 1-to-1 linkage between `Employee` profile and `User` account (`User -> Role -> Permissions` is the single source of truth for authorization).
+- Department & District boundaries are enforced based on logged-in Department Head credentials.
+
+### 9.2 Secure Onboarding Lifecycle
+$$\text{INVITED} \longrightarrow \text{PENDING} \longrightarrow \text{ACCEPTED} \longrightarrow \text{USER CREATED} \longrightarrow \text{ROLE ASSIGNED} \longrightarrow \text{ACTIVE}$$
+
+### 9.3 API Endpoints
+- **Employee Directory List & Search:** `GET /api/employees/?search=Vijay&role=DEPARTMENT_OFFICER&status=active`
+- **Create / Update Employee Profile:** `POST` / `PUT` / `PATCH` / `DELETE` `/api/employees/` & `/api/employees/{id}/`
+- **Issue Secure Onboarding Invitation Action:** `POST /api/employees/invite/`
+  - **Request Body:**
+    ```json
+    {
+      "email": "anil.mehta@nalanda.gov.in",
+      "full_name": "Anil Mehta",
+      "designation": "Assistant Engineer",
+      "office": "District Water Office",
+      "block": "Silao",
+      "role": "DEPARTMENT_OFFICER",
+      "reports_to": 1
+    }
+    ```
+  - **Response (`201 Created`):** Generates 7-day secure UUID token, creates `EmployeeInvitation` record, sets status to `INVITED`, and logs `INVITATION_CREATED` audit event.
+- **Accept Invitation Action:** `POST /api/employees/accept-invite/`
+  - Validates token, creates `User` account with password, assigns RBAC role, updates Employee status to `ACTIVE`, and sets `joined_at` timestamp.
+
+### 9.4 Web UI Portals
+- **Staff Directory & Employee Management:** `http://127.0.0.1:8000/employees/` and `/linedept/employees/`
+
+---
+
+## 10. State Governance Budget & Finance Module
+
+Path Prefix: `/api/state-budget/`
+
+### 10.1 Master Governance Dashboard & Budget Flow
+Tracks the complete state financial workflow:
+$$\text{Budget Provision} \longrightarrow \text{Authorization} \longrightarrow \text{Allocation} \longrightarrow \text{Sanction} \longrightarrow \text{Release} \longrightarrow \text{Commitment} \longrightarrow \text{Utilization}$$
+
+### 10.2 KPI Summary Band Metrics & Filter Matrix
+- **`total_state_budget`**: Total annual state budget provision (e.g., `₹4,800.00 Cr` for FY 2026-27).
+- **`department_allocation`**: Departmental authorized budget allocations (`₹4,600.00 Cr`, `98% of provision`).
+- **`district_allocation`**: District-wise authorized allocations across departments (`₹899.00 Cr`, `20% of authorized`).
+- **`total_sanctioned`**: Total competent authority approvals (`₹4.00 Cr`).
+- **`total_released`**: Total fund releases (`₹3,900 Cr`).
+- **`total_committed`**: Financial obligations against released funds (`₹3,200 Cr`).
+- **`total_utilized`**: Actual expenditure utilized (`₹2,850 Cr`, `73% of released`).
+- **`available_balance`**: Unsanctioned available balance (`₹4,596.00 Cr`, `authorized - sanctioned`).
+- **`unreleased_balance`**: Sanctioned unreleased balance (`₹4.00 Cr`, `sanctioned - released`).
+- **Filter Parameters:** `financial_year`, `department` (e.g. `Health & Family Welfare`, `School Education`, `Public Works Department`, `Electricity Board`, `Urban Local Body / Sanitation`, `Solar & Renewable Energy`, `Tourism & Heritage Development`, `Water & Sanitation (Jal Jeevan Mission)`), `district` (10 monitored units), `scheme` (14 state/central schemes).
+
+### 10.3 REST API Endpoints & RBAC Authorization Rules
+
+> [!IMPORTANT]
+> **Strict RBAC Security Enforcement**: All State Budget APIs require **JWT Bearer Token Authentication** and are restricted exclusively to authorized roles: **`STATE_FINANCE_ADMIN`**, **`STATE_SUPER_ADMIN`**, **`STATE_ADMIN`**, and **`SYSTEM_ADMINISTRATOR`**. Unauthenticated requests return `401 Unauthorized`. Unauthorized roles (e.g., `CITIZEN` or `DEPARTMENT_OFFICER`) receive `403 Forbidden` (`Access Denied: Only State Finance Administrators and State Super Admins can access or modify State Budget data.`).
+
+#### 1. Master State Budget Summary & Analytics API
+- **Endpoint:** `GET /api/state-budget/summary/` or `GET /api/state-budget/`
+- **Auth Required:** `Bearer (State Finance Admin / State Super Admin)`
+- **Query Filters:** `?financial_year=2026-27`, `?department=Health`, `?district=Nalanda`, `?scheme=Ayushman`
+
+#### 2. Master State Budget CRUD (`/api/state-budgets/`)
+- **List All:** `GET /api/state-budgets/`
+- **Retrieve Single:** `GET /api/state-budgets/{id}/`
+- **Create Master Budget:** `POST /api/state-budgets/`
+  - **Request Body (JSON):**
+    ```json
+    {
+      "financial_year": "2027-28",
+      "total_state_budget_cr": 5200.00,
+      "department_allocation_cr": 5000.00,
+      "district_allocation_cr": 1100.00,
+      "total_sanctioned_cr": 10.00,
+      "total_released_cr": 4200.00,
+      "total_committed_cr": 3500.00,
+      "total_utilized_cr": 3100.00,
+      "available_balance_cr": 4990.00,
+      "unreleased_balance_cr": 10.00,
+      "active_projects_count": 12,
+      "at_risk_projects_count": 3,
+      "pending_approvals_count": 5
+    }
+    ```
+- **Update Master Budget:** `PUT /api/state-budgets/{id}/` or `PATCH /api/state-budgets/{id}/`
+- **Delete Master Budget:** `DELETE /api/state-budgets/{id}/` (Returns `204 No Content`)
+
+#### 3. Department Budget CRUD (`/api/department-budgets/`)
+- **Create Department Budget:** `POST /api/department-budgets/`
+  - **Request Body (JSON):**
+    ```json
+    {
+      "department": 13,
+      "financial_year": "2026-27",
+      "authorized_budget_cr": 950.00,
+      "sanctioned_budget_cr": 890.00,
+      "released_budget_cr": 800.00,
+      "committed_budget_cr": 720.00,
+      "utilized_budget_cr": 680.00
+    }
+    ```
+
+#### 4. District Allocation CRUD (`/api/district-allocations/`)
+- **Create District Allocation:** `POST /api/district-allocations/`
+  - **Request Body (JSON):**
+    ```json
+    {
+      "district": 25,
+      "department": 13,
+      "financial_year": "2026-27",
+      "allocation_amount_cr": 150.00,
+      "sanctioned_amount_cr": 130.00,
+      "utilized_amount_cr": 110.00
+    }
+    ```
+
+#### 5. Scheme Master CRUD (`/api/schemes/`)
+- **Create Scheme Master Record:** `POST /api/schemes/`
+  - **Request Body (JSON):**
+    ```json
+    {
+      "code": "SCH-HEALTH-005",
+      "name": "Mukhyamantri Health Infrastructure Scheme",
+      "department": 13,
+      "category": "State Sponsored",
+      "total_allocation_cr": 350.00,
+      "sanctioned_cr": 320.00,
+      "released_cr": 290.00,
+      "utilized_cr": 240.00
+    }
+    ```
+
+#### 6. Financial Ledger Log CRUD (`/api/financial-ledger/`)
+- **Create Financial Ledger Entry:** `POST /api/financial-ledger/`
+  - **Request Body (JSON):**
+    ```json
+    {
+      "transaction_id": "TXN-FIN-2026-099",
+      "financial_year": "2026-27",
+      "entry_type": "SANCTION",
+      "department": 13,
+      "district": 25,
+      "amount_cr": 45.00,
+      "remarks": "Sanction order issued for primary health center construction."
+    }
+    ```
+
+---
+
+## 11. Executive Analytics Dashboards & Notifications
+
+Path Prefix: `/api/dashboards/` & `/api/notifications/`
 
 - `GET /api/dashboards/my-dashboard/` $\rightarrow$ Unified auto-routing dashboard tailored to logged-in user's role
-- `GET /api/dashboards/citizen/` $\rightarrow$ Citizen personal grievance stats, status tracker & feedback *(Citizen access only)*
-- `GET /api/dashboards/department/` $\rightarrow$ Department queue, assigned, pending, resolved & SLA breached counts *(Department Head)*
-- `GET /api/dashboards/officer/` $\rightarrow$ Officer daily work queue & assigned task execution *(Department Officer / Engineers)*
+- `GET /api/dashboards/citizen/` $\rightarrow$ Citizen personal grievance stats, status tracker & feedback
+- `GET /api/dashboards/department/` $\rightarrow$ Department queue, assigned, pending, resolved & SLA breached counts
+- `GET /api/dashboards/officer/` $\rightarrow$ Officer daily work queue & assigned task execution
 - `GET /api/dashboards/field-inspector/` $\rightarrow$ Field Mobile PWA inspection queue & geotag evidence verification
-- `GET /api/dashboards/district/` $\rightarrow$ District department-wise, status-wise & priority-wise breakdown *(Collector / DM / ADM)*
+- `GET /api/dashboards/district/` $\rightarrow$ District department-wise, status-wise & priority-wise breakdown
 - `GET /api/dashboards/district-collector/` $\rightarrow$ District Collector Command Center & SLA leaderboards
 - `GET /api/dashboards/dm/` $\rightarrow$ District Magistrate Executive Command Center
 - `GET /api/dashboards/adm/` $\rightarrow$ Additional District Magistrate Sector Grievance Dashboard
@@ -213,17 +482,21 @@ For every dropped pin location (`latitude, longitude`):
 
 ---
 
-## 7. Geospatial & Shapefile Management Module
+## 11. Geospatial & Shapefile Management Module
+
+Path Prefix: `/api/gis/`
 
 - **Catalog Entry List:** `GET /api/gis/catalog/`
 - **GeoJSON Layer Features:** `GET /api/gis/layers/{layer_name}/`
-- **Dynamic Shapefile Upload:** `POST /api/gis/upload-layer/` *(Accepts `.zip` shapefile bundles)*
+- **Dynamic Shapefile Upload:** `POST /api/gis/upload-layer/` *(Accepts `.zip` shapefile bundles, auto-reprojects to WGS84 EPSG:4326)*
 - **Catalog CRUD:** `/api/gis/catalog-crud/`
 - **Spatial Feature CRUD:** `/api/gis/features/`
 
 ---
 
-## 8. Facilities Directory & SCD Type 2 Audit Module
+## 12. Facilities Directory & SCD Type 2 Audit Module
+
+Path Prefix: `/api/facilities/`
 
 - **List & Filter Facilities:** `GET /api/facilities/?search=hospital&category=1`
 - **Facility CRUD:** `/api/facilities/{id}/`
@@ -233,92 +506,92 @@ For every dropped pin location (`latitude, longitude`):
 
 ---
 
-## 9. Django Admin Panel Integration
+## 13. Smart Spatial Query Engine & User Management Modules
 
-Registered Models in Django Admin (`/admin/`):
+### 13.1 Smart Spatial Query Engine
+- **Endpoint:** `GET /api/spatial-query/`
+- **Description:** Executes natural language and preset spatial queries across 3 perspectives: **Citizens**, **Government Administration**, and **Line Departments**.
+- **Query Parameters:** `q` / `search`, `lat`, `lng`, `radius` (meters), `limit`.
+
+### 13.2 Complete User Directory & Department Users API
+- **User CRUD:** `GET` / `POST` / `PUT` / `PATCH` / `DELETE` `/api/users/` & `/api/users/{id}/`
+- **Department-Wise Users Endpoint:** `GET /api/department/{department_id}/users/`
+
+---
+
+## 14. Django Admin Panel Integration
+
+Registered Models in Django Admin (`http://127.0.0.1:8000/admin/`):
 - **`ComplaintCategoryAdmin`**: Category, department, default priority, default SLA hours, FontAwesome icons.
 - **`ComplaintAdmin`**: Complaint lifecycle, SLA breach flags, assigned officers.
   - **`ComplaintEvidenceInline`**: View attached geotagged evidence images & EXIF coordinates.
   - **`ComplaintTimelineInline`**: View complete immutable audit log history.
-- **`ComplaintEvidenceAdmin`**: Standalone evidence attachment audit table.
-- **`ComplaintTimelineAdmin`**: Standalone workflow event log table.
+- **`ProjectExecutionAdmin`**: Running projects, sanction amounts, expenditure, progress %, risk levels.
+- **`ReportAdmin`**: Generated report catalog, downloadable PDF/CSV files, category tagging.
+- **`EmployeeAdmin`**: Staff profile directory, 1-to-1 user bindings, invitation status tracking.
 
 ---
 
-## 10. Web UI Portals
+## 15. Web UI Portals Matrix
 
-1. **Interactive GIS Map Portal**: `http://127.0.0.1:8000/` (Leaflet.js spatial layer toggle, basemap switcher, pin inspection).
-2. **Facilities Directory Portal**: `http://127.0.0.1:8000/facilities/` (Facility search, modal editor, audit history viewer).
-3. **Glassmorphic Single Sign-On Portal**: `http://127.0.0.1:8000/login/` & `/signup/` (Tab switcher, dynamic role & department dropdowns, password visibility toggles, session card).
-
----
-
-## 11. Smart Spatial Query Engine & User Management Modules
-
-### 11.1 Smart Natural Language & Excel Spatial Query Engine
-- **Endpoint:** `GET /api/spatial-query/`
-- **Description:** Executes natural language and preset spatial queries directly from `Queries for Nalanda.xlsx` across 3 distinct perspectives: **Citizens**, **Government Administration**, and **Line Departments**.
-- **Supported Query Parameters:**
-  - `q` / `search`: Search query title or keyword (e.g. `"nearest health facility finder"`, `"nearby drinking water source locator"`, `"block-wise health service gap"`, `"institutions for rooftop solar install"`, `"Groundwater stress and dependency zones"`).
-  - `lat` & `lng`: User current location / pin latitude & longitude (e.g., `lat=25.0319&lng=85.4164`).
-  - `radius`: Distance threshold filter in meters or kilometers (e.g., `radius=5000` for 5 km).
-  - `limit`: Top N nearest facilities count (e.g., `limit=5`).
-- **RBAC Perspective Permissions:**
-  - **Citizens Queries**: Public Access (`200 OK` for everyone).
-  - **Government Administration Queries**: Restricted to DM, Collector, ADM, SDM (`403 Forbidden` for Citizens).
-  - **Line Departments Queries**: Restricted to Line Department Officers, Executive Engineers, Department Heads (`403 Forbidden` for Citizens).
-
-### 11.2 Complete User Directory & Department Users API
-- **User CRUD Endpoint:** `GET` / `POST` / `PUT` / `PATCH` / `DELETE` `/api/users/` & `/api/users/{id}/`
-  - Supports full user account management, soft deletion, and multi-field filtering by `search`, `department`, `role`, and `district`.
-- **Department-Wise Users Endpoint:** `GET /api/department/{department_id}/users/`
-  - Returns total user count and detailed user listings filtered by specific Department ID with role metadata.
-
-### 11.3 Development Planning ERP & 7-Step DPR Wizard Module
-- **Planning Dashboard ERP Endpoint:** `GET /api/planning/dashboard/`
-  - Powers `/linedept/planning`. Returns KPI summary metrics (`development_needs`, `draft_dpr`, `pending_review`, `approved`), simulation-derived complaint clusters (`suggested_development_needs`), and the DPR repository table.
-- **Proposals ViewSet Endpoint:** `GET` / `POST` / `PUT` / `PATCH` / `DELETE` `/api/proposals/` & `/api/proposals/{id}/`
-  - Supports filtering by `department`, `district`, `status`, `stage`, `priority`, `block`, `search`.
-- **DPR Wizard Actions:**
-  - `POST /api/proposals/`: Create proposal with Need Identification fields (`title`, `category`, `village`, `block`, `ward`, `population_impact`, `gap_score`, `linked_complaint`, `linked_complaint_ids`, `problem_statement`, `priority`).
-  - `POST /api/proposals/{id}/step2-survey-inspection/`: Survey & site inspection (inspection date, team, notes, GIS location coordinates).
-  - `POST /api/proposals/{id}/step3-technical-dpr/`: Technical scope, engineering notes, timeline.
-  - `POST /api/proposals/{id}/step4-financial-estimation/`: Financial estimation breakdown (civil, equipment, electrical, contingency, maintenance) with auto-calculated Grand Total.
-  - `POST /api/proposals/{id}/step5-clearances/`: Environmental & land clearances checklist.
-  - `POST /api/proposals/{id}/step6-attachments/`: DPR drawing PDF and attachment uploads.
-  - `POST /api/proposals/{id}/submit/`: Submit DPR for review (`DRAFT_DPR` -> `PENDING_REVIEW`).
-- **DM Sanction & Approval Workflow Actions:**
-  - `POST /api/proposals/{id}/approve/`: Approve DPR proposal.
-  - `POST /api/proposals/{id}/reject/`: Reject DPR proposal with review notes.
-  - `POST /api/proposals/{id}/sanction/`: Sanction budget & issue sanction order.
+| # | Web Portal Name | URL Route | Target Audience | Primary Features |
+| :---: | :--- | :--- | :--- | :--- |
+| **1** | **Interactive GIS Map Portal** | `/` or `/map/` | Public / Officers / Admins | Leaflet.js spatial vector layers, basemap toggle, spatial pin inspection, buffer search |
+| **2** | **Facilities Directory Portal** | `/facilities/` | Public / Administrators | Search 8,334+ facilities, modal editor, SCD Type 2 version history viewer |
+| **3** | **Enterprise Reports Center** | `/reports/` or `/linedept/reports/` | Department Heads / Admins | On-demand PDF/CSV report generation, SLA audit logs, asset verification records |
+| **4** | **Staff Directory & Onboarding** | `/employees/` or `/linedept/employees/` | Department Heads / HR | Employee profile management, secure 7-day token invitations, RBAC role assignment |
+| **5** | **Glassmorphic Single Sign-On** | `/login/` & `/signup/` | All Registered Users | Tabbed authentication card, dynamic role & department selectors, password toggles |
 
 ---
 
-## 12. Complete REST API Reference Table
+## 16. Complete Master REST API Reference Table
 
 | Path | Method | Auth Required | Description |
 | :--- | :--- | :--- | :--- |
-| `/api/auth/signup/` | `POST` | Public | Register new user account |
-| `/api/auth/login/` | `POST` | Public | Obtain JWT Access (30m) & Refresh tokens |
+| `/api/auth/signup/` | `POST` | Public | Register new user account with role selection |
+| `/api/auth/login/` | `POST` | Public | Obtain JWT Access (30m) & Refresh tokens (Username or Email) |
 | `/api/auth/token/refresh/` | `POST` | Public | Refresh expired JWT access token |
-| `/api/auth/me/` | `GET` | Bearer | Retrieve authenticated user profile |
+| `/api/auth/me/` | `GET` | Bearer | Retrieve authenticated user profile & permissions |
 | `/api/auth/roles/` | `GET` | Public | List system roles |
-| `/api/users/` | `GET` / `POST` | Bearer / Admin | Complete User directory CRUD list & create (filters: `search`, `department`, `role`, `district`) |
+| `/api/users/` | `GET` / `POST` | Bearer / Admin | User directory CRUD list & create (filters: `search`, `department`, `role`, `district`) |
 | `/api/users/{id}/` | `GET` / `PUT` / `PATCH` / `DELETE` | Bearer / Admin | Retrieve, update, patch, or soft delete user account |
 | `/api/department/{department_id}/users/` | `GET` | Bearer | Get department-wise user list with role breakdown |
-| `/api/spatial-query/` | `GET` | Bearer / Public | Smart Natural Language & Excel Spatial Query Engine (`?q=...`, `?lat=...`, `?lng=...`, `?radius=...`, `?limit=...`, RBAC perspective filter) |
+| `/api/spatial-query/` | `GET` | Bearer / Public | Smart Natural Language Spatial Query Engine (`?q=...`, `?lat=...`, `?lng=...`, `?radius=...`) |
 | `/api/planning/dashboard/` | `GET` | Bearer / Public | Development Planning ERP dashboard KPIs, suggested needs & DPR repository |
-| `/api/proposals/` | `GET` / `POST` | Bearer | Proposals CRUD list & create (filters: `department`, `district`, `status`, `stage`, `priority`, `block`, `search`) |
+| `/api/proposals/` | `GET` / `POST` | Bearer | DPR Proposals CRUD list & create (filters: `department`, `district`, `status`, `stage`, `priority`, `block`, `search`) |
 | `/api/proposals/{id}/` | `GET` / `PUT` / `PATCH` / `DELETE` | Bearer | Proposal details retrieve, update, and soft delete |
 | `/api/proposals/{id}/step2-survey-inspection/` | `POST` | Bearer | Step 2: Save Survey & Site Inspection notes and GIS coordinates |
-| `/api/proposals/{id}/step3-technical-dpr/` | `POST` | Bearer | Step 3: Save Technical Scope and engineering notes |
+| `/api/proposals/{id}/step3-technical-dpr/` | `POST` | Bearer | Step 3: Save Technical Scope and engineering specifications |
 | `/api/proposals/{id}/step4-financial-estimation/` | `POST` | Bearer | Step 4: Save Financial Line Items and auto-compute Grand Total |
 | `/api/proposals/{id}/step5-clearances/` | `POST` | Bearer | Step 5: Save Clearances checklist |
 | `/api/proposals/{id}/step6-attachments/` | `POST` | Bearer | Step 6: Upload DPR drawings and attachments |
-| `/api/proposals/{id}/submit/` | `POST` | Bearer | Step 7: Submit DPR proposal for review |
+| `/api/proposals/{id}/submit/` | `POST` | Bearer | Step 7: Submit DPR proposal for review (`DRAFT_DPR` -> `PENDING_REVIEW`) |
 | `/api/proposals/{id}/approve/` | `POST` | Bearer | Approve DPR proposal |
-| `/api/proposals/{id}/reject/` | `POST` | Bearer | Reject DPR proposal with reason |
-| `/api/proposals/{id}/sanction/` | `POST` | Bearer | Sanction proposal budget & create sanction order |
+| `/api/proposals/{id}/reject/` | `POST` | Bearer | Reject DPR proposal with review notes |
+| `/api/proposals/{id}/sanction/` | `POST` | Bearer | Sanction proposal budget & issue sanction order |
+| `/api/projects/` | `GET` / `POST` | Bearer | Project Execution ERP CRUD list & create (filters: `department`, `district`, `status`, `risk`, `search`) |
+| `/api/projects/{id}/` | `GET` / `PUT` / `PATCH` / `DELETE` | Bearer | Project details retrieve, update, and soft/hard delete |
+| `/api/projects/summary/` | `GET` | Bearer | Aggregate execution KPIs (running count, budget utilized, bill totals, net payable) |
+| `/api/projects/{id}/daily-progress/` | `POST` | Bearer | Log daily physical progress %, labour deployed, materials used, and site diary entry |
+| `/api/projects/{id}/sanction/` | `POST` | Bearer | Sanction project budget amount & issue sanction order number |
+| `/api/site-diaries/` | `GET` / `POST` | Bearer | Site Diary CRUD list and create |
+| `/api/measurement-books/` | `GET` / `POST` | Bearer | Electronic Measurement Book (e-MB) CRUD list and create |
+| `/api/bills/` | `GET` / `POST` | Bearer (DM/Dept Head) | Project Bills CRUD list and create (financial authorization workflow) |
+| `/api/bills/{id}/` | `GET` / `PUT` / `PATCH` / `DELETE` | Bearer (DM/Dept Head) | Bill details retrieve, update, patch, or delete |
+| `/api/execution-risks/` | `GET` / `POST` | Bearer | Execution Risk signals CRUD list and create |
+| `/api/reports/` | `GET` / `POST` | Bearer / Public | Enterprise Reports catalog list & create (filters: `category`, `department`) |
+| `/api/reports/generate/` | `POST` | Bearer / Public | Generate on-demand report action (`sla_audit`, `asset_audit`, `grievance`, `workflow`) |
+| `/api/reports/{id}/download/` | `GET` | Bearer / Public | Download generated PDF / CSV report document file |
+| `/api/employees/` | `GET` / `POST` | Bearer / Public | Line Department Employee Directory CRUD list & create (filters: `search`, `role`, `status`, `block`) |
+| `/api/employees/{id}/` | `GET` / `PUT` / `PATCH` / `DELETE` | Bearer / Public | Retrieve, update, patch, or delete employee profile |
+| `/api/employees/invite/` | `POST` | Bearer / Public | Issue secure 7-day UUID onboarding invitation token |
+| `/api/employees/accept-invite/` | `POST` | Public | Accept onboarding invitation, set password, and activate user account |
+| `/api/state-budget/summary/` | `GET` | Bearer (State Finance Admin) | Master State Governance Budget Dashboard Summary API (`?financial_year=...`, `?department=...`, `?district=...`, `?scheme=...`) |
+| `/api/state-budgets/` | `GET` / `POST` / `PUT` / `DELETE` | Bearer (State Finance Admin) | State Master Budget CRUD list, create, update, delete |
+| `/api/department-budgets/` | `GET` / `POST` / `PUT` / `DELETE` | Bearer (State Finance Admin) | Department Budget allocations, sanctions, and utilization CRUD |
+| `/api/district-allocations/` | `GET` / `POST` / `PUT` / `DELETE` | Bearer (State Finance Admin) | District Budget allocations CRUD |
+| `/api/schemes/` | `GET` / `POST` / `PUT` / `DELETE` | Bearer (State Finance Admin) | State & Central Schemes Master repository CRUD |
+| `/api/financial-ledger/` | `GET` / `POST` / `PUT` / `DELETE` | Bearer (State Finance Admin) | Financial Ledger transaction entries CRUD |
 | `/api/complaints/` | `GET` | Bearer / Public | List complaints filtered by role/department scope |
 | `/api/complaints/` | `POST` | Bearer | Submit complaint with auto-routing & spatial calculations |
 | `/api/complaints/{id}/assign/` | `POST` | Bearer | Assign ticket to officer / engineer |

@@ -551,13 +551,16 @@
                     <div id="sessionUserName" class="user-name">User Name</div>
                     <div id="sessionUserRole" class="user-role">Role Name</div>
                 </div>
-                <div class="session-actions">
+                <div class="session-actions" style="flex-wrap: wrap;">
                     <a href="/facilities/" class="btn-action">
                         <i class="fa-solid fa-building"></i> Facilities
                     </a>
                     <a href="/map/" class="btn-action">
                         <i class="fa-solid fa-map"></i> GIS Map
                     </a>
+                    <button type="button" onclick="openChangePasswordModal()" class="btn-action">
+                        <i class="fa-solid fa-key"></i> Change Password
+                    </button>
                     <button id="btnLogout" class="btn-action logout">
                         <i class="fa-solid fa-right-from-bracket"></i> Logout
                     </button>
@@ -571,6 +574,9 @@
                 </button>
                 <button id="tabBtnSignup" class="tab-btn" onclick="switchTab('signup')">
                     <i class="fa-solid fa-user-plus"></i> Create Account
+                </button>
+                <button id="tabBtnForgot" class="tab-btn" onclick="switchTab('forgot')">
+                    <i class="fa-solid fa-key"></i> Forgot Password
                 </button>
             </div>
 
@@ -595,6 +601,12 @@
                         </button>
                     </div>
                     <div class="form-error" id="errorLoginPassword">Please enter your password.</div>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; margin-top: -0.4rem; margin-bottom: 0.8rem;">
+                    <a href="#" onclick="switchTab('forgot'); return false;" style="color: var(--primary); font-size: 0.85rem; text-decoration: none; display: flex; align-items: center; gap: 0.4rem; transition: color 0.2s ease;">
+                        <i class="fa-solid fa-key"></i> Forgot Password?
+                    </a>
                 </div>
 
                 <button type="submit" id="btnLoginSubmit" class="btn-submit">
@@ -709,10 +721,124 @@
                 </button>
             </form>
 
+            <!-- FORGOT PASSWORD FORM -->
+            <form id="forgotForm" class="auth-form" onsubmit="handleForgotFormSubmit(event)">
+                <!-- STEP 1: REQUEST OTP -->
+                <div id="forgotStep1">
+                    <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem; font-size: 0.88rem; color: var(--text-muted); line-height: 1.5;">
+                        <i class="fa-solid fa-circle-info" style="color: var(--primary);"></i> Enter your registered email address below. We will send a 6-digit Verification Code (OTP) to your email.
+                    </div>
+                    
+                    <div class="form-group" id="groupForgotEmail">
+                        <label class="form-label">Registered Email Address <span class="req">*</span></label>
+                        <div class="input-wrapper">
+                            <i class="fa-solid fa-envelope input-icon"></i>
+                            <input type="email" id="forgotEmail" class="form-input" placeholder="e.g. rahul.officer@bihar.gov.in" required>
+                        </div>
+                        <div class="form-error" id="errorForgotEmail">Please enter your registered email address.</div>
+                    </div>
+
+                    <button type="button" id="btnRequestOTP" class="btn-submit" onclick="requestPasswordOTP()">
+                        <span class="spinner" id="forgotRequestSpinner"></span>
+                        <i class="fa-solid fa-paper-plane"></i> Send Verification OTP
+                    </button>
+                </div>
+
+                <!-- STEP 2: VERIFY OTP & RESET PASSWORD -->
+                <div id="forgotStep2" style="display: none; margin-top: 1rem;">
+                    <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem; font-size: 0.88rem; color: #6ee7b7; line-height: 1.5;">
+                        <i class="fa-solid fa-shield-halved"></i> Verification OTP sent to <strong id="sentEmailDisplay">your email</strong>! Enter the code below to reset your password.
+                    </div>
+
+                    <div class="form-group" id="groupForgotOTP">
+                        <label class="form-label">6-Digit Verification OTP <span class="req">*</span></label>
+                        <div class="input-wrapper">
+                            <i class="fa-solid fa-shield-cat input-icon"></i>
+                            <input type="text" id="forgotOTP" class="form-input" placeholder="e.g. 863052" maxlength="10" required style="letter-spacing: 3px; font-weight: 700; font-size: 1.1rem;">
+                        </div>
+                        <div class="form-error" id="errorForgotOTP">OTP code is required.</div>
+                    </div>
+
+                    <div class="form-group" id="groupForgotNewPassword">
+                        <label class="form-label">New Password <span class="req">*</span></label>
+                        <div class="input-wrapper">
+                            <i class="fa-solid fa-lock input-icon"></i>
+                            <input type="password" id="forgotNewPassword" class="form-input" placeholder="Minimum 6 characters" required>
+                            <button type="button" class="btn-toggle-pwd" onclick="togglePasswordVisibility('forgotNewPassword', this)">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                        </div>
+                        <div class="form-error" id="errorForgotNewPassword">New password is required.</div>
+                    </div>
+
+                    <div class="form-group" id="groupForgotConfirmPassword">
+                        <label class="form-label">Confirm New Password <span class="req">*</span></label>
+                        <div class="input-wrapper">
+                            <i class="fa-solid fa-check-double input-icon"></i>
+                            <input type="password" id="forgotConfirmPassword" class="form-input" placeholder="Re-enter new password" required>
+                            <button type="button" class="btn-toggle-pwd" onclick="togglePasswordVisibility('forgotConfirmPassword', this)">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                        </div>
+                        <div class="form-error" id="errorForgotConfirmPassword">Passwords must match.</div>
+                    </div>
+
+                    <button type="submit" id="btnResetSubmit" class="btn-submit">
+                        <span class="spinner" id="forgotResetSpinner"></span>
+                        <i class="fa-solid fa-key"></i> Reset & Update Password
+                    </button>
+                    
+                    <div style="text-align: center; margin-top: 1rem;">
+                        <button type="button" style="background: none; border: none; color: var(--text-muted); font-size: 0.85rem; cursor: pointer; text-decoration: underline;" onclick="requestPasswordOTP()">
+                            <i class="fa-solid fa-rotate"></i> Resend OTP Code
+                        </button>
+                    </div>
+                </div>
+            </form>
+
             <div class="footer-note">
                 Nalanda District Information System (NDIS) © 2026 | Powered by PostGIS & DRF
             </div>
 
+        </div>
+    </div>
+
+    <!-- CHANGE PASSWORD MODAL -->
+    <div id="changePasswordModal" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(10px); z-index: 1000; justify-content: center; align-items: center; padding: 1rem;">
+        <div class="auth-card" style="max-width: 440px; width: 100%; position: relative;">
+            <button type="button" onclick="closeChangePasswordModal()" style="position: absolute; top: 1rem; right: 1rem; background: none; border: none; color: var(--text-muted); font-size: 1.2rem; cursor: pointer;">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <h3 style="margin-bottom: 0.5rem; font-size: 1.3rem;"><i class="fa-solid fa-shield-halved" style="color: var(--primary);"></i> Change Password</h3>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.5rem;">Update your account password securely.</p>
+            
+            <form onsubmit="handleChangePasswordSubmit(event)">
+                <div class="form-group">
+                    <label class="form-label">Current Password <span class="req">*</span></label>
+                    <div class="input-wrapper">
+                        <i class="fa-solid fa-lock input-icon"></i>
+                        <input type="password" id="changeOldPassword" class="form-input" placeholder="••••••••••••" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">New Password <span class="req">*</span></label>
+                    <div class="input-wrapper">
+                        <i class="fa-solid fa-key input-icon"></i>
+                        <input type="password" id="changeNewPassword" class="form-input" placeholder="••••••••••••" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Confirm New Password <span class="req">*</span></label>
+                    <div class="input-wrapper">
+                        <i class="fa-solid fa-check-double input-icon"></i>
+                        <input type="password" id="changeConfirmPassword" class="form-input" placeholder="••••••••••••" required>
+                    </div>
+                </div>
+                <button type="submit" id="btnChangePasswordSubmit" class="btn-submit" style="margin-top: 1rem;">
+                    <span class="spinner" id="changePasswordSpinner"></span>
+                    <i class="fa-solid fa-floppy-disk"></i> Save New Password
+                </button>
+            </form>
         </div>
     </div>
 
@@ -726,6 +852,8 @@
 
             if (INITIAL_MODE === 'signup') {
                 switchTab('signup');
+            } else if (INITIAL_MODE === 'forgot') {
+                switchTab('forgot');
             } else {
                 switchTab('login');
             }
@@ -773,19 +901,28 @@
         function switchTab(mode) {
             const loginForm = document.getElementById('loginForm');
             const signupForm = document.getElementById('signupForm');
+            const forgotForm = document.getElementById('forgotForm');
             const tabBtnLogin = document.getElementById('tabBtnLogin');
             const tabBtnSignup = document.getElementById('tabBtnSignup');
+            const tabBtnForgot = document.getElementById('tabBtnForgot');
+
+            loginForm.classList.remove('active');
+            signupForm.classList.remove('active');
+            forgotForm.classList.remove('active');
+            tabBtnLogin.classList.remove('active');
+            tabBtnSignup.classList.remove('active');
+            tabBtnForgot.classList.remove('active');
 
             if (mode === 'signup') {
-                loginForm.classList.remove('active');
                 signupForm.classList.add('active');
-                tabBtnLogin.classList.remove('active');
                 tabBtnSignup.classList.add('active');
                 window.history.replaceState(null, '', '/signup/');
+            } else if (mode === 'forgot') {
+                forgotForm.classList.add('active');
+                tabBtnForgot.classList.add('active');
+                window.history.replaceState(null, '', '/forgot-password/');
             } else {
-                signupForm.classList.remove('active');
                 loginForm.classList.add('active');
-                tabBtnSignup.classList.remove('active');
                 tabBtnLogin.classList.add('active');
                 window.history.replaceState(null, '', '/login/');
             }
@@ -811,7 +948,25 @@
         }
 
         // Logout
-        document.getElementById('btnLogout').addEventListener('click', () => {
+        document.getElementById('btnLogout').addEventListener('click', async () => {
+            const token = localStorage.getItem('ndis_access_token');
+            const refresh = localStorage.getItem('ndis_refresh_token');
+
+            if (token || refresh) {
+                try {
+                    await fetch('/api/auth/logout/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ refresh })
+                    });
+                } catch (err) {
+                    console.warn("Logout API call error:", err);
+                }
+            }
+
             localStorage.removeItem('ndis_access_token');
             localStorage.removeItem('ndis_refresh_token');
             localStorage.removeItem('ndis_user');
@@ -918,6 +1073,11 @@
             }
         }
 
+        function isValidEmail(email) {
+            const regex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+            return regex.test(email);
+        }
+
         // HANDLE SIGNUP SUBMISSION
         async function handleSignup(e) {
             e.preventDefault();
@@ -934,6 +1094,12 @@
 
             const spinner = document.getElementById('signupSpinner');
             const btn = document.getElementById('btnSignupSubmit');
+
+            if (!isValidEmail(email)) {
+                showToast('Invalid Email', 'Please enter a valid email address (e.g. user@gmail.com).', 'error');
+                document.getElementById('signupEmail').focus();
+                return;
+            }
 
             if (password !== confirm_password) {
                 showToast('Password Mismatch', 'Password and Confirm Password do not match.', 'error');
@@ -996,6 +1162,186 @@
                 }
             } catch (err) {
                 console.error("Signup Error:", err);
+                showToast('Network Error', 'Unable to connect to server.', 'error');
+            } finally {
+                spinner.style.display = 'none';
+                btn.disabled = false;
+            }
+        }
+
+        // REQUEST PASSWORD OTP
+        async function requestPasswordOTP() {
+            const emailInput = document.getElementById('forgotEmail');
+            const email = emailInput.value.trim();
+            const spinner = document.getElementById('forgotRequestSpinner');
+            const btn = document.getElementById('btnRequestOTP');
+
+            if (!email || !isValidEmail(email)) {
+                showToast('Validation Error', 'Please enter a valid registered email address (e.g. user@gmail.com).', 'error');
+                emailInput.focus();
+                return;
+            }
+
+            spinner.style.display = 'inline-block';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/api/auth/forgot-password/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showToast('OTP Sent Successfully!', data.message || 'Verification OTP code sent to your email.', 'success');
+                    document.getElementById('sentEmailDisplay').innerText = data.email || email;
+                    document.getElementById('forgotStep2').style.display = 'block';
+                    
+                    if (data.otp_code) {
+                        document.getElementById('forgotOTP').value = data.otp_code;
+                    }
+                    
+                    setTimeout(() => {
+                        document.getElementById('forgotOTP').focus();
+                    }, 300);
+                } else {
+                    const errorMsg = data.error || (data.email ? data.email.join(', ') : 'Failed to send OTP.');
+                    showToast('OTP Request Failed', errorMsg, 'error');
+                }
+            } catch (err) {
+                console.error("OTP Request Error:", err);
+                showToast('Network Error', 'Unable to send OTP request to server.', 'error');
+            } finally {
+                spinner.style.display = 'none';
+                btn.disabled = false;
+            }
+        }
+
+        // RESET PASSWORD WITH OTP SUBMISSION
+        async function handleForgotFormSubmit(e) {
+            e.preventDefault();
+            const email = document.getElementById('forgotEmail').value.trim();
+            const otp = document.getElementById('forgotOTP').value.trim();
+            const new_password = document.getElementById('forgotNewPassword').value;
+            const confirm_password = document.getElementById('forgotConfirmPassword').value;
+
+            const spinner = document.getElementById('forgotResetSpinner');
+            const btn = document.getElementById('btnResetSubmit');
+
+            if (!otp) {
+                showToast('Validation Error', 'Please enter the 6-digit OTP code sent to your email.', 'error');
+                return;
+            }
+
+            if (new_password !== confirm_password) {
+                showToast('Password Mismatch', 'New Password and Confirm Password do not match.', 'error');
+                return;
+            }
+
+            if (new_password.length < 6) {
+                showToast('Validation Error', 'New password must be at least 6 characters long.', 'error');
+                return;
+            }
+
+            spinner.style.display = 'inline-block';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/api/auth/reset-password/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, otp, new_password, confirm_password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showToast('Password Reset Successful!', 'Your password has been updated. Please sign in with your new password.', 'success');
+                    
+                    document.getElementById('loginUsername').value = email;
+                    document.getElementById('forgotOTP').value = '';
+                    document.getElementById('forgotNewPassword').value = '';
+                    document.getElementById('forgotConfirmPassword').value = '';
+                    document.getElementById('forgotStep2').style.display = 'none';
+
+                    setTimeout(() => {
+                        switchTab('login');
+                        document.getElementById('loginPassword').focus();
+                    }, 1500);
+                } else {
+                    let errorMsg = data.error || data.detail || 'Password reset failed.';
+                    if (data.confirm_password) errorMsg = Array.isArray(data.confirm_password) ? data.confirm_password.join(', ') : data.confirm_password;
+                    showToast('Reset Failed', errorMsg, 'error');
+                }
+            } catch (err) {
+                console.error("Reset Error:", err);
+                showToast('Network Error', 'Unable to reach server.', 'error');
+            } finally {
+                spinner.style.display = 'none';
+                btn.disabled = false;
+            }
+        }
+
+        // CHANGE PASSWORD MODAL FUNCTIONS (LOGGED IN USER)
+        function openChangePasswordModal() {
+            document.getElementById('changePasswordModal').style.display = 'flex';
+        }
+
+        function closeChangePasswordModal() {
+            document.getElementById('changePasswordModal').style.display = 'none';
+        }
+
+        async function handleChangePasswordSubmit(e) {
+            e.preventDefault();
+            const token = localStorage.getItem('ndis_access_token');
+            if (!token) {
+                showToast('Authentication Error', 'You must be logged in to change password.', 'error');
+                return;
+            }
+
+            const old_password = document.getElementById('changeOldPassword').value;
+            const new_password = document.getElementById('changeNewPassword').value;
+            const confirm_password = document.getElementById('changeConfirmPassword').value;
+
+            const spinner = document.getElementById('changePasswordSpinner');
+            const btn = document.getElementById('btnChangePasswordSubmit');
+
+            if (new_password !== confirm_password) {
+                showToast('Password Mismatch', 'New Password and Confirm Password do not match.', 'error');
+                return;
+            }
+
+            spinner.style.display = 'inline-block';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/api/auth/change-password/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ old_password, new_password, confirm_password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showToast('Success!', 'Your password has been changed successfully.', 'success');
+                    closeChangePasswordModal();
+                    document.getElementById('changeOldPassword').value = '';
+                    document.getElementById('changeNewPassword').value = '';
+                    document.getElementById('changeConfirmPassword').value = '';
+                } else {
+                    let errorMsg = data.detail || data.error || 'Failed to change password.';
+                    if (data.old_password) errorMsg = Array.isArray(data.old_password) ? data.old_password.join(', ') : data.old_password;
+                    if (data.confirm_password) errorMsg = Array.isArray(data.confirm_password) ? data.confirm_password.join(', ') : data.confirm_password;
+                    showToast('Error', errorMsg, 'error');
+                }
+            } catch (err) {
+                console.error("Change Password Error:", err);
                 showToast('Network Error', 'Unable to connect to server.', 'error');
             } finally {
                 spinner.style.display = 'none';

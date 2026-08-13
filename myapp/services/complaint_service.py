@@ -94,7 +94,7 @@ def calculate_haversine_distance_m(lat1, lon1, lat2, lon2):
 
 def seed_fixed_roles():
     """
-    Ensures the 10 fixed system roles exist in database.
+    Ensures state and district system roles exist in database.
     """
     roles_data = [
         {"code": "CITIZEN", "name": "Citizen", "scope": "SELF", "desc": "Citizen public grievance submitter"},
@@ -106,7 +106,13 @@ def seed_fixed_roles():
         {"code": "EXECUTIVE_ENGINEER", "name": "Executive / Assistant Engineer", "scope": "DEPARTMENT", "desc": "Executive / Assistant Engineer inspection lead"},
         {"code": "FIELD_INSPECTOR", "name": "Field Inspector / Junior Engineer", "scope": "DEPARTMENT", "desc": "Field Inspector / JE geotagged site verification"},
         {"code": "FIELD_SUPERVISOR", "name": "Field Supervisor", "scope": "DEPARTMENT", "desc": "Field Supervisor work execution monitoring"},
+        {"code": "STATE_SUPER_ADMIN", "name": "State Super Admin", "scope": "STATE", "desc": "State Super Admin with full system level administration and governance"},
         {"code": "STATE_ADMIN", "name": "State Admin", "scope": "STATE", "desc": "State Level Administrator full access"},
+        {"code": "STATE_FINANCE_ADMIN", "name": "State Finance Admin", "scope": "STATE", "desc": "State Finance Administrator for budget mapping, fund releases & ledger"},
+        {"code": "STATE_DEPARTMENT_ADMIN", "name": "State Department Admin", "scope": "STATE", "desc": "State Department Administrator for line department oversight"},
+        {"code": "STATE_MONITORING_OFFICER", "name": "State Monitoring Officer", "scope": "STATE", "desc": "State Monitoring & Evaluation Officer for audit tracking"},
+        {"code": "STATE_GIS_ADMIN", "name": "State GIS Admin", "scope": "STATE", "desc": "State GIS & Asset Management Administrator"},
+        {"code": "SYSTEM_ADMINISTRATOR", "name": "System Administrator", "scope": "STATE", "desc": "System Administrator for user directory & security configuration"},
     ]
 
     for r in roles_data:

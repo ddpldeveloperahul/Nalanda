@@ -95,3 +95,80 @@ Nalanda District Infrastructure Portal (NDISP)
     except Exception as e:
         logger.error(f"Failed to send SMTP email to {recipient_email}: {str(e)}")
         return False, str(e)
+
+
+def send_password_reset_otp_email(user, otp_code):
+    """
+    Sends 6-digit Password Reset OTP email via HTML & Plain Text email.
+    """
+    subject = "Password Reset OTP - Nalanda District Infrastructure Portal (NDISP)"
+    recipient_email = user.email
+    from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@nalanda.gov.in')
+    user_name = user.get_full_name() or user.username
+
+    plain_text = f"""
+Dear {user_name},
+
+You have requested to reset your password on the Nalanda District Infrastructure Portal (NDISP).
+
+Your Password Reset OTP is: {otp_code}
+
+This OTP is valid for 10 minutes. Please do not share this OTP with anyone for security reasons.
+
+If you did not request a password reset, please ignore this email.
+
+Best regards,
+System Security Team
+Nalanda District Infrastructure Portal (NDISP)
+    """.strip()
+
+    html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 20px; }}
+        .email-container {{ max-width: 550px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }}
+        .email-header {{ background: #0f2b48; color: #ffffff; padding: 20px; text-align: center; }}
+        .email-body {{ padding: 28px 24px; line-height: 1.6; text-align: center; }}
+        .otp-box {{ display: inline-block; background: #f0f9ff; color: #0369a1; border: 2px dashed #0284c7; padding: 14px 28px; border-radius: 10px; font-size: 32px; font-weight: 800; letter-spacing: 6px; margin: 20px 0; }}
+        .footer {{ padding: 16px; background: #f1f5f9; font-size: 12px; color: #64748b; text-align: center; border-top: 1px solid #e2e8f0; }}
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="email-header">
+            <h2 style="margin:0; font-size: 20px;">NALANDA DISTRICT INFRASTRUCTURE PORTAL</h2>
+            <p style="margin:4px 0 0 0; font-size: 12px; color: #93c5fd;">PASSWORD RESET VERIFICATION</p>
+        </div>
+        <div class="email-body">
+            <h3 style="text-align: left; margin-top:0;">Hello {user_name},</h3>
+            <p style="text-align: left;">We received a request to reset your password. Use the Verification Code (OTP) below to proceed:</p>
+            
+            <div class="otp-box">{otp_code}</div>
+
+            <p style="font-size: 13px; color: #64748b;">⏱️ This OTP is valid for <strong>10 minutes</strong>. Do not share it with anyone.</p>
+            <p style="font-size: 12px; color: #94a3b8; text-align: left; margin-top: 20px;">If you didn't request a password reset, you can safely ignore this email.</p>
+        </div>
+        <div class="footer">
+            Official Security Notification from NDISP. Please do not reply to this automated email.
+        </div>
+    </div>
+</body>
+</html>
+    """.strip()
+
+    try:
+        msg = EmailMultiAlternatives(subject, plain_text, from_email, [recipient_email])
+        msg.attach_alternative(html_content, "text/html")
+        sent = msg.send(fail_silently=False)
+        if sent:
+            logger.info(f"Password reset OTP email sent to {recipient_email}")
+            return True, "OTP Email sent via SMTP"
+        else:
+            logger.warning(f"SMTP send returned 0 for {recipient_email}")
+            return False, "SMTP Backend returned 0"
+    except Exception as e:
+        logger.error(f"Failed to send OTP email to {recipient_email}: {str(e)}")
+        return False, str(e)
+

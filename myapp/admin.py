@@ -7,7 +7,8 @@ from myapp.models import (
     DocumentFile, NotificationTemplate, NotificationDispatchLog, AuditEventLog, Recommendation,
     GISCatalogEntry, GISDatasetVersionHistory, GISDataProvenance, GISProcessingJob, GISLayerFeature,
     Complaint, ComplaintCategory, ComplaintStatus, ComplaintEvidence, ComplaintPriority, ComplaintTimeline,
-    ProjectExecution, SiteDiary, MeasurementBook, ProjectBill, ExecutionRisk, Report, Employee, EmployeeInvitation
+    ProjectExecution, SiteDiary, MeasurementBook, ProjectBill, ExecutionRisk, Report, Employee, EmployeeInvitation,
+    StateBudget, DepartmentBudget, DistrictAllocation, SchemeMaster, FinancialLedgerEntry
 )
 
 try:
@@ -318,6 +319,9 @@ class GISProcessingJobAdmin(admin.ModelAdmin):
 @admin.register(GISLayerFeature)
 class GISLayerFeatureAdmin(admin.ModelAdmin):
     list_display = ["id", "feature_id", "name", "properties", "geom_geojson", "geom"]
+    search_fields = ["feature_id", "name", "properties"]
+
+
 
 
 # ==========================================
@@ -439,3 +443,42 @@ class EmployeeInvitationAdmin(admin.ModelAdmin):
     list_display = ["id", "token", "email", "role", "invited_by", "status", "created_at", "expires_at"]
     list_filter = ["status", "role"]
     search_fields = ["email", "token"]
+
+
+# ==========================================
+# STATE GOVERNANCE BUDGET & FINANCE ADMIN
+# ==========================================
+
+@admin.register(StateBudget)
+class StateBudgetAdmin(admin.ModelAdmin):
+    list_display = ["id", "financial_year", "total_state_budget_cr", "department_allocation_cr", "district_allocation_cr", "total_sanctioned_cr", "total_released_cr", "total_utilized_cr", "updated_at"]
+    search_fields = ["financial_year"]
+
+
+@admin.register(DepartmentBudget)
+class DepartmentBudgetAdmin(admin.ModelAdmin):
+    list_display = ["id", "department", "financial_year", "authorized_budget_cr", "sanctioned_budget_cr", "released_budget_cr", "committed_budget_cr", "utilized_budget_cr", "utilization_percentage"]
+    list_filter = ["financial_year", "department"]
+    search_fields = ["department__name", "financial_year"]
+
+
+@admin.register(DistrictAllocation)
+class DistrictAllocationAdmin(admin.ModelAdmin):
+    list_display = ["id", "district", "department", "financial_year", "allocation_amount_cr", "sanctioned_amount_cr", "utilized_amount_cr"]
+    list_filter = ["financial_year", "district", "department"]
+    search_fields = ["district__name", "department__name", "financial_year"]
+
+
+@admin.register(SchemeMaster)
+class SchemeMasterAdmin(admin.ModelAdmin):
+    list_display = ["id", "code", "name", "department", "category", "total_allocation_cr", "sanctioned_cr", "released_cr", "utilized_cr"]
+    list_filter = ["department", "category"]
+    search_fields = ["code", "name", "department__name"]
+
+
+@admin.register(FinancialLedgerEntry)
+class FinancialLedgerEntryAdmin(admin.ModelAdmin):
+    list_display = ["id", "transaction_id", "financial_year", "entry_type", "department", "district", "scheme", "amount_cr", "created_at"]
+    list_filter = ["entry_type", "financial_year", "department", "district"]
+    search_fields = ["transaction_id", "remarks", "department__name", "district__name"]
+

@@ -28,8 +28,11 @@ router.register(r'bills', views.ProjectBillViewSet, basename='project-bills')
 router.register(r'execution-risks', views.ExecutionRiskViewSet, basename='execution-risks')
 router.register(r'reports', views.ReportViewSet, basename='reports')
 router.register(r'employees', views.EmployeeViewSet, basename='employees')
-
-
+router.register(r'state-budgets', views.StateBudgetViewSet, basename='state-budgets')
+router.register(r'department-budgets', views.DepartmentBudgetViewSet, basename='department-budgets')
+router.register(r'district-allocations', views.DistrictAllocationViewSet, basename='district-allocations')
+router.register(r'schemes', views.SchemeMasterViewSet, basename='schemes')
+router.register(r'financial-ledger', views.FinancialLedgerViewSet, basename='financial-ledger')
 
 urlpatterns = [
     path('', views.index, name='index'),
@@ -42,12 +45,23 @@ urlpatterns = [
     path('linedept/employees/', views.employees_page, name='linedept-employees-page'),
     path('login/', views.login_page, name='login-page'),
     path('signup/', views.signup_page, name='signup-page'),
+    path('forgot-password/', views.forgot_password_page, name='forgot-password-page'),
     path('api/auth/signup/', views.SignupView.as_view(), name='signup'),
     path('api/auth/login/', views.LoginView.as_view(), name='login'),
     path('api/auth/me/', views.UserProfileView.as_view(), name='user-profile'),
     path('api/auth/roles/', views.RoleListView.as_view(), name='roles-list'),
     path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token-refresh'),
+    path('api/auth/forgot-password/', views.ForgotPasswordRequestAPIView.as_view(), name='forgot-password-request'),
+    path('api/auth/forgot-password/request-otp/', views.ForgotPasswordRequestAPIView.as_view(), name='forgot-password-request-otp'),
+    path('api/auth/forgot-password/reset/', views.ResetPasswordWithOTPAPIView.as_view(), name='forgot-password-reset'),
+    path('api/auth/reset-password/', views.ResetPasswordWithOTPAPIView.as_view(), name='reset-password'),
+    path('api/auth/change-password/', views.ChangePasswordAPIView.as_view(), name='change-password'),
+    path('api/auth/logout/', views.LogoutAPIView.as_view(), name='logout'),
     
+    # State Governance Budget & Finance Master Endpoints
+    path('api/state-budget/summary/', views.StateBudgetAPIView.as_view(), name='state-budget-summary'),
+    path('api/state-budget/', views.StateBudgetAPIView.as_view(), name='state-budget'),
+
     # GIS Read & Layer Display Endpoints
     path('api/gis/catalog/', views.GISCatalogListView.as_view(), name='gis-catalog-list'),
     path('api/gis/layers/<str:layer_name>/', views.GISLayerGeoJSONView.as_view(), name='gis-layer-geojson'),

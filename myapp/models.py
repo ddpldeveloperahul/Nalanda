@@ -205,7 +205,14 @@ class RoleName(models.TextChoices):
     EXECUTIVE_ENGINEER = "EXECUTIVE_ENGINEER", "Executive / Assistant Engineer"
     FIELD_INSPECTOR = "FIELD_INSPECTOR", "Field Inspector / Junior Engineer"
     FIELD_SUPERVISOR = "FIELD_SUPERVISOR", "Field Supervisor"
+    STATE_SUPER_ADMIN = "STATE_SUPER_ADMIN", "State Super Admin"
     STATE_ADMIN = "STATE_ADMIN", "State Admin"
+    STATE_FINANCE_ADMIN = "STATE_FINANCE_ADMIN", "State Finance Admin"
+    STATE_DEPARTMENT_ADMIN = "STATE_DEPARTMENT_ADMIN", "State Department Admin"
+    STATE_MONITORING_OFFICER = "STATE_MONITORING_OFFICER", "State Monitoring Officer"
+    STATE_GIS_ADMIN = "STATE_GIS_ADMIN", "State GIS Admin"
+    SYSTEM_ADMINISTRATOR = "SYSTEM_ADMINISTRATOR", "System Administrator"
+
 
 
 class ScopeLevel(models.TextChoices):
@@ -341,6 +348,32 @@ class UserDistrictScope(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user.username} -> {self.district.name}"
+
+
+class PasswordResetOTP(models.Model):
+    """
+    OTP storage for User Password Reset requests.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="password_reset_otps")
+    email = models.EmailField(db_index=True)
+    otp = models.CharField(max_length=10)
+    is_used = models.BooleanField(default=False)
+    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = "auth_password_reset_otp"
+        verbose_name = "Password Reset OTP"
+        verbose_name_plural = "Password Reset OTPs"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"OTP for {self.email} ({self.otp}) - Used: {self.is_used}"
+
+    @property
+    def is_expired(self) -> bool:
+        return timezone.now() > self.expires_at
 
 
 # ==========================================
@@ -1026,6 +1059,25 @@ class GISLayerFeature(models.Model):
         return f"{self.name or 'Feature'} [{self.catalog_entry.layer_name}]"
 
 
+from django.db.models.signals import post_save, post_delete
+from django.dispatch import receiver
+
+@receiver(post_save, sender=GISLayerFeature)
+@receiver(post_delete, sender=GISLayerFeature)
+def sync_catalog_feature_count(sender, instance, **kwargs):
+    if instance and getattr(instance, "catalog_entry_id", None):
+        try:
+            catalog = instance.catalog_entry
+            if catalog:
+                real_count = catalog.features.count()
+                if catalog.feature_count != real_count:
+                    catalog.feature_count = real_count
+                    catalog.save(update_fields=["feature_count", "updated_at"])
+        except Exception:
+            pass
+
+
+
 
 class GISDatasetVersionHistory(models.Model):
     """Raster / Vector dataset version history."""
@@ -1381,5 +1433,172 @@ class EmployeeInvitation(models.Model):
     @property
     def is_expired(self) -> bool:
         return timezone.now() > self.expires_at
+
+
+# ==========================================
+# STATE GOVERNANCE BUDGET & FINANCE MODULE
+# ==========================================
+
+class StateBudget(models.Model):
+    """
+    State Governance Master Budget Model for Annual Budget Provision, Authorizations & Releases.
+    Traceable to the Financial Ledger.
+    """
+    financial_year = models.CharField(max_length=20, default="2026-27", verbose_name="Financial Year (e.g. 2026-27)")
+    total_state_budget_cr = models.DecimalField(max_digits=14, decimal_places=2, default=4800.00, verbose_name="Total State Budget (₹ Cr)")
+    department_allocation_cr = models.DecimalField(max_digits=14, decimal_places=2, default=4600.00, verbose_name="Department Allocation (₹ Cr)")
+    district_allocation_cr = models.DecimalField(max_digits=14, decimal_places=2, default=899.00, verbose_name="District Allocation (₹ Cr)")
+    total_sanctioned_cr = models.DecimalField(max_digits=14, decimal_places=2, default=4.00, verbose_name="Total Sanctioned (₹ Cr)")
+    total_released_cr = models.DecimalField(max_digits=14, decimal_places=2, default=3900.00, verbose_name="Total Released (₹ Cr)")
+    total_committed_cr = models.DecimalField(max_digits=14, decimal_places=2, default=3200.00, verbose_name="Total Committed (₹ Cr)")
+    total_utilized_cr = models.DecimalField(max_digits=14, decimal_places=2, default=2850.00, verbose_name="Total Utilized (₹ Cr)")
+    available_balance_cr = models.DecimalField(max_digits=14, decimal_places=2, default=4596.00, verbose_name="Available Balance (₹ Cr)")
+    unreleased_balance_cr = models.DecimalField(max_digits=14, decimal_places=2, default=4.00, verbose_name="Unreleased Balance (₹ Cr)")
+
+    active_projects_count = models.IntegerField(default=10, verbose_name="Active Projects Count")
+    at_risk_projects_count = models.IntegerField(default=4, verbose_name="At Risk Projects Count")
+    pending_approvals_count = models.IntegerField(default=4, verbose_name="Pending Approvals Count")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "fin_state_budget"
+        verbose_name = "State Master Budget"
+        verbose_name_plural = "State Master Budgets"
+
+    @property
+    def available_balance(self):
+        tot = self.total_state_budget_cr or 0
+        dept = self.department_allocation_cr or 0
+        return tot - dept
+
+    def save(self, *args, **kwargs):
+        if self.total_state_budget_cr is not None and self.department_allocation_cr is not None:
+            self.available_balance_cr = self.total_state_budget_cr - self.department_allocation_cr
+        super().save(*args, **kwargs)
+
+    def __str__(self) -> str:
+        return f"State Budget FY {self.financial_year} (₹{self.total_state_budget_cr} Cr)"
+
+
+class DepartmentBudget(models.Model):
+    """
+    Department-wise Budget Allocation, Sanction, Release & Utilization.
+    """
+    financial_year = models.CharField(max_length=20, default="2026-27")
+    department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name="state_budgets")
+    authorized_budget_cr = models.DecimalField(max_digits=14, decimal_places=2, default=0.00, verbose_name="Authorized Budget (₹ Cr)")
+    sanctioned_budget_cr = models.DecimalField(max_digits=14, decimal_places=2, default=0.00, verbose_name="Sanctioned Budget (₹ Cr)")
+    released_budget_cr = models.DecimalField(max_digits=14, decimal_places=2, default=0.00, verbose_name="Released Budget (₹ Cr)")
+    committed_budget_cr = models.DecimalField(max_digits=14, decimal_places=2, default=0.00, verbose_name="Committed Budget (₹ Cr)")
+    utilized_budget_cr = models.DecimalField(max_digits=14, decimal_places=2, default=0.00, verbose_name="Utilized Budget (₹ Cr)")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "fin_department_budget"
+        verbose_name = "Department Budget"
+        verbose_name_plural = "Department Budgets"
+        unique_together = ("department", "financial_year")
+
+    def __str__(self) -> str:
+        return f"{self.department.name} - FY {self.financial_year} (₹{self.authorized_budget_cr} Cr)"
+
+    @property
+    def utilization_percentage(self) -> float:
+        if self.released_budget_cr and self.released_budget_cr > 0:
+            return round(float(self.utilized_budget_cr / self.released_budget_cr) * 100, 1)
+        if self.authorized_budget_cr and self.authorized_budget_cr > 0:
+            return round(float(self.utilized_budget_cr / self.authorized_budget_cr) * 100, 1)
+        return 0.0
+
+
+class DistrictAllocation(models.Model):
+    """
+    District-wise Allocation & Financial Release Breakdown across Departments.
+    """
+    financial_year = models.CharField(max_length=20, default="2026-27")
+    district = models.ForeignKey(District, on_delete=models.CASCADE, related_name="state_allocations")
+    department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True, related_name="district_allocations")
+    allocation_amount_cr = models.DecimalField(max_digits=14, decimal_places=2, default=0.00, verbose_name="Allocation Amount (₹ Cr)")
+    sanctioned_amount_cr = models.DecimalField(max_digits=14, decimal_places=2, default=0.00, verbose_name="Sanctioned Amount (₹ Cr)")
+    utilized_amount_cr = models.DecimalField(max_digits=14, decimal_places=2, default=0.00, verbose_name="Utilized Amount (₹ Cr)")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "fin_district_allocation"
+        verbose_name = "District Budget Allocation"
+        verbose_name_plural = "District Budget Allocations"
+
+    def __str__(self) -> str:
+        return f"{self.district.name} Allocation - FY {self.financial_year} (₹{self.allocation_amount_cr} Cr)"
+
+
+class SchemeMaster(models.Model):
+    """
+    State & Central Sponsored Schemes Master & Budget Repository.
+    """
+    code = models.CharField(max_length=50, unique=True, verbose_name="Scheme Code")
+    name = models.CharField(max_length=255, verbose_name="Scheme Name")
+    department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name="schemes")
+    category = models.CharField(max_length=100, default="State Sponsored", verbose_name="Scheme Category")
+
+    total_allocation_cr = models.DecimalField(max_digits=14, decimal_places=2, default=0.00, verbose_name="Total Allocation (₹ Cr)")
+    sanctioned_cr = models.DecimalField(max_digits=14, decimal_places=2, default=0.00, verbose_name="Sanctioned Amount (₹ Cr)")
+    released_cr = models.DecimalField(max_digits=14, decimal_places=2, default=0.00, verbose_name="Released Amount (₹ Cr)")
+    utilized_cr = models.DecimalField(max_digits=14, decimal_places=2, default=0.00, verbose_name="Utilized Amount (₹ Cr)")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "fin_scheme_master"
+        verbose_name = "Scheme Master"
+        verbose_name_plural = "Scheme Master Records"
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.code})"
+
+
+class FinancialLedgerEntry(models.Model):
+    """
+    State Governance Financial Ledger Transaction Entry.
+    """
+    ENTRY_TYPE_CHOICES = (
+        ("PROVISION", "Budget Provision"),
+        ("AUTHORIZATION", "Authorization"),
+        ("ALLOCATION", "Department Allocation"),
+        ("SANCTION", "Authority Sanction"),
+        ("RELEASE", "Fund Release"),
+        ("COMMITMENT", "Financial Commitment"),
+        ("UTILIZATION", "Expenditure Utilization"),
+        ("RE_APPROPRIATION", "Re-appropriation Transfer"),
+    )
+
+    transaction_id = models.CharField(max_length=50, unique=True, verbose_name="Transaction Ref ID")
+    financial_year = models.CharField(max_length=20, default="2026-27")
+    entry_type = models.CharField(max_length=50, choices=ENTRY_TYPE_CHOICES, default="ALLOCATION")
+
+    department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True)
+    district = models.ForeignKey(District, on_delete=models.SET_NULL, null=True, blank=True)
+    scheme = models.ForeignKey(SchemeMaster, on_delete=models.SET_NULL, null=True, blank=True)
+
+    amount_cr = models.DecimalField(max_digits=14, decimal_places=2, default=0.00, verbose_name="Amount (₹ Cr)")
+    remarks = models.TextField(blank=True, verbose_name="Transaction Remarks")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "fin_ledger_entry"
+        verbose_name = "Financial Ledger Entry"
+        verbose_name_plural = "Financial Ledger Entries"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"[{self.entry_type}] {self.transaction_id} - ₹{self.amount_cr} Cr"
+
 
 
