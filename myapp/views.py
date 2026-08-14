@@ -2224,7 +2224,7 @@ class SpatialQueryAPIView(APIView):
 
         matched_preset = None
 
-        # 2. Preset Matching with Normalized Text & Clean Tokens
+        # 2. Preset Matching with Exact Phrase & Strict Token Boundaries
         for preset in EXCEL_SPATIAL_QUERIES:
             title_low = preset["title"].lower()
             if title_low in q_lower or q_lower in title_low or title_low in normalized_str or normalized_str in title_low:
@@ -2235,7 +2235,11 @@ class SpatialQueryAPIView(APIView):
             for preset in EXCEL_SPATIAL_QUERIES:
                 for kw in preset["keywords"]:
                     kw_low = kw.lower()
-                    if kw_low in q_lower or kw_low in normalized_str or any(kw_low in tok or tok in kw_low for tok in clean_tokens):
+                    if kw_low == q_lower or kw_low == normalized_str:
+                        matched_preset = preset
+                        break
+                    kw_tokens = set(re.findall(r'\w+', kw_low))
+                    if kw_tokens and kw_tokens.issubset(set(clean_tokens)):
                         matched_preset = preset
                         break
                 if matched_preset:
@@ -2327,31 +2331,22 @@ class SpatialQueryAPIView(APIView):
                     | Q(catalog_entry__layer_name__icontains=layer)
                     | Q(name__icontains=layer_clean)
                 )
-                if any(w in layer_clean.lower() for w in ["hospital", "health", "dispensary", "centre", "center"]):
-                    layer_q |= Q(category__name__icontains="Health") | Q(department__name__icontains="Health") | Q(name__icontains="Health") | Q(name__icontains="Hospital")
-
-            test_filtered = filtered_qs.filter(layer_q)
-            if test_filtered.exists():
-                filtered_qs = test_filtered
-            elif matched_preset.get("dept_name"):
-                d_word = matched_preset["dept_name"].split()[0]
-                dept_filtered = filtered_qs.filter(Q(department__name__icontains=matched_preset["dept_name"]) | Q(department__name__icontains=d_word))
-                if dept_filtered.exists():
-                    filtered_qs = dept_filtered
+            filtered_qs = filtered_qs.filter(layer_q)
 
         if matched_preset["id"] == "dynamic_search":
             search_q = Q()
-            search_q |= Q(name__icontains=query_text) | Q(name__icontains=normalized_str)
             for tok in clean_tokens:
-                search_q |= (
+                tok_q = (
                     Q(name__icontains=tok)
                     | Q(category__name__icontains=tok)
                     | Q(department__name__icontains=tok)
                     | Q(attributes__icontains=tok)
                 )
-            test_search = filtered_qs.filter(search_q)
-            if test_search.exists():
-                filtered_qs = test_search
+                if tok == "bank" and "blood" not in clean_tokens:
+                    tok_q &= ~Q(category__name__icontains="blood") & ~Q(name__icontains="blood")
+                search_q |= tok_q
+
+            filtered_qs = filtered_qs.filter(search_q)
 
         results_within_radius = []
         all_results = []
@@ -2379,13 +2374,15 @@ class SpatialQueryAPIView(APIView):
         results_within_radius.sort(key=lambda item: item["distance_m"])
 
         notice = None
-        if max_radius_m is not None and len(results_within_radius) == 0 and len(all_results) > 0:
-            top_results = all_results[:limit_val]
-            total_found = len(all_results)
-            notice = f"No matching facilities found within {round(max_radius_m / 1000.0, 1)} km of coordinates ({lat}, {lng}). Showing top nearest available facilities."
-        else:
+        if max_radius_m is not None:
+            # Strict radius enforcement: only return facilities within max_radius_m
             top_results = results_within_radius[:limit_val]
             total_found = len(results_within_radius)
+            if total_found == 0:
+                notice = f"No matching facilities found within {round(max_radius_m / 1000.0, 1)} km of coordinates ({lat}, {lng})."
+        else:
+            top_results = all_results[:limit_val]
+            total_found = len(all_results)
 
         query_info = {
             "input_query": query_text,
@@ -3131,7 +3128,28 @@ class ProjectExecutionViewSet(viewsets.ModelViewSet):
     parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get_queryset(self):
-        qs = super().get_queryset()
+        # Auto-sync sanctioned proposals missing execution projects
+        sanctioned_proposals = Proposal.objects.filter(
+            is_deleted=False,
+            status__in=[ProposalStatus.SANCTIONED, ProposalStatus.APPROVED, ProposalStatus.IN_EXECUTION]
+        ).exclude(execution_projects__is_deleted=False)
+        for prop in sanctioned_proposals:
+            try:
+                prop.sync_execution_project()
+            except Exception:
+                pass
+
+        # Clean up any execution projects linked to draft or non-sanctioned proposals
+        ProjectExecution.objects.filter(
+            proposal__isnull=False,
+            proposal__is_deleted=False
+        ).exclude(
+            proposal__status__in=[ProposalStatus.SANCTIONED, ProposalStatus.APPROVED, ProposalStatus.IN_EXECUTION]
+        ).delete()
+
+        qs = super().get_queryset().filter(
+            Q(proposal__isnull=True) | Q(proposal__status__in=[ProposalStatus.SANCTIONED, ProposalStatus.APPROVED, ProposalStatus.IN_EXECUTION])
+        )
         
         dept = self.request.query_params.get("department") or self.request.query_params.get("dept")
         if dept:
@@ -3189,6 +3207,36 @@ class ProjectExecutionViewSet(viewsets.ModelViewSet):
 
         if not data.get("title"):
             data["title"] = "Project Execution"
+
+        # Auto-create proposal if creating project directly
+        if not data.get("proposal"):
+            try:
+                dept_obj = None
+                if data.get("department"):
+                    dept_obj = Department.objects.filter(pk=data["department"]).first()
+                if not dept_obj:
+                    dept_obj = Department.objects.first()
+
+                dist_obj = None
+                if data.get("district"):
+                    dist_obj = District.objects.filter(pk=data["district"]).first()
+                if not dist_obj:
+                    dist_obj = District.objects.first()
+
+                if dept_obj and dist_obj:
+                    new_prop = Proposal.objects.create(
+                        title=data["title"],
+                        department=dept_obj,
+                        district=dist_obj,
+                        block=data.get("block") or "",
+                        ward=data.get("ward") or "",
+                        estimated_cost=data.get("sanction_amount") or data.get("proposed_amount") or 0,
+                        status=ProposalStatus.SANCTIONED,
+                        created_by=request.user if request.user.is_authenticated else None,
+                    )
+                    data["proposal"] = new_prop.id
+            except Exception:
+                pass
             
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)

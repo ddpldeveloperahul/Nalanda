@@ -828,9 +828,62 @@ class Proposal(models.Model):
             self.proposal_id = f"PRP-{year}-{rand_code}"
             
         super().save(*args, **kwargs)
+        self.sync_execution_project()
+
+    def sync_execution_project(self):
+        try:
+            from myapp.models import ProjectExecution, ProjectStatus, ProposalStatus
+            allowed_statuses = [
+                ProposalStatus.SANCTIONED,
+                ProposalStatus.APPROVED,
+                ProposalStatus.IN_EXECUTION,
+                "SANCTIONED",
+                "APPROVED",
+                "IN_EXECUTION",
+            ]
+            if self.status not in allowed_statuses:
+                ProjectExecution.objects.filter(proposal=self).delete()
+                return None
+
+            proj = ProjectExecution.objects.filter(proposal=self).first()
+            p_id = f"PRJ-{self.proposal_id.replace('PRP-', '')}" if self.proposal_id else f"PRJ-2026-{self.id:05d}"
+            
+            if not proj:
+                if ProjectExecution.objects.filter(project_id=p_id).exists():
+                    p_id = f"PRJ-2026-{self.id:05d}"
+                proj = ProjectExecution.objects.create(
+                    proposal=self,
+                    project_id=p_id,
+                    title=self.title or "Proposal Project",
+                    department=self.department,
+                    district=self.district,
+                    block=self.block or "",
+                    ward=self.ward or "",
+                    proposed_amount=self.estimated_cost or 0,
+                    sanction_amount=self.estimated_cost or 0,
+                    status=ProjectStatus.IN_EXECUTION,
+                    created_by=self.created_by,
+                )
+            else:
+                proj.title = self.title or proj.title
+                proj.department = self.department or proj.department
+                proj.district = self.district or proj.district
+                if self.block:
+                    proj.block = self.block
+                if self.ward:
+                    proj.ward = self.ward
+                if self.estimated_cost and self.estimated_cost > 0:
+                    proj.proposed_amount = self.estimated_cost
+                    if not proj.sanction_amount or proj.sanction_amount == 0:
+                        proj.sanction_amount = self.estimated_cost
+                proj.save()
+            return proj
+        except Exception:
+            return None
 
     def __str__(self) -> str:
         return f"{self.proposal_id or 'PRP'} - {self.title} ({self.status})"
+
 
 
 class BudgetApproval(models.Model):

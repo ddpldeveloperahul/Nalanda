@@ -550,3 +550,54 @@ class ProjectExecutionAPITests(TestCase):
         self.assertEqual(res_diaries.status_code, status.HTTP_200_OK)
         self.assertGreaterEqual(len(res_diaries.data), 1)
 
+    def test_proposal_auto_becomes_project_and_project_get_endpoint(self):
+        # 1. Create a draft proposal (DRAFT_DPR)
+        create_payload = {
+            "title": "Road Construction Silao Block",
+            "category": "Infrastructure",
+            "district": self.district.id,
+            "department": self.department.id,
+            "block": "Silao",
+            "estimated_cost": 5000000.00
+        }
+        res_prop = self.client.post("/api/proposals/", create_payload, format="json")
+        self.assertEqual(res_prop.status_code, status.HTTP_201_CREATED)
+        prop_id = res_prop.data["id"]
+
+        # 2. Verify DRAFT_DPR proposal does NOT show in /api/project/
+        res_draft_check = self.client.get("/api/project/")
+        self.assertEqual(res_draft_check.status_code, status.HTTP_200_OK)
+        draft_results = res_draft_check.data.get("results", res_draft_check.data) if isinstance(res_draft_check.data, dict) else res_draft_check.data
+        self.assertFalse(any(p.get("proposal") == prop_id or (p.get("proposal_details") and p["proposal_details"]["id"] == prop_id) for p in draft_results))
+
+        # 3. Sanction proposal
+        res_sanction = self.client.post(f"/api/proposals/{prop_id}/sanction/", {"sanctioned_amount": 5000000.00}, format="json")
+        self.assertEqual(res_sanction.status_code, status.HTTP_200_OK)
+
+        # 4. Verify SANCTIONED proposal NOW shows in GET /api/project/ and /api/projects/
+        res_proj_singular = self.client.get("/api/project/")
+        self.assertEqual(res_proj_singular.status_code, status.HTTP_200_OK)
+        results = res_proj_singular.data.get("results", res_proj_singular.data) if isinstance(res_proj_singular.data, dict) else res_proj_singular.data
+        self.assertTrue(any(p.get("proposal") == prop_id or (p.get("proposal_details") and p["proposal_details"]["id"] == prop_id) for p in results))
+
+        res_proj_plural = self.client.get("/api/projects/")
+        self.assertEqual(res_proj_plural.status_code, status.HTTP_200_OK)
+        results_plural = res_proj_plural.data.get("results", res_proj_plural.data) if isinstance(res_proj_plural.data, dict) else res_proj_plural.data
+        self.assertTrue(any(p.get("proposal") == prop_id or (p.get("proposal_details") and p["proposal_details"]["id"] == prop_id) for p in results_plural))
+
+    def test_spatial_query_strict_radius_and_keyword_matching(self):
+        # 1. Test searching "nearby bank me" does not fall back to Blood_Bank or Hospital when no financial bank exists
+        res_bank = self.client.get("/api/spatial-query/?q=nearby bank me&lat=30.3165&lng=78.0322&radius=10&limit=3")
+        self.assertEqual(res_bank.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_bank.data["total_found"], 0)
+        self.assertEqual(len(res_bank.data["results"]), 0)
+
+        # 2. Test searching "nearby water me" with radius=10 does not return results 891 km away
+        res_water = self.client.get("/api/spatial-query/?q=nearby water me&lat=30.3165&lng=78.0322&radius=10&limit=3")
+        self.assertEqual(res_water.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_water.data["total_found"], 0)
+        self.assertEqual(len(res_water.data["results"]), 0)
+
+
+
+

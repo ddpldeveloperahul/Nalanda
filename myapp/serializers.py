@@ -960,6 +960,7 @@ class ProjectExecutionSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source="department.name", read_only=True)
     district_name = serializers.CharField(source="district.name", read_only=True)
     proposal_id_str = serializers.CharField(source="proposal.proposal_id", read_only=True)
+    proposal_details = ProposalSerializer(source="proposal", read_only=True)
     proposed_amount_formatted = serializers.SerializerMethodField(read_only=True)
     budget_formatted = serializers.SerializerMethodField(read_only=True)
     expenditure_formatted = serializers.SerializerMethodField(read_only=True)
