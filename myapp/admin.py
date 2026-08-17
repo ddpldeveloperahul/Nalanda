@@ -1,3 +1,4 @@
+from myapp.models import ProposalNegotiation
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DefaultUserAdmin
 from myapp.models import (
@@ -8,7 +9,7 @@ from myapp.models import (
     GISCatalogEntry, GISDatasetVersionHistory, GISDataProvenance, GISProcessingJob, GISLayerFeature,
     Complaint, ComplaintCategory, ComplaintStatus, ComplaintEvidence, ComplaintPriority, ComplaintTimeline,
     ProjectExecution, SiteDiary, MeasurementBook, ProjectBill, ExecutionRisk, Report, Employee, EmployeeInvitation,
-    StateBudget, DepartmentBudget, DistrictAllocation, SchemeMaster, FinancialLedgerEntry
+    StateBudget, DepartmentBudget, DistrictAllocation, SchemeMaster, FinancialLedgerEntry, ProposalFundRelease
 )
 
 try:
@@ -238,7 +239,7 @@ class WorkflowInstanceAdmin(admin.ModelAdmin):
 
 @admin.register(Proposal)
 class ProposalAdmin(admin.ModelAdmin):
-    list_display = ["id", "proposal_id", "title", "department", "block", "status", "stage", "priority", "estimated_cost", "is_deleted", "created_at"]
+    list_display = ["id", "proposal_id", "title", "department", "block", "status", "stage", "priority", "estimated_cost","agreed_amount", "is_deleted", "created_at"]
     search_fields = ["proposal_id", "title", "department__name", "district__name", "block", "village"]
     list_filter = ["is_deleted", "status", "stage", "priority", "department", "district", "block"]
     autocomplete_fields = ["district", "department", "created_by", "reviewed_by", "approved_by", "workflow_instance", "gap_score_ref"]
@@ -246,8 +247,20 @@ class ProposalAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         return super().get_queryset(request).filter(is_deleted=False)
+@admin.register(ProposalNegotiation)
+class ProposalNegotiationAdmin(admin.ModelAdmin):
+    list_display = ["id", "proposal", "negotiation_round", "proposed_by", "action", "status", "proposed_amount", "proposed_timeline_days", "created_at"]
+    list_filter = ["action", "status", "created_at"]
+    search_fields = ["proposal__proposal_id", "proposal__title", "remarks", "proposed_scope"]
+    autocomplete_fields = ["proposal", "proposed_by"]
 
 
+@admin.register(ProposalFundRelease)
+class ProposalFundReleaseAdmin(admin.ModelAdmin):
+    list_display = ["id", "proposal", "release_type", "installment_number", "installment_name", "amount", "release_order_no", "released_by", "released_at"]
+    list_filter = ["release_type", "installment_number", "released_at"]
+    search_fields = ["proposal__proposal_id", "proposal__title", "release_order_no", "installment_name", "description"]
+    autocomplete_fields = ["proposal", "released_by"]
 # ==========================================
 # 5. DOCUMENT MANAGEMENT ADMIN
 # ==========================================

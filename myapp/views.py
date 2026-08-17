@@ -47,6 +47,8 @@ from myapp.serializers import (
     ResetPasswordWithOTPSerializer,
     ChangePasswordSerializer,
     LogoutSerializer,
+    ProposalNegotiationSerializer,
+    ProposalFundReleaseSerializer,
 )
 from myapp.services.complaint_service import (
     ComplaintService,
@@ -2992,6 +2994,8 @@ class ProposalViewSet(viewsets.ModelViewSet):
         data = self._extract_payload(request)
         
         data["status"] = ProposalStatus.APPROVED
+        if not proposal.approval_mode:
+            data["approval_mode"] = "DIRECT"
         if user:
             data["reviewed_by"] = user.id
             data["approved_by"] = user.id
@@ -3062,6 +3066,324 @@ class ProposalViewSet(viewsets.ModelViewSet):
             "proposal": serializer.data
         }, status=status.HTTP_200_OK)
 
+    # Release Budget Funds Action (Supports both One-Time FULL release & INSTALLMENT-wise release)
+    @action(detail=True, methods=["post"], url_path="release")
+    def release_proposal_funds(self, request, pk=None):
+        proposal = self.get_object()
+        user = request.user if request.user.is_authenticated else None
+        data = self._extract_payload(request)
+
+        release_type = str(data.get("release_type", "FULL")).upper().strip()
+        if release_type not in ["FULL", "INSTALLMENT"]:
+            release_type = "FULL"
+
+        effective_budget = float(proposal.agreed_amount or proposal.estimated_cost or 0)
+        if effective_budget <= 0:
+            return Response({
+                "error": "Proposal budget is 0. Please specify estimated_cost or agreed_amount before releasing funds."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        current_released = float(proposal.released_amount or 0)
+        remaining_budget = max(0.00, effective_budget - current_released)
+
+        # Validation Check 1: If funds are already fully released or remaining budget is 0
+        if proposal.release_status == "FULLY_RELEASED" or remaining_budget <= 0:
+            return Response({
+                "error": "Funds for this proposal have already been fully released (100% budget utilized). No further releases are allowed."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validation Check 2: If a FULL (One-Time) release was already executed previously
+        has_full_release = proposal.fund_releases.filter(release_type="FULL").exists()
+        if has_full_release:
+            return Response({
+                "error": "This proposal was already released via One-Time Full Release. Cannot add additional installments."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validation Check 3: If installment releases exist, enforce release_type = INSTALLMENT
+        has_installment_releases = proposal.fund_releases.filter(release_type="INSTALLMENT").exists()
+        if has_installment_releases and release_type == "FULL":
+            return Response({
+                "error": "This proposal is using Installment-wise release. You cannot use 'FULL' release_type for subsequent tranches. Please use 'release_type': 'INSTALLMENT'."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        amount_val = safe_float(data.get("amount")) or safe_float(data.get("released_amount"))
+
+        if release_type == "FULL":
+            if amount_val is None or amount_val == 0:
+                amount_val = remaining_budget
+        else: # INSTALLMENT
+            if amount_val is None or amount_val <= 0:
+                return Response({"error": "For installment release, 'amount' must be greater than 0."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if amount_val <= 0:
+            return Response({"error": "Release amount must be greater than 0."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validation Check 3: Release amount exceeds remaining budget balance
+        if amount_val > (remaining_budget + 0.01):
+            return Response({
+                "error": f"Requested release amount ₹{amount_val:,.2f} exceeds remaining budget balance ₹{remaining_budget:,.2f}."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        last_release = proposal.fund_releases.order_by("-installment_number", "-released_at").first()
+        inst_num = (last_release.installment_number + 1) if last_release else 1
+
+        inst_name = data.get("installment_name")
+        if not inst_name:
+            if release_type == "FULL":
+                inst_name = "One-Time Full Release (100%)"
+            else:
+                pct = round((amount_val / effective_budget * 100), 1) if effective_budget > 0 else 0
+                inst_name = f"Installment {inst_num} ({pct}%)"
+
+        order_no = data.get("release_order_no") or data.get("order_no") or f"REL-{timezone.now().strftime('%Y%m%d')}-{inst_num:02d}"
+        desc_val = data.get("description") or data.get("remarks") or f"Fund release tranche #{inst_num}"
+
+        release_record = ProposalFundRelease.objects.create(
+            proposal=proposal,
+            release_type=release_type,
+            installment_number=inst_num,
+            installment_name=inst_name,
+            amount=amount_val,
+            release_order_no=order_no,
+            description=desc_val,
+            released_by=user
+        )
+
+        new_cumulative_released = current_released + amount_val
+        proposal.released_amount = new_cumulative_released
+        new_remaining = max(0.00, effective_budget - new_cumulative_released)
+
+        if new_remaining <= 0.01 or release_type == "FULL":
+            proposal.release_status = "FULLY_RELEASED"
+            proposal.status = ProposalStatus.FUNDS_RELEASED
+        else:
+            proposal.release_status = "PARTIALLY_RELEASED"
+            proposal.status = ProposalStatus.PARTIALLY_RELEASED
+
+        proposal.save()
+
+        history = ProposalFundReleaseSerializer(proposal.fund_releases.all().order_by("installment_number"), many=True).data
+
+        return Response({
+            "message": f"Fund release '{inst_name}' of ₹{amount_val:,.2f} recorded successfully.",
+            "release_summary": {
+                "release_type": release_type,
+                "current_installment": inst_num,
+                "installment_name": inst_name,
+                "released_amount_this_tranche": amount_val,
+                "total_sanctioned_budget": effective_budget,
+                "total_released_to_date": new_cumulative_released,
+                "remaining_balance": new_remaining,
+                "release_status": proposal.release_status,
+                "release_order_no": order_no,
+                "release_date": release_record.released_at.strftime("%Y-%m-%d"),
+                "released_at": release_record.released_at.isoformat()
+            },
+            "proposal": ProposalSerializer(proposal).data,
+            "release_history": history
+        }, status=status.HTTP_200_OK if last_release else status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["get"], url_path="releases")
+    def get_fund_releases_history(self, request, pk=None):
+        proposal = self.get_object()
+        effective_budget = float(proposal.agreed_amount or proposal.estimated_cost or 0)
+        cumulative = float(proposal.released_amount or 0)
+        remaining = max(0.00, effective_budget - cumulative)
+        history = ProposalFundReleaseSerializer(proposal.fund_releases.all().order_by("installment_number"), many=True).data
+
+        return Response({
+            "proposal_id": proposal.id,
+            "total_sanctioned_budget": effective_budget,
+            "total_released_to_date": cumulative,
+            "remaining_balance": remaining,
+            "release_status": proposal.release_status,
+            "total_installments": len(history),
+            "releases": history
+        }, status=status.HTTP_200_OK)
+
+    # Negotiation Actions (POST /negotiation/, POST /negotiation-response/, GET /negotiations/)
+    @action(detail=True, methods=["post"], url_path="negotiation")
+    def create_negotiation_offer(self, request, pk=None):
+        proposal = self.get_object()
+        user = request.user if request.user.is_authenticated else None
+        data = self._extract_payload(request)
+
+        action_val = str(data.get("action", "COUNTER_OFFER")).upper().strip()
+        if action_val not in ["COUNTER_OFFER", "ACCEPT", "REJECT", "WITHDRAW"]:
+            action_val = "COUNTER_OFFER"
+
+        proposed_amount = safe_float(data.get("proposed_amount")) or safe_float(data.get("amount"))
+        proposed_timeline_days = data.get("proposed_timeline_days") or data.get("timeline_days")
+        proposed_scope = data.get("proposed_scope") or data.get("scope") or data.get("technical_scope")
+        remarks_val = data.get("remarks") or data.get("notes") or ""
+
+        # Validation Rule: proposed_amount must be > 0 and <= Proposal.estimated_cost
+        if proposed_amount is not None:
+            if proposed_amount <= 0:
+                return Response({"error": "proposed_amount must be greater than 0."}, status=status.HTTP_400_BAD_REQUEST)
+            if proposal.estimated_cost and float(proposal.estimated_cost) > 0 and proposed_amount > float(proposal.estimated_cost):
+                return Response({
+                    "error": f"proposed_amount (₹{proposed_amount:,.2f}) cannot exceed original proposal estimated_cost (₹{float(proposal.estimated_cost):,.2f})."
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+        # RBAC Check
+        if user and hasattr(user, "role") and user.role:
+            role_upper = str(user.role).upper()
+            if not (user.is_superuser or user.is_staff or 
+                    any(r in role_upper for r in ["DM", "COLLECTOR", "DISTRICT", "ADMIN", "DEPT", "HEAD", "EXECUTIVE", "ENGINEER", "OFFICER"]) or 
+                    proposal.created_by_id == user.id):
+                return Response({"error": "Unauthorized role for proposal negotiation."}, status=status.HTTP_403_FORBIDDEN)
+
+        # Calculate Negotiation Round
+        last_neg = proposal.negotiations.order_by("-negotiation_round", "-created_at").first()
+        next_round = (last_neg.negotiation_round + 1) if last_neg else 1
+
+        # Mark previous open counter offers as COUNTERED
+        proposal.negotiations.filter(status="OPEN").update(status="COUNTERED")
+
+        neg_status = "OPEN"
+        if action_val == "ACCEPT":
+            neg_status = "ACCEPTED"
+        elif action_val == "REJECT":
+            neg_status = "REJECTED"
+        elif action_val == "WITHDRAW":
+            neg_status = "WITHDRAWN"
+
+        negotiation = ProposalNegotiation.objects.create(
+            proposal=proposal,
+            proposed_by=user,
+            action=action_val,
+            status=neg_status,
+            negotiation_round=next_round,
+            proposed_amount=proposed_amount,
+            proposed_timeline_days=proposed_timeline_days,
+            proposed_scope=proposed_scope,
+            remarks=remarks_val
+        )
+
+        if action_val == "COUNTER_OFFER":
+            proposal.status = ProposalStatus.UNDER_NEGOTIATION
+            proposal.save()
+
+        elif action_val == "ACCEPT":
+            # Set negotiated agreed fields without overwriting estimated_cost
+            final_amount = proposed_amount if proposed_amount is not None else (last_neg.proposed_amount if last_neg and last_neg.proposed_amount else float(proposal.estimated_cost))
+            final_timeline = proposed_timeline_days if proposed_timeline_days is not None else (last_neg.proposed_timeline_days if last_neg and last_neg.proposed_timeline_days else None)
+            final_scope = proposed_scope if proposed_scope else (last_neg.proposed_scope if last_neg and last_neg.proposed_scope else proposal.technical_scope)
+
+            proposal.agreed_amount = final_amount
+            if final_timeline:
+                proposal.agreed_timeline_days = final_timeline
+            if final_scope:
+                proposal.agreed_scope = final_scope
+            proposal.approval_mode = "NEGOTIATED"
+            proposal.status = ProposalStatus.APPROVED
+            if user:
+                proposal.approved_by = user
+            proposal.approved_at = timezone.now()
+            proposal.save()
+
+        elif action_val == "REJECT":
+            proposal.status = ProposalStatus.REJECTED
+            if user:
+                proposal.reviewed_by = user
+            proposal.reviewed_at = timezone.now()
+            proposal.save()
+
+        return Response({
+            "message": f"Proposal negotiation action '{action_val}' recorded successfully.",
+            "negotiation": ProposalNegotiationSerializer(negotiation).data,
+            "proposal": ProposalSerializer(proposal).data
+        }, status=status.HTTP_200_OK if action_val != "COUNTER_OFFER" else status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"], url_path="negotiation-response")
+    def respond_to_negotiation(self, request, pk=None):
+        return self.create_negotiation_offer(request, pk=pk)
+
+    @action(detail=True, methods=["get"], url_path="negotiations")
+    def get_negotiation_history(self, request, pk=None):
+        proposal = self.get_object()
+        history_list = []
+        
+        for neg in proposal.negotiations.all().order_by("negotiation_round", "created_at"):
+            by_name = "Department Head"
+            if neg.proposed_by:
+                role_str = str(getattr(neg.proposed_by, "role", "")).upper()
+                if any(r in role_str for r in ["DM", "DISTRICT", "COLLECTOR", "ADMIN"]):
+                    by_name = "DM"
+                elif any(r in role_str for r in ["DEPT", "DEPARTMENT", "HEAD", "ENGINEER"]):
+                    by_name = "Department Head"
+                else:
+                    by_name = neg.proposed_by.get_full_name() or neg.proposed_by.username
+            elif neg.negotiation_round % 2 == 0:
+                by_name = "DM"
+
+            history_list.append({
+                "round": neg.negotiation_round,
+                "proposed_by": by_name,
+                "action": neg.action,
+                "status": neg.status,
+                "amount": f"{float(neg.proposed_amount):.2f}" if neg.proposed_amount is not None else None,
+                "timeline_days": neg.proposed_timeline_days,
+                "scope": neg.proposed_scope,
+                "remarks": neg.remarks,
+                "created_at": neg.created_at
+            })
+
+        return Response({
+            "proposal_id": proposal.id,
+            "estimated_cost": f"{float(proposal.estimated_cost or 0):.2f}",
+            "approval_mode": proposal.approval_mode or ("DIRECT" if proposal.status == ProposalStatus.APPROVED else None),
+            "agreed_amount": f"{float(proposal.agreed_amount):.2f}" if proposal.agreed_amount is not None else None,
+            "agreed_timeline_days": proposal.agreed_timeline_days,
+            "agreed_scope": proposal.agreed_scope,
+            "history": history_list
+        }, status=status.HTTP_200_OK)
+
+
+class ProposalNegotiationViewSet(viewsets.ModelViewSet):
+    """
+    Complete RESTful ViewSet for Proposal Negotiations & Counter Offers.
+    Supports GET /api/proposal-negotiations/?proposal=<proposal_id> and POST /api/proposal-negotiations/
+    """
+    queryset = ProposalNegotiation.objects.all().select_related("proposal", "proposed_by")
+    serializer_class = ProposalNegotiationSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        proposal_id = self.request.query_params.get("proposal") or self.request.query_params.get("proposal_id")
+        if proposal_id:
+            qs = qs.filter(Q(proposal_id=proposal_id) | Q(proposal__proposal_id=proposal_id))
+        return qs.order_by("created_at")
+
+    def perform_create(self, serializer):
+        user = self.request.user if self.request.user.is_authenticated else None
+        serializer.save(proposed_by=user)
+
+
+class ProposalFundReleaseViewSet(viewsets.ModelViewSet):
+    """
+    Complete RESTful ViewSet for Proposal Fund Release Tranches / Installments.
+    Supports GET /api/proposal-releases/?proposal=<proposal_id> and POST /api/proposal-releases/
+    """
+    queryset = ProposalFundRelease.objects.all().select_related("proposal", "released_by")
+    serializer_class = ProposalFundReleaseSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        proposal_id = self.request.query_params.get("proposal") or self.request.query_params.get("proposal_id")
+        if proposal_id:
+            qs = qs.filter(Q(proposal_id=proposal_id) | Q(proposal__proposal_id=proposal_id))
+        return qs.order_by("installment_number")
+
+    def perform_create(self, serializer):
+        user = self.request.user if self.request.user.is_authenticated else None
+        serializer.save(released_by=user)
+
 
 class PlanningERPAPIView(APIView):
     """
@@ -3128,10 +3450,17 @@ class ProjectExecutionViewSet(viewsets.ModelViewSet):
     parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get_queryset(self):
-        # Auto-sync sanctioned proposals missing execution projects
+        valid_statuses = [
+            ProposalStatus.SANCTIONED,
+            ProposalStatus.APPROVED,
+            ProposalStatus.PARTIALLY_RELEASED,
+            ProposalStatus.FUNDS_RELEASED,
+            ProposalStatus.IN_EXECUTION,
+        ]
+
         sanctioned_proposals = Proposal.objects.filter(
             is_deleted=False,
-            status__in=[ProposalStatus.SANCTIONED, ProposalStatus.APPROVED, ProposalStatus.IN_EXECUTION]
+            status__in=valid_statuses
         ).exclude(execution_projects__is_deleted=False)
         for prop in sanctioned_proposals:
             try:
@@ -3144,11 +3473,11 @@ class ProjectExecutionViewSet(viewsets.ModelViewSet):
             proposal__isnull=False,
             proposal__is_deleted=False
         ).exclude(
-            proposal__status__in=[ProposalStatus.SANCTIONED, ProposalStatus.APPROVED, ProposalStatus.IN_EXECUTION]
+            proposal__status__in=valid_statuses
         ).delete()
 
         qs = super().get_queryset().filter(
-            Q(proposal__isnull=True) | Q(proposal__status__in=[ProposalStatus.SANCTIONED, ProposalStatus.APPROVED, ProposalStatus.IN_EXECUTION])
+            Q(proposal__isnull=True) | Q(proposal__status__in=valid_statuses)
         )
         
         dept = self.request.query_params.get("department") or self.request.query_params.get("dept")

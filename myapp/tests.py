@@ -598,6 +598,221 @@ class ProjectExecutionAPITests(TestCase):
         self.assertEqual(res_water.data["total_found"], 0)
         self.assertEqual(len(res_water.data["results"]), 0)
 
+    def test_proposal_negotiation_flow_and_direct_approval(self):
+        # 1. Create a proposal
+        create_payload = {
+            "title": "Nalanda Solar Plant Installation",
+            "category": "Energy",
+            "district": self.district.id,
+            "department": self.department.id,
+            "block": "Biharsharif",
+            "estimated_cost": 10000000.00
+        }
+        res_prop = self.client.post("/api/proposals/", create_payload, format="json")
+        self.assertEqual(res_prop.status_code, status.HTTP_201_CREATED)
+        prop_id = res_prop.data["id"]
+
+        # 2. DM initiates negotiation / counter-offer on price & timeline
+        neg_payload = {
+            "action": "COUNTER_OFFER",
+            "proposed_amount": 8500000.00,
+            "proposed_timeline_days": 60,
+            "scope": "Revised scope to 500KW panel capacity",
+            "remarks": "Please reduce budget and completion timeline"
+        }
+        res_neg = self.client.post(f"/api/proposals/{prop_id}/negotiation/", neg_payload, format="json")
+        self.assertEqual(res_neg.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(res_neg.data["proposal"]["status"], "UNDER_NEGOTIATION")
+
+        # 3. Verify negotiations list endpoint
+        res_history = self.client.get(f"/api/proposal-negotiations/?proposal={prop_id}")
+        self.assertEqual(res_history.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res_history.data), 1)
+        self.assertEqual(float(res_history.data[0]["proposed_amount"]), 8500000.00)
+
+        # 4. Department Head accepts counter offer
+        accept_payload = {
+            "action": "ACCEPT",
+            "remarks": "Agreed to revised amount and timeline"
+        }
+        res_accept = self.client.post(f"/api/proposals/{prop_id}/negotiation/", accept_payload, format="json")
+        self.assertEqual(res_accept.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_accept.data["proposal"]["status"], "APPROVED")
+
+        # 5. DM sanctions approved proposal -> Project auto-created!
+        res_sanction = self.client.post(f"/api/proposals/{prop_id}/sanction/", {"sanctioned_amount": 8500000.00}, format="json")
+        self.assertEqual(res_sanction.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_sanction.data["proposal"]["status"], "SANCTIONED")
+
+        # Verify project list contains the auto-created project
+        res_proj = self.client.get("/api/project/")
+        self.assertEqual(res_proj.status_code, status.HTTP_200_OK)
+        results = res_proj.data.get("results", res_proj.data) if isinstance(res_proj.data, dict) else res_proj.data
+        self.assertTrue(any(p.get("proposal") == prop_id or (p.get("proposal_details") and p["proposal_details"]["id"] == prop_id) for p in results))
+
+    def test_proposal_negotiation_multi_round_spec(self):
+        # 1. Create a proposal with original estimated_cost = 80,000,000 (₹8 Cr)
+        create_payload = {
+            "title": "Nalanda 100-Bed Sub-Divisional Hospital",
+            "category": "Healthcare",
+            "district": self.district.id,
+            "department": self.department.id,
+            "block": "Rajgir",
+            "estimated_cost": 80000000.00
+        }
+        res_prop = self.client.post("/api/proposals/", create_payload, format="json")
+        self.assertEqual(res_prop.status_code, status.HTTP_201_CREATED)
+        prop_id = res_prop.data["id"]
+
+        # 2. Validation test: Amount > estimated_cost (₹9 Cr > ₹8 Cr) must be rejected
+        res_invalid = self.client.post(f"/api/proposals/{prop_id}/negotiation/", {
+            "action": "COUNTER_OFFER",
+            "proposed_amount": 90000000.00,
+            "remarks": "Excessive amount test"
+        }, format="json")
+        self.assertEqual(res_invalid.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # 3. Round 1: DM sends counter offer (₹7 Cr)
+        res_r1 = self.client.post(f"/api/proposals/{prop_id}/negotiation/", {
+            "action": "COUNTER_OFFER",
+            "proposed_amount": 70000000.00,
+            "proposed_timeline_days": 330,
+            "proposed_scope": "100-bed hospital without staff quarters",
+            "remarks": "Budget optimization required"
+        }, format="json")
+        self.assertEqual(res_r1.status_code, status.HTTP_201_CREATED)
+
+        # 4. Round 2: Department Head responds with counter offer (₹6.5 Cr)
+        res_r2 = self.client.post(f"/api/proposals/{prop_id}/negotiation-response/", {
+            "action": "COUNTER_OFFER",
+            "proposed_amount": 65000000.00,
+            "proposed_timeline_days": 300,
+            "proposed_scope": "100-bed hospital with basic OPD quarters",
+            "remarks": "Revised estimate"
+        }, format="json")
+        self.assertEqual(res_r2.status_code, status.HTTP_201_CREATED)
+
+        # 5. Round 3: DM sends final counter offer (₹6 Cr)
+        res_r3 = self.client.post(f"/api/proposals/{prop_id}/negotiation/", {
+            "action": "COUNTER_OFFER",
+            "proposed_amount": 60000000.00,
+            "proposed_timeline_days": 270,
+            "proposed_scope": "100-bed hospital standard layout",
+            "remarks": "Final offer"
+        }, format="json")
+        self.assertEqual(res_r3.status_code, status.HTTP_201_CREATED)
+
+        # 6. Round 4: Department Head ACCEPTS ₹6 Cr
+        res_accept = self.client.post(f"/api/proposals/{prop_id}/negotiation-response/", {
+            "action": "ACCEPT",
+            "proposed_amount": 60000000.00,
+            "remarks": "Revised amount accepted"
+        }, format="json")
+        self.assertEqual(res_accept.status_code, status.HTTP_200_OK)
+
+        # 7. CRITICAL VERIFICATION:
+        # Proposal estimated_cost must remain ₹8 Cr (80,000,000) for audit/history
+        # Proposal agreed_amount must be ₹6 Cr (60,000,000)
+        # Proposal approval_mode must be "NEGOTIATED"
+        res_prop_get = self.client.get(f"/api/proposals/{prop_id}/")
+        self.assertEqual(res_prop_get.status_code, status.HTTP_200_OK)
+        self.assertEqual(float(res_prop_get.data["estimated_cost"]), 80000000.00)
+        self.assertEqual(float(res_prop_get.data["agreed_amount"]), 60000000.00)
+        self.assertEqual(res_prop_get.data["approval_mode"], "NEGOTIATED")
+        self.assertEqual(res_prop_get.data["status"], "APPROVED")
+
+        # 8. GET /api/proposals/{id}/negotiations/ history check
+        res_history = self.client.get(f"/api/proposals/{prop_id}/negotiations/")
+        self.assertEqual(res_history.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_history.data["estimated_cost"], "80000000.00")
+        self.assertEqual(res_history.data["agreed_amount"], "60000000.00")
+        self.assertEqual(res_history.data["approval_mode"], "NEGOTIATED")
+        self.assertGreaterEqual(len(res_history.data["history"]), 4)
+
+    def test_one_time_fund_release(self):
+        create_payload = {
+            "title": "Road Overbridge Silao",
+            "category": "Infrastructure",
+            "district": self.district.id,
+            "department": self.department.id,
+            "estimated_cost": 5000000.00
+        }
+        res_prop = self.client.post("/api/proposals/", create_payload, format="json")
+        prop_id = res_prop.data["id"]
+
+        # Sanction
+        self.client.post(f"/api/proposals/{prop_id}/sanction/", {"sanctioned_amount": 5000000.00}, format="json")
+
+        # One-time Full Release
+        rel_payload = {
+            "release_type": "FULL",
+            "amount": 5000000.00,
+            "release_order_no": "REL-2026-FULL-01",
+            "description": "Full budget one-time release"
+        }
+        res_rel = self.client.post(f"/api/proposals/{prop_id}/release/", rel_payload, format="json")
+        self.assertEqual(res_rel.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(res_rel.data["release_summary"]["release_status"], "FULLY_RELEASED")
+        self.assertEqual(res_rel.data["proposal"]["status"], "FUNDS_RELEASED")
+
+        # Attempting additional release after FULL release must fail with HTTP 400
+        res_invalid = self.client.post(f"/api/proposals/{prop_id}/release/", {
+            "release_type": "INSTALLMENT",
+            "amount": 200000.00
+        }, format="json")
+        self.assertEqual(res_invalid.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_installment_wise_fund_release(self):
+        create_payload = {
+            "title": "Super Specialty Hospital Block",
+            "category": "Healthcare",
+            "district": self.district.id,
+            "department": self.department.id,
+            "estimated_cost": 10000000.00
+        }
+        res_prop = self.client.post("/api/proposals/", create_payload, format="json")
+        prop_id = res_prop.data["id"]
+
+        # Sanction
+        self.client.post(f"/api/proposals/{prop_id}/sanction/", {"sanctioned_amount": 10000000.00}, format="json")
+
+        # Installment 1: 30% (₹30 Lakhs)
+        inst1_payload = {
+            "release_type": "INSTALLMENT",
+            "amount": 3000000.00,
+            "installment_name": "1st Tranche (30%)",
+            "release_order_no": "REL-INST-01"
+        }
+        res_inst1 = self.client.post(f"/api/proposals/{prop_id}/release/", inst1_payload, format="json")
+        self.assertEqual(res_inst1.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(res_inst1.data["release_summary"]["release_status"], "PARTIALLY_RELEASED")
+        self.assertEqual(float(res_inst1.data["release_summary"]["remaining_balance"]), 7000000.00)
+
+        # Attempting to switch release_type to FULL midway must fail with HTTP 400
+        res_switch_invalid = self.client.post(f"/api/proposals/{prop_id}/release/", {
+            "release_type": "FULL",
+            "amount": 7000000.00
+        }, format="json")
+        self.assertEqual(res_switch_invalid.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Installment 2: Remaining 70% (₹70 Lakhs)
+        inst2_payload = {
+            "release_type": "INSTALLMENT",
+            "amount": 7000000.00,
+            "installment_name": "2nd Final Tranche (70%)",
+            "release_order_no": "REL-INST-02"
+        }
+        res_inst2 = self.client.post(f"/api/proposals/{prop_id}/release/", inst2_payload, format="json")
+        self.assertEqual(res_inst2.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_inst2.data["release_summary"]["release_status"], "FULLY_RELEASED")
+        self.assertEqual(float(res_inst2.data["release_summary"]["remaining_balance"]), 0.00)
+
+        # GET history check
+        res_releases = self.client.get(f"/api/proposals/{prop_id}/releases/")
+        self.assertEqual(res_releases.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_releases.data["total_installments"], 2)
+
+
 
 
 

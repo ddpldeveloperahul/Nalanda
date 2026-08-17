@@ -705,8 +705,11 @@ class ProposalStatus(models.TextChoices):
     DRAFT_DPR = "DRAFT_DPR", "Draft DPR"
     PENDING_REVIEW = "PENDING_REVIEW", "Pending Review"
     UNDER_REVIEW = "UNDER_REVIEW", "Under Review"
+    UNDER_NEGOTIATION = "UNDER_NEGOTIATION", "Under Negotiation"
     APPROVED = "APPROVED", "Approved"
     SANCTIONED = "SANCTIONED", "Sanctioned"
+    PARTIALLY_RELEASED = "PARTIALLY_RELEASED", "Partially Released"
+    FUNDS_RELEASED = "FUNDS_RELEASED", "Funds Released"
     REJECTED = "REJECTED", "Rejected"
     IN_EXECUTION = "IN_EXECUTION", "In Execution"
 
@@ -787,6 +790,55 @@ class Proposal(models.Model):
     estimated_cost = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, verbose_name="Grand Total Estimated Cost (INR)")
     delegated_power_note = models.CharField(max_length=255, default="Within DM delegated power", verbose_name="Delegated Power Note")
 
+    approval_mode = models.CharField(
+        max_length=20,
+        choices=[
+            ("DIRECT", "Direct Approval"),
+            ("NEGOTIATED", "Negotiated Approval"),
+        ],
+        null=True,
+        blank=True,
+        verbose_name="Approval Mode",
+    )
+
+    agreed_amount = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="Agreed Amount (INR)",
+    )
+
+    agreed_timeline_days = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name="Agreed Timeline (Days)",
+    )
+
+    agreed_scope = models.TextField(
+        null=True,
+        blank=True,
+        verbose_name="Agreed Scope",
+    )
+
+    released_amount = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=0.00,
+        verbose_name="Cumulative Released Amount (INR)",
+    )
+
+    release_status = models.CharField(
+        max_length=30,
+        choices=[
+            ("NOT_RELEASED", "Not Released"),
+            ("PARTIALLY_RELEASED", "Partially Released"),
+            ("FULLY_RELEASED", "Fully Released"),
+        ],
+        default="NOT_RELEASED",
+        verbose_name="Fund Release Status",
+    )
+
     # Step 5: Clearances
     funding_source = models.CharField(max_length=150, choices=FundingSource.choices, default=FundingSource.DISTRICT, verbose_name="Funding Source")
     clearances_notes = models.TextField(blank=True, null=True, verbose_name="Clearances & NOCs Notes")
@@ -836,9 +888,13 @@ class Proposal(models.Model):
             allowed_statuses = [
                 ProposalStatus.SANCTIONED,
                 ProposalStatus.APPROVED,
+                ProposalStatus.PARTIALLY_RELEASED,
+                ProposalStatus.FUNDS_RELEASED,
                 ProposalStatus.IN_EXECUTION,
                 "SANCTIONED",
                 "APPROVED",
+                "PARTIALLY_RELEASED",
+                "FUNDS_RELEASED",
                 "IN_EXECUTION",
             ]
             if self.status not in allowed_statuses:
@@ -859,8 +915,8 @@ class Proposal(models.Model):
                     district=self.district,
                     block=self.block or "",
                     ward=self.ward or "",
-                    proposed_amount=self.estimated_cost or 0,
-                    sanction_amount=self.estimated_cost or 0,
+                    proposed_amount=self.agreed_amount or self.estimated_cost or 0,
+                    sanction_amount=self.agreed_amount or self.estimated_cost or 0,
                     status=ProjectStatus.IN_EXECUTION,
                     created_by=self.created_by,
                 )
@@ -872,10 +928,11 @@ class Proposal(models.Model):
                     proj.block = self.block
                 if self.ward:
                     proj.ward = self.ward
-                if self.estimated_cost and self.estimated_cost > 0:
-                    proj.proposed_amount = self.estimated_cost
+                eff_cost = self.agreed_amount or self.estimated_cost
+                if eff_cost and eff_cost > 0:
+                    proj.proposed_amount = eff_cost
                     if not proj.sanction_amount or proj.sanction_amount == 0:
-                        proj.sanction_amount = self.estimated_cost
+                        proj.sanction_amount = eff_cost
                 proj.save()
             return proj
         except Exception:
@@ -884,6 +941,191 @@ class Proposal(models.Model):
     def __str__(self) -> str:
         return f"{self.proposal_id or 'PRP'} - {self.title} ({self.status})"
 
+
+class ProposalNegotiation(models.Model):
+    """
+    Stores negotiation/counter-offer history for a Proposal.
+
+    Actions: COUNTER_OFFER, ACCEPT, REJECT, WITHDRAW
+    Statuses: OPEN, COUNTERED, ACCEPTED, REJECTED, WITHDRAWN
+    """
+
+    ACTION_CHOICES = [
+        ("COUNTER_OFFER", "Counter Offer"),
+        ("ACCEPT", "Accept"),
+        ("REJECT", "Reject"),
+        ("WITHDRAW", "Withdraw"),
+    ]
+
+    STATUS_CHOICES = [
+        ("OPEN", "Open"),
+        ("COUNTERED", "Countered"),
+        ("ACCEPTED", "Accepted"),
+        ("REJECTED", "Rejected"),
+        ("WITHDRAWN", "Withdrawn"),
+    ]
+
+    proposal = models.ForeignKey(
+        Proposal,
+        on_delete=models.CASCADE,
+        related_name="negotiations",
+        verbose_name="Proposal",
+    )
+
+    proposed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="proposal_negotiations",
+        verbose_name="Proposed By",
+    )
+
+    action = models.CharField(
+        max_length=30,
+        choices=ACTION_CHOICES,
+        default="COUNTER_OFFER",
+    )
+
+    status = models.CharField(
+        max_length=30,
+        choices=STATUS_CHOICES,
+        default="OPEN",
+    )
+
+    negotiation_round = models.PositiveIntegerField(
+        default=1,
+        verbose_name="Negotiation Round Number",
+    )
+
+    proposed_amount = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="Proposed Amount",
+    )
+
+    proposed_timeline_days = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name="Proposed Timeline (Days)",
+    )
+
+    proposed_scope = models.TextField(
+        null=True,
+        blank=True,
+        verbose_name="Proposed Scope",
+    )
+
+    remarks = models.TextField(
+        blank=True,
+        default="",
+        verbose_name="Remarks",
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        db_index=True,
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+    )
+
+    class Meta:
+        db_table = "txn_proposal_negotiation"
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return (
+            f"{self.proposal.proposal_id or 'PRP'} - Round {self.negotiation_round} - "
+            f"{self.action} - {self.status} - "
+            f"₹{self.proposed_amount or 0}"
+        )
+
+
+class ProposalFundRelease(models.Model):
+    """
+    Stores Fund Release Tranches / Installments for a Proposal.
+    Supports both One-Time Full Release and Installment-wise Release.
+    """
+
+    RELEASE_TYPE_CHOICES = [
+        ("FULL", "One-Time Full Release"),
+        ("INSTALLMENT", "Installment-wise Release"),
+    ]
+
+    proposal = models.ForeignKey(
+        Proposal,
+        on_delete=models.CASCADE,
+        related_name="fund_releases",
+        verbose_name="Proposal",
+    )
+
+    release_type = models.CharField(
+        max_length=20,
+        choices=RELEASE_TYPE_CHOICES,
+        default="FULL",
+        verbose_name="Release Type",
+    )
+
+    installment_number = models.PositiveIntegerField(
+        default=1,
+        verbose_name="Installment Number",
+    )
+
+    installment_name = models.CharField(
+        max_length=150,
+        blank=True,
+        default="",
+        verbose_name="Installment Name / Tranche",
+    )
+
+    amount = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        verbose_name="Released Amount (INR)",
+    )
+
+    release_order_no = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        verbose_name="Release Order Number",
+    )
+
+    description = models.TextField(
+        blank=True,
+        default="",
+        verbose_name="Description / Remarks",
+    )
+
+    released_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="released_proposal_funds",
+        verbose_name="Released By",
+    )
+
+    released_at = models.DateTimeField(
+        auto_now_add=True,
+        db_index=True,
+        verbose_name="Released At",
+    )
+
+    class Meta:
+        db_table = "txn_proposal_fund_release"
+        ordering = ["installment_number", "released_at"]
+
+    def __str__(self):
+        return (
+            f"{self.proposal.proposal_id or 'PRP'} - "
+            f"Installment {self.installment_number} - "
+            f"₹{self.amount:,.2f}"
+        )
 
 
 class BudgetApproval(models.Model):

@@ -38,6 +38,8 @@ from myapp.models import (
     DistrictAllocation,
     SchemeMaster,
     FinancialLedgerEntry,
+    ProposalNegotiation,
+    ProposalFundRelease,
 )
 
 
@@ -816,6 +818,76 @@ class ComplaintActionSerializer(serializers.Serializer):
     feedback_comment = serializers.CharField(required=False, allow_blank=True, default="")
 
 
+class ProposalNegotiationSerializer(serializers.ModelSerializer):
+    proposed_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ProposalNegotiation
+        fields = [
+            "id",
+            "proposal",
+            "proposed_by",
+            "proposed_by_name",
+            "action",
+            "status",
+            "negotiation_round",
+            "proposed_amount",
+            "proposed_timeline_days",
+            "proposed_scope",
+            "remarks",
+            "created_at",
+            "updated_at",
+        ]
+
+        read_only_fields = [
+            "id",
+            "proposed_by",
+            "proposed_by_name",
+            "negotiation_round",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_proposed_by_name(self, obj):
+        if obj.proposed_by:
+            return (
+                obj.proposed_by.get_full_name()
+                or obj.proposed_by.username
+            )
+        return "System"
+
+
+class ProposalFundReleaseSerializer(serializers.ModelSerializer):
+    released_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ProposalFundRelease
+        fields = [
+            "id",
+            "proposal",
+            "release_type",
+            "installment_number",
+            "installment_name",
+            "amount",
+            "release_order_no",
+            "description",
+            "released_by",
+            "released_by_name",
+            "released_at",
+        ]
+        read_only_fields = [
+            "id",
+            "released_by",
+            "released_by_name",
+            "released_at",
+        ]
+
+    def get_released_by_name(self, obj):
+        if obj.released_by:
+            return obj.released_by.get_full_name() or obj.released_by.username
+        return "Authority"
+
+
 class ProposalSerializer(serializers.ModelSerializer):
     state_name = serializers.CharField(source="state.name", read_only=True)
     district_name = serializers.CharField(source="district.name", read_only=True)
@@ -828,6 +900,14 @@ class ProposalSerializer(serializers.ModelSerializer):
     stage_display = serializers.CharField(source="get_stage_display", read_only=True)
     linked_complaint_number = serializers.CharField(source="linked_complaint.complaint_number", read_only=True)
     funding_source = serializers.CharField(required=False, allow_blank=True, default="District")
+    negotiations = ProposalNegotiationSerializer(many=True, read_only=True)
+    fund_releases = ProposalFundReleaseSerializer(many=True, read_only=True)
+    remaining_amount = serializers.SerializerMethodField(read_only=True)
+
+    def get_remaining_amount(self, obj):
+        effective_budget = float(obj.agreed_amount or obj.estimated_cost or 0)
+        released = float(obj.released_amount or 0)
+        return max(0.00, effective_budget - released)
 
     def validate_funding_source(self, value):
         if not value:
@@ -905,6 +985,10 @@ class ProposalSerializer(serializers.ModelSerializer):
             "estimated_cost",
             "cost_formatted",
             "delegated_power_note",
+            "approval_mode",
+            "agreed_amount",
+            "agreed_timeline_days",
+            "agreed_scope",
             
             # Step 5: Clearances
             "funding_source",
@@ -922,6 +1006,11 @@ class ProposalSerializer(serializers.ModelSerializer):
             "approved_by",
             "approved_by_name",
             "approved_at",
+            "negotiations",
+            "released_amount",
+            "release_status",
+            "remaining_amount",
+            "fund_releases",
             
             "is_deleted",
             "created_at",
