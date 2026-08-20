@@ -1477,6 +1477,27 @@ class ProjectExecution(models.Model):
     created_by = models.ForeignKey("User", on_delete=models.SET_NULL, null=True, blank=True, related_name="created_projects", verbose_name="Created By")
     is_deleted = models.BooleanField(default=False, verbose_name="Is Deleted")
 
+    # Work Assignment Fields (Tier 1: Dept Head -> Dept Officer | Tier 2: Dept Officer -> Engineer/JE)
+    assigned_officer = models.ForeignKey("User", on_delete=models.SET_NULL, null=True, blank=True, related_name="assigned_officer_projects", verbose_name="Assigned Department Officer")
+    assigned_engineer = models.ForeignKey("User", on_delete=models.SET_NULL, null=True, blank=True, related_name="assigned_engineer_projects", verbose_name="Assigned Engineer")
+    assigned_at = models.DateTimeField(null=True, blank=True, verbose_name="Work Assigned At")
+    officer_assigned_at = models.DateTimeField(null=True, blank=True, verbose_name="Officer Assigned At")
+    engineer_assigned_at = models.DateTimeField(null=True, blank=True, verbose_name="Engineer Assigned At")
+    assignment_notes = models.TextField(blank=True, null=True, verbose_name="Department Head Assignment Notes")
+    field_assignment_notes = models.TextField(blank=True, null=True, verbose_name="Field Engineer Assignment Notes")
+
+    # Department Officer Review Fields
+    officer_review_status = models.CharField(max_length=30, blank=True, null=True, choices=[("PENDING", "Pending"), ("APPROVED", "Approved"), ("REJECTED", "Rejected")], verbose_name="Officer Review Status")
+    officer_reviewed_by = models.ForeignKey("User", on_delete=models.SET_NULL, null=True, blank=True, related_name="officer_reviewed_projects", verbose_name="Officer Reviewed By")
+    officer_reviewed_at = models.DateTimeField(null=True, blank=True, verbose_name="Officer Reviewed At")
+    officer_review_remarks = models.TextField(blank=True, null=True, verbose_name="Officer Review Remarks")
+
+    # Department Head Completion Verification Fields
+    completion_verification_status = models.CharField(max_length=30, blank=True, null=True, choices=[("PENDING", "Pending"), ("APPROVED", "Approved"), ("REJECTED", "Rejected")], verbose_name="Completion Verification Status")
+    completion_verified_by = models.ForeignKey("User", on_delete=models.SET_NULL, null=True, blank=True, related_name="completion_verified_projects", verbose_name="Completion Verified By")
+    completion_verified_at = models.DateTimeField(null=True, blank=True, verbose_name="Completion Verified At")
+    completion_verification_remarks = models.TextField(blank=True, null=True, verbose_name="Completion Verification Remarks")
+
     created_at = models.DateTimeField(auto_now_add=True, db_index=True, verbose_name="Created At")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Updated At")
 
@@ -1488,6 +1509,89 @@ class ProjectExecution(models.Model):
 
     def __str__(self) -> str:
         return f"{self.project_id} - {self.title}"
+
+
+def get_today_date():
+    return timezone.now().date()
+
+
+class ProjectExpenditure(models.Model):
+    """
+    Tracks verified expenditure transactions logged by Department Officers against Project Execution.
+    Supports budget utilization audit trail and remaining budget calculation.
+    """
+    EXPENSE_TYPE_CHOICES = [
+        ("CIVIL_WORK", "Civil Work"),
+        ("ELECTRICAL_WORK", "Electrical Work"),
+        ("EQUIPMENT", "Equipment & Machinery"),
+        ("MATERIAL", "Material Supply"),
+        ("LABOUR", "Labour & Manpower"),
+        ("MISC", "Miscellaneous"),
+    ]
+
+    project = models.ForeignKey(
+        ProjectExecution,
+        on_delete=models.CASCADE,
+        related_name="expenditures",
+        verbose_name="Project Execution",
+    )
+
+    amount = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        verbose_name="Expenditure Amount (INR)",
+    )
+
+    expenditure_date = models.DateField(
+        default=get_today_date,
+        verbose_name="Expenditure Date",
+    )
+
+    expense_type = models.CharField(
+        max_length=50,
+        choices=EXPENSE_TYPE_CHOICES,
+        default="CIVIL_WORK",
+        verbose_name="Expense Type",
+    )
+
+    reference_no = models.CharField(
+        max_length=100,
+        unique=True,
+        verbose_name="Reference Order / Voucher Number",
+    )
+
+    remarks = models.TextField(
+        blank=True,
+        default="",
+        verbose_name="Verification Remarks",
+    )
+
+    verified_by = models.ForeignKey(
+        "User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="verified_project_expenditures",
+        verbose_name="Verified By (Department Officer)",
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        db_index=True,
+        verbose_name="Recorded At",
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        verbose_name="Updated At",
+    )
+
+    class Meta:
+        db_table = "prj_project_expenditure"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.project.project_id} - {self.reference_no} - ₹{self.amount:,.2f}"
 
 
 def get_today_date():

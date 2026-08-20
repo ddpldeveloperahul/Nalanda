@@ -812,6 +812,232 @@ class ProjectExecutionAPITests(TestCase):
         self.assertEqual(res_releases.status_code, status.HTTP_200_OK)
         self.assertEqual(res_releases.data["total_installments"], 2)
 
+    def test_complete_project_lifecycle_workflow(self):
+        # 1. Dept Head Creates Proposal
+        res_prop = self.client.post("/api/proposals/", {
+            "title": "Integrated Community Healthcare Center",
+            "category": "Healthcare",
+            "district": self.district.id,
+            "department": self.department.id,
+            "estimated_cost": 20000000.00
+        }, format="json")
+        prop_id = res_prop.data["id"]
+
+        # 2. Submit to DM
+        self.client.post(f"/api/proposals/{prop_id}/submit/", {}, format="json")
+
+        # 3. DM Counter Offer & Agreement (Agreed Amount = ₹1.8 Cr)
+        self.client.post(f"/api/proposals/{prop_id}/negotiation/", {
+            "action": "COUNTER_OFFER",
+            "proposed_amount": 18000000.00,
+            "remarks": "Counter offer ₹1.8 Cr"
+        }, format="json")
+        self.client.post(f"/api/proposals/{prop_id}/negotiation/", {
+            "action": "ACCEPT",
+            "remarks": "Accepted ₹1.8 Cr"
+        }, format="json")
+
+        # 4. DM Sanction Budget
+        self.client.post(f"/api/proposals/{prop_id}/sanction/", {"sanctioned_amount": 18000000.00}, format="json")
+
+        # 5. Fund Release (Full Release)
+        self.client.post(f"/api/proposals/{prop_id}/release/", {
+            "release_type": "FULL",
+            "amount": 18000000.00,
+            "release_order_no": "REL-WORKFLOW-01"
+        }, format="json")
+
+        # Get linked ProjectExecution
+        res_projects = self.client.get("/api/projects/")
+        self.assertEqual(res_projects.status_code, status.HTTP_200_OK)
+        proj_list = res_projects.data["results"] if "results" in res_projects.data else res_projects.data
+        proj_item = [p for p in proj_list if p["title"] == "Integrated Community Healthcare Center"][0]
+        proj_id = proj_item["id"]
+
+        # 6. Dept Head Assigns Work
+        res_assign = self.client.post(f"/api/projects/{proj_id}/assign-work/", {
+            "contractor_name": "ABC Infra Ltd",
+            "assignment_notes": "Priority healthcare construction work assigned"
+        }, format="json")
+        self.assertEqual(res_assign.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_assign.data["project"]["contractor_name"], "ABC Infra Ltd")
+
+        # 7. Field Engineers Log Daily Progress (100%), Site Diary, e-MB
+        self.client.post(f"/api/projects/{proj_id}/daily-progress/", {
+            "progress_percentage": 100.0,
+            "labour_count": 45,
+            "materials_used": "Cement 500 bags, Steel 12 Tons",
+            "weather_condition": "CLEAR",
+            "diary_notes": "All civil and structural work completed 100%"
+        }, format="json")
+
+        self.client.post("/api/measurement-books/", {
+            "project": proj_id,
+            "item_description": "Structural RCC Work and Finishings",
+            "unit_of_measurement": "Sqm",
+            "measured_quantity": 1200.0,
+            "rate": 15000.0,
+            "total_amount": 18000000.0,
+            "status": "verified"
+        }, format="json")
+
+        # 8. Department Officer Field Work Review
+        res_off_rev = self.client.post(f"/api/projects/{proj_id}/officer-review/", {
+            "officer_review_status": "APPROVED",
+            "remarks": "Field site inspection completed, MB verified 100% accurate."
+        }, format="json")
+        self.assertEqual(res_off_rev.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_off_rev.data["project"]["officer_review_status"], "APPROVED")
+
+        # 9. Department Head Final Verification & Completion
+        res_verify = self.client.post(f"/api/projects/{proj_id}/verify-completion/", {
+            "verification_status": "APPROVED",
+            "remarks": "Project completion verified by Department Head."
+        }, format="json")
+        self.assertEqual(res_verify.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_verify.data["project"]["status"], "completed")
+        self.assertEqual(res_verify.data["verification_summary"]["verification_status"], "APPROVED")
+
+    def test_budget_utilization_module(self):
+        # Create Proposal, Sanction ₹1.5 Cr, Release ₹1.5 Cr
+        res_prop = self.client.post("/api/proposals/", {
+            "title": "Sub Division Water Supply Project",
+            "category": "Infrastructure",
+            "district": self.district.id,
+            "department": self.department.id,
+            "estimated_cost": 15000000.00
+        }, format="json")
+        prop_id = res_prop.data["id"]
+
+        self.client.post(f"/api/proposals/{prop_id}/sanction/", {"sanctioned_amount": 15000000.00}, format="json")
+        self.client.post(f"/api/proposals/{prop_id}/release/", {"release_type": "FULL", "amount": 15000000.00}, format="json")
+
+        res_projects = self.client.get("/api/projects/")
+        proj_list = res_projects.data["results"] if "results" in res_projects.data else res_projects.data
+        proj_item = [p for p in proj_list if p["title"] == "Sub Division Water Supply Project"][0]
+        proj_id = proj_item["id"]
+
+        # Create DEPARTMENT_OFFICER user in same department
+        officer_role, _ = Role.objects.get_or_create(code="DEPARTMENT_OFFICER", name="Department Officer")
+        dept_officer = User.objects.create_user(
+            username="dept_officer_test",
+            email="dept_officer@test.com",
+            password="Password123!",
+            role=officer_role,
+            department=self.department
+        )
+
+        # Force authenticate as DEPARTMENT_OFFICER
+        self.client.force_authenticate(user=dept_officer)
+
+        # 1. Invalid Amount (<= 0)
+        res_inv_amt = self.client.post(f"/api/projects/{proj_id}/expenditure/", {
+            "amount": 0.00,
+            "reference_no": "EXP-INV-01"
+        }, format="json")
+        self.assertEqual(res_inv_amt.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # 2. Record Tranche 1 Expenditure: ₹50 Lakhs (33.33%)
+        res_exp1 = self.client.post(f"/api/projects/{proj_id}/expenditure/", {
+            "amount": "5000000.00",
+            "expenditure_date": "2026-08-18",
+            "expense_type": "CIVIL_WORK",
+            "reference_no": "EXP-PRJ-001",
+            "remarks": "Civil foundation work expenditure verified against MB."
+        }, format="json")
+        self.assertEqual(res_exp1.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(res_exp1.data["budget_summary"]["utilized_amount"], 5000000.00)
+        self.assertEqual(res_exp1.data["budget_summary"]["remaining_amount"], 10000000.00)
+
+        # 3. Duplicate Reference No Check
+        res_dup = self.client.post(f"/api/projects/{proj_id}/expenditure/", {
+            "amount": "1000000.00",
+            "reference_no": "EXP-PRJ-001"
+        }, format="json")
+        self.assertEqual(res_dup.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # 4. Record Tranche 2 Expenditure: ₹1.0 Cr (Cumulative ₹1.5 Cr = 100%)
+        res_exp2 = self.client.post(f"/api/projects/{proj_id}/expenditure/", {
+            "amount": "10000000.00",
+            "expenditure_date": "2026-08-18",
+            "expense_type": "MATERIAL",
+            "reference_no": "EXP-PRJ-002",
+            "remarks": "Piping & equipment material supply expenditure verified."
+        }, format="json")
+        self.assertEqual(res_exp2.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(res_exp2.data["budget_summary"]["utilization_status"], "FULLY_UTILIZED")
+        self.assertEqual(res_exp2.data["budget_summary"]["remaining_amount"], 0.00)
+
+        # 5. Over-expenditure Check (Cumulative > Released Amount)
+        res_over = self.client.post(f"/api/projects/{proj_id}/expenditure/", {
+            "amount": "500000.00",
+            "reference_no": "EXP-PRJ-OVER"
+        }, format="json")
+        self.assertEqual(res_over.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # 6. GET Budget Utilization Summary Endpoint
+        res_util = self.client.get(f"/api/projects/{proj_id}/budget-utilization/")
+        self.assertEqual(res_util.status_code, status.HTTP_200_OK)
+        self.assertEqual(float(res_util.data["utilized_amount"]), 15000000.00)
+        self.assertEqual(float(res_util.data["remaining_amount"]), 0.00)
+        self.assertEqual(res_util.data["utilization_percentage"], 100.0)
+        self.assertEqual(res_util.data["utilization_status"], "FULLY_UTILIZED")
+        self.assertEqual(res_util.data["total_transactions"], 2)
+
+    def test_tiered_work_assignment_flow(self):
+        # Create Project
+        res_prop = self.client.post("/api/proposals/", {
+            "title": "Tiered Assignment Test Hospital Project",
+            "category": "Healthcare",
+            "district": self.district.id,
+            "department": self.department.id,
+            "estimated_cost": 25000000.00
+        }, format="json")
+        prop_id = res_prop.data["id"]
+
+        self.client.post(f"/api/proposals/{prop_id}/sanction/", {"sanctioned_amount": 25000000.00}, format="json")
+        res_projects = self.client.get("/api/projects/")
+        proj_list = res_projects.data["results"] if "results" in res_projects.data else res_projects.data
+        proj_item = [p for p in proj_list if p["title"] == "Tiered Assignment Test Hospital Project"][0]
+        proj_id = proj_item["id"]
+
+        # Create Department Officer User
+        officer_user = User.objects.create_user(
+            username="dept_officer_tier1",
+            email="officer_tier1@test.com",
+            password="Password123!",
+            department=self.department
+        )
+
+        # Create Junior Engineer User
+        engineer_user = User.objects.create_user(
+            username="je_engineer_tier2",
+            email="je_tier2@test.com",
+            password="Password123!",
+            department=self.department
+        )
+
+        # LEVEL 1: Department Head Assigns Department Officer
+        res_lvl1 = self.client.post(f"/api/projects/{proj_id}/assign-officer/", {
+            "assigned_officer_id": officer_user.id,
+            "assignment_notes": "Assigned to Nodal Dept Officer for healthcare supervision.",
+            "target_completion_date": "2026-12-31"
+        }, format="json")
+        self.assertEqual(res_lvl1.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_lvl1.data["assignment_level"], "LEVEL_1_DEPARTMENT_HEAD_TO_OFFICER")
+        self.assertEqual(res_lvl1.data["assigned_officer"]["id"], officer_user.id)
+
+        # LEVEL 2: Department Officer Assigns Junior Engineer & Contractor
+        res_lvl2 = self.client.post(f"/api/projects/{proj_id}/assign-engineer/", {
+            "assigned_engineer_id": engineer_user.id,
+            "contractor_name": "Nalanda Civil Infra Ltd",
+            "field_assignment_notes": "JE assigned for daily site measurements & e-MB entry."
+        }, format="json")
+        self.assertEqual(res_lvl2.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_lvl2.data["assignment_level"], "LEVEL_2_OFFICER_TO_FIELD_ENGINEER")
+        self.assertEqual(res_lvl2.data["contractor_name"], "Nalanda Civil Infra Ltd")
+        self.assertEqual(res_lvl2.data["assigned_engineer_name"], "je_engineer_tier2")
+
 
 
 

@@ -40,6 +40,7 @@ from myapp.models import (
     FinancialLedgerEntry,
     ProposalNegotiation,
     ProposalFundRelease,
+    ProjectExpenditure,
 )
 
 
@@ -1045,6 +1046,34 @@ class ProposalSerializer(serializers.ModelSerializer):
 # PROJECT EXECUTION ERP SERIALIZERS
 # ==========================================
 
+class ProjectExpenditureSerializer(serializers.ModelSerializer):
+    verified_by_name = serializers.SerializerMethodField(read_only=True)
+    expense_type_display = serializers.CharField(source="get_expense_type_display", read_only=True)
+
+    class Meta:
+        model = ProjectExpenditure
+        fields = [
+            "id",
+            "project",
+            "amount",
+            "expenditure_date",
+            "expense_type",
+            "expense_type_display",
+            "reference_no",
+            "remarks",
+            "verified_by",
+            "verified_by_name",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "verified_by", "verified_by_name", "created_at", "updated_at"]
+
+    def get_verified_by_name(self, obj):
+        if obj.verified_by:
+            return obj.verified_by.get_full_name() or obj.verified_by.username
+        return "Department Officer"
+
+
 class ProjectExecutionSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source="department.name", read_only=True)
     district_name = serializers.CharField(source="district.name", read_only=True)
@@ -1059,10 +1088,26 @@ class ProjectExecutionSerializer(serializers.ModelSerializer):
     net_payable_amount_formatted = serializers.SerializerMethodField(read_only=True)
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     risk_display = serializers.CharField(source="get_risk_level_display", read_only=True)
+    assigned_officer_name = serializers.SerializerMethodField(read_only=True)
+    assigned_engineer_name = serializers.SerializerMethodField(read_only=True)
+    officer_reviewed_by_name = serializers.SerializerMethodField(read_only=True)
+    completion_verified_by_name = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = ProjectExecution
         fields = "__all__"
+
+    def get_assigned_officer_name(self, obj):
+        return (obj.assigned_officer.get_full_name() or obj.assigned_officer.username) if obj.assigned_officer else None
+
+    def get_assigned_engineer_name(self, obj):
+        return (obj.assigned_engineer.get_full_name() or obj.assigned_engineer.username) if obj.assigned_engineer else None
+
+    def get_officer_reviewed_by_name(self, obj):
+        return (obj.officer_reviewed_by.get_full_name() or obj.officer_reviewed_by.username) if obj.officer_reviewed_by else None
+
+    def get_completion_verified_by_name(self, obj):
+        return (obj.completion_verified_by.get_full_name() or obj.completion_verified_by.username) if obj.completion_verified_by else None
 
     def get_proposed_amount_formatted(self, obj):
         amt = float(obj.proposed_amount or 0)

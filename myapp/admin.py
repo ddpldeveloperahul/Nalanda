@@ -9,7 +9,7 @@ from myapp.models import (
     GISCatalogEntry, GISDatasetVersionHistory, GISDataProvenance, GISProcessingJob, GISLayerFeature,
     Complaint, ComplaintCategory, ComplaintStatus, ComplaintEvidence, ComplaintPriority, ComplaintTimeline,
     ProjectExecution, SiteDiary, MeasurementBook, ProjectBill, ExecutionRisk, Report, Employee, EmployeeInvitation,
-    StateBudget, DepartmentBudget, DistrictAllocation, SchemeMaster, FinancialLedgerEntry, ProposalFundRelease
+    StateBudget, DepartmentBudget, DistrictAllocation, SchemeMaster, FinancialLedgerEntry, ProposalFundRelease, ProjectExpenditure
 )
 
 try:
@@ -407,6 +407,14 @@ class ProjectExecutionAdmin(admin.ModelAdmin):
     search_fields = ["project_id", "title", "contractor_name", "block"]
     def get_queryset(self, request):
         return super().get_queryset(request).filter(is_deleted=False)
+
+
+@admin.register(ProjectExpenditure)
+class ProjectExpenditureAdmin(admin.ModelAdmin):
+    list_display = ["id", "project", "amount", "expenditure_date", "expense_type", "reference_no", "verified_by", "created_at"]
+    list_filter = ["expense_type", "expenditure_date", "created_at"]
+    search_fields = ["project__project_id", "reference_no", "remarks"]
+    autocomplete_fields = ["project", "verified_by"]
 
 
 @admin.register(SiteDiary)

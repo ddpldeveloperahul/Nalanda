@@ -246,10 +246,24 @@ For every dropped pin location (`latitude, longitude`):
   6. `POST /api/proposals/{id}/step6-attachments/`: Step 6 - Upload DPR drawing PDFs & CAD attachments.
   7. `POST /api/proposals/{id}/submit/`: Step 7 - Submit DPR proposal for review (`DRAFT_DPR` $\rightarrow$ `PENDING_REVIEW`).
 
-### 6.3 DM Sanction & Approval Actions
-- **Approve Proposal:** `POST /api/proposals/{id}/approve/`
-- **Reject Proposal:** `POST /api/proposals/{id}/reject/` `{"review_notes": "..."}`
-- **Sanction Budget:** `POST /api/proposals/{id}/sanction/` `{"sanctioned_amount": 12000000.00}`
+### 6.3 DM Approval & Proposal Negotiation Module
+- **Direct Approval:** `POST /api/proposals/{id}/approve/`
+  - Approves proposal directly, sets `status = "APPROVED"`, and marks `approval_mode = "DIRECT"`.
+- **Negotiation Counter-Offer:** `POST /api/proposals/{id}/negotiation/` (or `POST /api/proposals/{id}/negotiation-response/`)
+  - Initiates or responds to negotiation counter-offers between DM and Department Head.
+  - Payload parameters: `action` (`COUNTER_OFFER`, `ACCEPT`, `REJECT`), `proposed_amount`, `proposed_timeline_days`, `proposed_scope`, `remarks`.
+  - **Financial Audit Rule:** Strictly preserves original `estimated_cost` (e.g. ₹8 Cr) for historical audit. Saves agreed terms to `agreed_amount` (e.g. ₹6 Cr), `agreed_timeline_days`, `agreed_scope`, and `approval_mode = "NEGOTIATED"`.
+- **Negotiation History:** `GET /api/proposals/{id}/negotiations/` & `GET /api/proposal-negotiations/`
+  - Retrieves full multi-round negotiation trajectory and audit trail.
+
+### 6.4 Proposal Budget Release Module (One-Time & Installment-wise)
+- **Release Budget Endpoint:** `POST /api/proposals/{id}/release/`
+  - **Mode 1: One-Time Full Release** (`"release_type": "FULL"`): Replaces budget in a single transaction, setting `release_status = "FULLY_RELEASED"` and `status = "FUNDS_RELEASED"`.
+  - **Mode 2: Installment-wise Release** (`"release_type": "INSTALLMENT"`): Replaces budget in tranches (e.g. 1st Tranche 30%, 2nd Tranche 70%), updating `released_amount`, `remaining_amount`, and setting `release_status = "PARTIALLY_RELEASED"`.
+  - **Date & Timestamp Tracking:** Every release record includes `release_date` (`YYYY-MM-DD`) and ISO `released_at` timestamp.
+  - **Strict Validations:** Locks proposal to `INSTALLMENT` mode once installment releases have started (prevents switching to `FULL`), and rejects releases when budget is exhausted (`100%` released).
+- **Release History Endpoint:** `GET /api/proposals/{id}/releases/` & `GET /api/proposal-releases/`
+  - Fetches complete list of release tranches, order numbers, released amounts, and remaining balance summary.
 
 ---
 
@@ -265,11 +279,23 @@ The Project Execution ERP module manages running infrastructure projects from sa
 - **Budget Sanction Action:** `POST /api/projects/{id}/sanction/`
   - Sanctions project budget, assigns sanction order number (`SAN-2026-NLD-XXX`), and transitions status to `IN_EXECUTION`.
 
-### 7.2 Site Diary & Daily Progress Logging
+### 7.2 Work Assignment & Officer Field Review
+- **Work Assignment Action:** `POST /api/projects/{id}/assign-work/`
+  - Department Head / DM assigns project work to Department Officer, Engineer, and Contractor.
+  - Parameters: `assigned_officer_id`, `assigned_engineer_id`, `contractor_name`, `assignment_notes`, `target_completion_date`.
+- **Officer Review Action:** `POST /api/projects/{id}/officer-review/`
+  - Department Officer reviews field work progress, Site Diaries, and Measurement Books.
+  - Parameters: `officer_review_status` (`APPROVED` / `REJECTED`), `remarks`.
+
+### 7.3 Site Diary & Daily Progress Logging
 - **Site Diary CRUD:** `GET` / `POST` `/api/site-diaries/` & `/api/site-diaries/{id}/`
 - **Daily Progress Action:** `POST /api/projects/{id}/daily-progress/`
   - Logs daily physical progress %, deployed labour count, materials consumed, weather condition, and optional execution risk signal.
-  - Automatically marks project as `COMPLETED` when progress reaches 100%.
+
+### 7.4 Department Head Final Completion Verification
+- **Verify Completion Action:** `POST /api/projects/{id}/verify-completion/`
+  - **Verification Safeguards:** Checks that progress is 100%, Site Diary exists, e-MB record exists, and no unresolved `CRITICAL` risk signals remain.
+  - **Approval Effect:** Sets `completion_verification_status = "APPROVED"`, transitions project status to `completed`, records `actual_completion_date`, and updates linked proposal.
 
 ### 7.3 Electronic Measurement Book (e-MB)
 - **MB Entries Endpoint:** `GET` / `POST` / `PUT` / `PATCH` / `DELETE` `/api/measurement-books/` & `/api/measurement-books/{id}/`
@@ -284,6 +310,15 @@ The Project Execution ERP module manages running infrastructure projects from sa
 - **Execution Risks Endpoint:** `GET` / `POST` / `PUT` / `PATCH` / `DELETE` `/api/execution-risks/` & `/api/execution-risks/{id}/`
   - Filters by project and severity (`low`, `medium`, `high`, `critical`).
   - Records active risk signals (e.g. monsoon waterlogging, material delivery delay), recommendations, and resolution status.
+
+### 7.6 Budget Utilization & Verified Expenditure Module
+- **Record Verified Expenditure:** `POST /api/projects/{id}/expenditure/`
+  - **RBAC Enforced:** Strictly restricted to `DEPARTMENT_OFFICER` belonging to the exact department of the project.
+  - **Validations:** `amount > 0`, `cumulative expenditure <= released amount`, `cumulative expenditure <= sanctioned amount`, `duplicate reference_no not allowed`.
+  - **Effect:** Preserves transaction history in `ProjectExpenditure` model and cumulatively updates `ProjectExecution.expenditure_amount`.
+- **Get Budget Utilization Summary:** `GET /api/projects/{id}/budget-utilization/`
+  - Returns `sanctioned_amount`, `released_amount`, `utilized_amount`, `remaining_amount`, `utilization_percentage`, `utilization_status` (`NOT_UTILIZED`, `PARTIALLY_UTILIZED`, `FULLY_UTILIZED`, `EXCEEDED`), `verified_by`, `verified_at`, and full transaction history.
+- **Expenditure History CRUD:** `GET /api/project-expenditures/?project={id}`
 
 ---
 
@@ -566,9 +601,16 @@ Registered Models in Django Admin (`http://127.0.0.1:8000/admin/`):
 | `/api/proposals/{id}/step5-clearances/` | `POST` | Bearer | Step 5: Save Clearances checklist |
 | `/api/proposals/{id}/step6-attachments/` | `POST` | Bearer | Step 6: Upload DPR drawings and attachments |
 | `/api/proposals/{id}/submit/` | `POST` | Bearer | Step 7: Submit DPR proposal for review (`DRAFT_DPR` -> `PENDING_REVIEW`) |
-| `/api/proposals/{id}/approve/` | `POST` | Bearer | Approve DPR proposal |
+| `/api/proposals/{id}/approve/` | `POST` | Bearer | Approve DPR proposal directly (`approval_mode = DIRECT`) |
 | `/api/proposals/{id}/reject/` | `POST` | Bearer | Reject DPR proposal with review notes |
 | `/api/proposals/{id}/sanction/` | `POST` | Bearer | Sanction proposal budget & issue sanction order |
+| `/api/proposals/{id}/negotiation/` | `POST` | Bearer | Send DM / Dept Head negotiation counter-offer or accept/reject |
+| `/api/proposals/{id}/negotiation-response/` | `POST` | Bearer | Respond to negotiation counter-offer |
+| `/api/proposals/{id}/negotiations/` | `GET` | Bearer | Retrieve full multi-round negotiation history for proposal |
+| `/api/proposal-negotiations/` | `GET` / `POST` | Bearer | Proposal negotiations CRUD ViewSet (`?proposal=<id>`) |
+| `/api/proposals/{id}/release/` | `POST` | Bearer | Release proposal budget (One-Time `FULL` or `INSTALLMENT`-wise tranches) |
+| `/api/proposals/{id}/releases/` | `GET` | Bearer | Retrieve full fund release tranches history with date & timestamp |
+| `/api/proposal-releases/` | `GET` / `POST` | Bearer | Proposal fund releases CRUD ViewSet (`?proposal=<id>`) |
 | `/api/projects/` | `GET` / `POST` | Bearer | Project Execution ERP CRUD list & create (filters: `department`, `district`, `status`, `risk`, `search`) |
 | `/api/projects/{id}/` | `GET` / `PUT` / `PATCH` / `DELETE` | Bearer | Project details retrieve, update, and soft/hard delete |
 | `/api/projects/summary/` | `GET` | Bearer | Aggregate execution KPIs (running count, budget utilized, bill totals, net payable) |

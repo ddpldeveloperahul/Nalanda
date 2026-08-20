@@ -1,4 +1,6 @@
 import re
+from datetime import datetime
+from decimal import Decimal
 from django.shortcuts import render
 from django.http import HttpResponse
 from django.db.models import Q, Count
@@ -49,6 +51,7 @@ from myapp.serializers import (
     LogoutSerializer,
     ProposalNegotiationSerializer,
     ProposalFundReleaseSerializer,
+    ProjectExpenditureSerializer,
 )
 from myapp.services.complaint_service import (
     ComplaintService,
@@ -3735,6 +3738,632 @@ class ProjectExecutionViewSet(viewsets.ModelViewSet):
             "sanction_order_no": sanction_no,
             "project": ProjectExecutionSerializer(project).data
         }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"], url_path="assign-officer")
+    def assign_officer(self, request, pk=None):
+        """
+        Level 1 Assignment: Department Head assigns project responsibility to Department Officer.
+        """
+        project = self.get_object()
+        user = request.user
+        data = self._extract_payload(request)
+
+        officer_id = data.get("assigned_officer_id") or data.get("assigned_officer") or data.get("officer_id")
+        notes = data.get("assignment_notes") or data.get("notes") or data.get("remarks")
+        target_date = data.get("target_completion_date")
+
+        if not officer_id:
+            return Response({
+                "error": "assigned_officer_id is required for Level 1 assignment."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        officer = User.objects.filter(pk=officer_id).first()
+        if not officer:
+            return Response({
+                "error": f"Department Officer with ID {officer_id} not found."
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        project.assigned_officer = officer
+        project.officer_assigned_at = timezone.now()
+        project.assigned_at = timezone.now()
+
+        if notes:
+            project.assignment_notes = notes
+
+        if target_date:
+            try:
+                project.target_completion_date = datetime.strptime(str(target_date).strip(), "%Y-%m-%d").date()
+            except Exception:
+                pass
+
+        project.save()
+
+        return Response({
+            "message": f"Level 1 Assignment: Project '{project.project_id}' assigned to Department Officer '{officer.get_full_name() or officer.username}'.",
+            "assignment_level": "LEVEL_1_DEPARTMENT_HEAD_TO_OFFICER",
+            "assigned_officer": {
+                "id": officer.id,
+                "name": officer.get_full_name() or officer.username,
+                "email": officer.email
+            },
+            "project": ProjectExecutionSerializer(project).data
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"], url_path="assign-engineer")
+    def assign_engineer(self, request, pk=None):
+        """
+        Level 2 Assignment: Department Officer assigns Junior Engineer (JE) / Field Engineer & Contractor.
+        Also accepts assigned_officer_id if passed in combined payload.
+        """
+        project = self.get_object()
+        user = request.user
+        data = self._extract_payload(request)
+
+        officer_id = data.get("assigned_officer_id") or data.get("assigned_officer") or data.get("officer_id")
+        engineer_id = data.get("assigned_engineer_id") or data.get("assigned_engineer") or data.get("engineer_id") or data.get("je_id")
+        contractor = data.get("contractor_name") or data.get("contractor")
+        notes = data.get("field_assignment_notes") or data.get("assignment_notes") or data.get("notes") or data.get("remarks")
+        target_date = data.get("target_completion_date")
+
+        if officer_id:
+            officer = User.objects.filter(pk=officer_id).first()
+            if officer:
+                project.assigned_officer = officer
+                project.officer_assigned_at = timezone.now()
+
+        if engineer_id:
+            engineer = User.objects.filter(pk=engineer_id).first()
+            if engineer:
+                project.assigned_engineer = engineer
+                project.engineer_assigned_at = timezone.now()
+
+        if contractor:
+            project.contractor_name = str(contractor).strip()
+
+        if notes:
+            project.field_assignment_notes = notes
+            if not project.assignment_notes:
+                project.assignment_notes = notes
+
+        if target_date:
+            try:
+                project.target_completion_date = datetime.strptime(str(target_date).strip(), "%Y-%m-%d").date()
+            except Exception:
+                pass
+
+        project.assigned_at = timezone.now()
+        project.save()
+
+        return Response({
+            "message": f"Field team & assignment for project '{project.project_id}' updated successfully.",
+            "assignment_level": "LEVEL_2_OFFICER_TO_FIELD_ENGINEER",
+            "assigned_officer_name": (project.assigned_officer.get_full_name() or project.assigned_officer.username) if project.assigned_officer else None,
+            "assigned_engineer_name": (project.assigned_engineer.get_full_name() or project.assigned_engineer.username) if project.assigned_engineer else None,
+            "contractor_name": project.contractor_name,
+            "project": ProjectExecutionSerializer(project).data
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"], url_path="assign-work")
+    def assign_work(self, request, pk=None):
+        """
+        Combined Assignment Action: Supports Level 1 (Dept Officer), Level 2 (JE / Contractor), or both.
+        """
+        project = self.get_object()
+        user = request.user
+        data = self._extract_payload(request)
+
+        officer_id = data.get("assigned_officer_id") or data.get("assigned_officer") or data.get("officer_id")
+        engineer_id = data.get("assigned_engineer_id") or data.get("assigned_engineer") or data.get("engineer_id") or data.get("je_id")
+        contractor = data.get("contractor_name") or data.get("contractor")
+        notes = data.get("assignment_notes") or data.get("notes") or data.get("remarks")
+        field_notes = data.get("field_assignment_notes")
+        target_date = data.get("target_completion_date")
+
+        if officer_id:
+            officer = User.objects.filter(pk=officer_id).first()
+            if officer:
+                project.assigned_officer = officer
+                project.officer_assigned_at = timezone.now()
+
+        if engineer_id:
+            engineer = User.objects.filter(pk=engineer_id).first()
+            if engineer:
+                project.assigned_engineer = engineer
+                project.engineer_assigned_at = timezone.now()
+
+        if contractor:
+            project.contractor_name = str(contractor).strip()
+
+        if notes:
+            project.assignment_notes = notes
+
+        if field_notes:
+            project.field_assignment_notes = field_notes
+
+        if target_date:
+            try:
+                project.target_completion_date = datetime.strptime(str(target_date).strip(), "%Y-%m-%d").date()
+            except Exception:
+                pass
+
+        project.assigned_at = timezone.now()
+        project.save()
+
+        return Response({
+            "message": f"Work assignment for project '{project.project_id}' recorded successfully.",
+            "assigned_officer_name": (project.assigned_officer.get_full_name() or project.assigned_officer.username) if project.assigned_officer else None,
+            "assigned_engineer_name": (project.assigned_engineer.get_full_name() or project.assigned_engineer.username) if project.assigned_engineer else None,
+            "contractor_name": project.contractor_name,
+            "project": ProjectExecutionSerializer(project).data
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"], url_path="officer-review")
+    def officer_review(self, request, pk=None):
+        """
+        Department Officer reviews field work, Site Diaries, and Measurement Books.
+        """
+        project = self.get_object()
+        user = request.user if request.user.is_authenticated else None
+        data = self._extract_payload(request)
+
+        review_status = str(data.get("officer_review_status") or data.get("review_status") or "APPROVED").upper().strip()
+        if review_status not in ["APPROVED", "REJECTED"]:
+            review_status = "APPROVED"
+
+        remarks = data.get("remarks") or data.get("review_remarks") or data.get("officer_review_remarks") or f"Field work reviewed and marked '{review_status}' by Department Officer."
+
+        project.officer_review_status = review_status
+        project.officer_reviewed_by = user
+        project.officer_reviewed_at = timezone.now()
+        project.officer_review_remarks = remarks
+        project.save()
+
+        return Response({
+            "message": f"Officer field work review for project '{project.project_id}' recorded as '{review_status}'.",
+            "reviewed_components": {
+                "progress_percentage": float(project.progress_percentage or 0),
+                "total_site_diaries": SiteDiary.objects.filter(project=project).count(),
+                "total_mb_entries": MeasurementBook.objects.filter(project=project).count(),
+                "total_risks_reported": ExecutionRisk.objects.filter(project=project).count()
+            },
+            "project": ProjectExecutionSerializer(project).data
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"], url_path="verify-completion")
+    def verify_completion(self, request, pk=None):
+        """
+        Department Head / DM Final Verification & Project Completion.
+        Checks:
+        1. Progress percentage is 100%
+        2. Site Diary exists
+        3. Measurement Book (e-MB) record exists
+        4. No unresolved critical risk signals
+        """
+        project = self.get_object()
+        user = request.user if request.user.is_authenticated else None
+        data = self._extract_payload(request)
+
+        verification_status = str(data.get("verification_status") or data.get("status") or "APPROVED").upper().strip()
+        remarks = data.get("remarks") or data.get("verification_remarks") or ""
+
+        if verification_status not in ["APPROVED", "REJECTED"]:
+            return Response({
+                "error": "verification_status must be APPROVED or REJECTED."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        progress = float(project.progress_percentage or 0)
+
+        if verification_status == "APPROVED":
+            if progress < 100:
+                return Response({
+                    "error": f"Project cannot be marked completed until progress reaches 100%. Current progress is {progress}%.",
+                    "current_progress": progress
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            site_diary_exists = SiteDiary.objects.filter(project=project).exists()
+            if not site_diary_exists:
+                return Response({
+                    "error": "Site Diary entry is required before final completion verification."
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            mb_exists = MeasurementBook.objects.filter(project=project).exists()
+            if not mb_exists:
+                return Response({
+                    "error": "Electronic Measurement Book (e-MB) record is required before final completion verification."
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            unresolved_critical_risks = ExecutionRisk.objects.filter(
+                project=project,
+                severity__iexact="CRITICAL",
+                status__in=["OPEN", "ACTIVE", "PENDING"]
+            ).exists()
+            if unresolved_critical_risks:
+                return Response({
+                    "error": "Project has unresolved CRITICAL risk signals. Resolve all critical risks before verifying completion."
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            with transaction.atomic():
+                project.completion_verification_status = "APPROVED"
+                project.completion_verified_by = user
+                project.completion_verified_at = timezone.now()
+                project.completion_verification_remarks = remarks or "Project completion verified and approved by Department Head."
+                project.status = ProjectStatus.COMPLETED if hasattr(ProjectStatus, 'COMPLETED') else "COMPLETED"
+                project.actual_completion_date = timezone.now().date()
+                project.save()
+
+                if project.proposal:
+                    project.proposal.status = ProposalStatus.IN_EXECUTION
+                    project.proposal.save()
+
+            return Response({
+                "message": f"Project '{project.project_id}' completion verified and approved successfully.",
+                "verification_summary": {
+                    "project_id": project.project_id,
+                    "verification_status": project.completion_verification_status,
+                    "project_status": project.status,
+                    "verified_by_name": user.get_full_name() or user.username if user else "Department Head",
+                    "verified_at": project.completion_verified_at.isoformat(),
+                    "remarks": project.completion_verification_remarks
+                },
+                "project": ProjectExecutionSerializer(project).data
+            }, status=status.HTTP_200_OK)
+
+        # REJECT COMPLETION
+        project.completion_verification_status = "REJECTED"
+        project.completion_verified_by = user
+        project.completion_verified_at = timezone.now()
+        project.completion_verification_remarks = remarks or "Project completion verification rejected by Department Head."
+        project.status = ProjectStatus.IN_EXECUTION
+        project.save()
+
+        return Response({
+            "message": f"Project '{project.project_id}' completion verification rejected.",
+            "verification_summary": {
+                "project_id": project.project_id,
+                "verification_status": project.completion_verification_status,
+                "project_status": project.status,
+                "remarks": project.completion_verification_remarks
+            },
+            "project": ProjectExecutionSerializer(project).data
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["get", "post"], url_path="expenditure")
+    def record_expenditure(self, request, pk=None):
+        """
+        Record verified expenditure / budget utilization transaction against project.
+        GET: List expenditure history.
+        POST: Create new expenditure transaction.
+        Restricted to DEPARTMENT_OFFICER belonging to the same department as the project.
+        """
+        project = self.get_object()
+
+        if request.method.upper() == "GET":
+            history = ProjectExpenditureSerializer(
+                project.expenditures.all().order_by("-created_at"), many=True
+            ).data
+            return Response({
+                "project_id": project.project_id,
+                "title": project.title,
+                "total_expenditures": len(history),
+                "expenditures": history
+            }, status=status.HTTP_200_OK)
+
+        user = request.user
+        data = self._extract_payload(request)
+
+        # RBAC Check: Must be DEPARTMENT_OFFICER (or admin/superuser)
+        if not user or not user.is_authenticated:
+            return Response({
+                "error": "Authentication required."
+            }, status=status.HTTP_401_UNAUTHORIZED)
+
+        is_admin_user = user.is_superuser or user.is_staff
+        role_obj = getattr(user, "role", None)
+        role_code = str(getattr(role_obj, "code", "") or getattr(role_obj, "name", "") or role_obj).upper()
+
+        if not is_admin_user and "DEPARTMENT_OFFICER" not in role_code and "DEPT_OFFICER" not in role_code:
+            return Response({
+                "error": "Access Denied: Only DEPARTMENT_OFFICER can create expenditure and budget utilization records."
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # Department Matching Check: Officer must belong to project's department
+        if not is_admin_user and project.department and getattr(user, "department", None):
+            if user.department != project.department:
+                return Response({
+                    "error": f"Access Denied: Department Officer belongs to '{user.department.name}' but project belongs to '{project.department.name}'."
+                }, status=status.HTTP_403_FORBIDDEN)
+
+        amount_val = safe_float(data.get("amount")) or safe_float(data.get("expenditure_amount"))
+        if amount_val is None or amount_val <= 0:
+            return Response({
+                "error": "Expenditure amount must be greater than 0."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        ref_no = data.get("reference_no") or data.get("ref_no") or data.get("order_no")
+        if not ref_no:
+            count_num = ProjectExpenditure.objects.count() + 1
+            ref_no = f"EXP-{project.project_id}-{count_num:03d}"
+        else:
+            ref_no = str(ref_no).strip()
+
+        # Duplicate reference_no check
+        if ProjectExpenditure.objects.filter(reference_no__iexact=ref_no).exists():
+            return Response({
+                "error": f"Expenditure transaction with reference_no '{ref_no}' already exists."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        exp_date_str = data.get("expenditure_date") or data.get("expense_date")
+        exp_date = timezone.now().date()
+        if exp_date_str:
+            try:
+                exp_date = datetime.strptime(str(exp_date_str).strip(), "%Y-%m-%d").date()
+            except Exception:
+                pass
+
+        expense_type = str(data.get("expense_type", "CIVIL_WORK")).upper().strip()
+        remarks = data.get("remarks") or data.get("description") or f"Expenditure verified against MB and bills."
+
+        sanctioned_amount = float(project.sanction_amount or 0)
+        released_amount = 0.0
+        if project.proposal and float(project.proposal.released_amount or 0) > 0:
+            released_amount = float(project.proposal.released_amount)
+        elif project.proposal and project.proposal.fund_releases.exists():
+            released_amount = sum(float(r.amount) for r in project.proposal.fund_releases.all())
+        else:
+            released_amount = sanctioned_amount
+
+        current_utilized = float(project.expenditure_amount or 0)
+        cumulative_utilized = current_utilized + amount_val
+
+        if released_amount > 0 and cumulative_utilized > (released_amount + 0.01):
+            return Response({
+                "error": f"Cumulative expenditure ₹{cumulative_utilized:,.2f} exceeds total released budget ₹{released_amount:,.2f}."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if sanctioned_amount > 0 and cumulative_utilized > (sanctioned_amount + 0.01):
+            return Response({
+                "error": f"Cumulative expenditure ₹{cumulative_utilized:,.2f} exceeds total sanctioned budget ₹{sanctioned_amount:,.2f}."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            exp = ProjectExpenditure.objects.create(
+                project=project,
+                amount=amount_val,
+                expenditure_date=exp_date,
+                expense_type=expense_type,
+                reference_no=ref_no,
+                remarks=remarks,
+                verified_by=user
+            )
+            recalculate_project_expenditure(project)
+        remaining_bal = max(0.00, released_amount - cumulative_utilized)
+        util_pct = round((cumulative_utilized / released_amount * 100.0), 2) if released_amount > 0 else 0.0
+
+        if cumulative_utilized <= 0:
+            util_status = "NOT_UTILIZED"
+        elif remaining_bal <= 0.01:
+            util_status = "FULLY_UTILIZED"
+        elif cumulative_utilized > released_amount:
+            util_status = "EXCEEDED"
+        else:
+            util_status = "PARTIALLY_UTILIZED"
+
+        return Response({
+            "message": f"Expenditure transaction '{ref_no}' of ₹{amount_val:,.2f} recorded and verified successfully.",
+            "expenditure": ProjectExpenditureSerializer(exp).data,
+            "budget_summary": {
+                "sanctioned_amount": sanctioned_amount,
+                "released_amount": released_amount,
+                "utilized_amount": cumulative_utilized,
+                "remaining_amount": remaining_bal,
+                "utilization_percentage": util_pct,
+                "utilization_status": util_status,
+                "verified_by": user.id,
+                "verified_by_name": user.get_full_name() or user.username if user else "Department Officer",
+                "verified_at": exp.created_at.isoformat()
+            }
+        }, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["get"], url_path="expenditures")
+    def list_expenditures(self, request, pk=None):
+        """List all expenditure records for a project."""
+        project = self.get_object()
+        history = ProjectExpenditureSerializer(
+            project.expenditures.all().order_by("-created_at"), many=True
+        ).data
+        return Response({
+            "project_id": project.project_id,
+            "title": project.title,
+            "total_expenditures": len(history),
+            "expenditures": history
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["get", "put", "patch", "delete"], url_path=r"expenditure/(?P<exp_id>\d+)")
+    def expenditure_detail_action(self, request, pk=None, exp_id=None):
+        """
+        Nested CRUD Action: GET, PUT, PATCH, DELETE for a specific expenditure item.
+        URL: /api/projects/{project_id}/expenditure/{exp_id}/
+        """
+        project = self.get_object()
+        exp_item = project.expenditures.filter(pk=exp_id).first()
+
+        if not exp_item:
+            return Response({
+                "error": f"Expenditure record with ID {exp_id} not found for project '{project.project_id}'."
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        method = request.method.upper()
+
+        if method == "GET":
+            return Response({
+                "expenditure": ProjectExpenditureSerializer(exp_item).data
+            }, status=status.HTTP_200_OK)
+
+        user = request.user
+        data = self._extract_payload(request)
+
+        # RBAC Check for Update / Delete
+        is_admin_user = user.is_superuser or user.is_staff if (user and user.is_authenticated) else False
+        role_obj = getattr(user, "role", None) if (user and user.is_authenticated) else None
+        role_code = str(getattr(role_obj, "code", "") or getattr(role_obj, "name", "") or role_obj).upper()
+
+        if not is_admin_user and "DEPARTMENT_OFFICER" not in role_code and "DEPT_OFFICER" not in role_code:
+            return Response({
+                "error": "Access Denied: Only DEPARTMENT_OFFICER can update or delete expenditure records."
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        if method == "DELETE":
+            ref_no = exp_item.reference_no
+            amt = float(exp_item.amount)
+            exp_item.delete()
+            recalculate_project_expenditure(project)
+
+            return Response({
+                "message": f"Expenditure record '{ref_no}' of ₹{amt:,.2f} deleted successfully.",
+                "updated_project_expenditure": float(project.expenditure_amount)
+            }, status=status.HTTP_200_OK)
+
+        # PUT / PATCH Update
+        amount_val = safe_float(data.get("amount")) if data.get("amount") is not None else float(exp_item.amount)
+        if amount_val <= 0:
+            return Response({
+                "error": "Expenditure amount must be greater than 0."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        ref_no = data.get("reference_no") or exp_item.reference_no
+        if ref_no != exp_item.reference_no and ProjectExpenditure.objects.filter(reference_no__iexact=ref_no).exclude(pk=exp_item.pk).exists():
+            return Response({
+                "error": f"Expenditure record with reference_no '{ref_no}' already exists."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        other_total = sum(float(e.amount) for e in project.expenditures.exclude(pk=exp_item.pk))
+        new_cumulative = other_total + amount_val
+
+        sanctioned_amount = float(project.sanction_amount or 0)
+        released_amount = float(project.proposal.released_amount) if (project.proposal and float(project.proposal.released_amount or 0) > 0) else sanctioned_amount
+
+        if released_amount > 0 and new_cumulative > (released_amount + 0.01):
+            return Response({
+                "error": f"Updated cumulative expenditure ₹{new_cumulative:,.2f} exceeds total released budget ₹{released_amount:,.2f}."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        exp_item.amount = amount_val
+        exp_item.reference_no = ref_no
+        if data.get("expense_type"):
+            exp_item.expense_type = str(data.get("expense_type")).upper().strip()
+        if data.get("remarks"):
+            exp_item.remarks = data.get("remarks")
+        if data.get("expenditure_date"):
+            try:
+                exp_item.expenditure_date = datetime.strptime(str(data.get("expenditure_date")).strip(), "%Y-%m-%d").date()
+            except Exception:
+                pass
+
+        exp_item.save()
+        recalculate_project_expenditure(project)
+
+        return Response({
+            "message": f"Expenditure record '{exp_item.reference_no}' updated successfully.",
+            "expenditure": ProjectExpenditureSerializer(exp_item).data,
+            "updated_project_expenditure": float(project.expenditure_amount)
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["get"], url_path="budget-utilization")
+    def get_budget_utilization(self, request, pk=None):
+        """
+        Get complete budget utilization summary and transaction history for project.
+        """
+        project = self.get_object()
+        sanctioned_amount = float(project.sanction_amount or 0)
+
+        released_amount = 0.0
+        if project.proposal and float(project.proposal.released_amount or 0) > 0:
+            released_amount = float(project.proposal.released_amount)
+        elif project.proposal and project.proposal.fund_releases.exists():
+            released_amount = sum(float(r.amount) for r in project.proposal.fund_releases.all())
+        else:
+            released_amount = sanctioned_amount
+
+        utilized_amount = float(project.expenditure_amount or 0)
+        remaining_amount = max(0.00, released_amount - utilized_amount)
+
+        pct = round((utilized_amount / released_amount * 100.0), 2) if released_amount > 0 else 0.0
+
+        if utilized_amount <= 0:
+            util_status = "NOT_UTILIZED"
+        elif remaining_amount <= 0.01:
+            util_status = "FULLY_UTILIZED"
+        elif utilized_amount > released_amount:
+            util_status = "EXCEEDED"
+        else:
+            util_status = "PARTIALLY_UTILIZED"
+
+        last_exp = project.expenditures.order_by("-created_at").first()
+        verified_by_id = last_exp.verified_by.id if (last_exp and last_exp.verified_by) else None
+        verified_by_name = (last_exp.verified_by.get_full_name() or last_exp.verified_by.username) if (last_exp and last_exp.verified_by) else None
+        verified_at = last_exp.created_at.isoformat() if last_exp else None
+
+        history = ProjectExpenditureSerializer(project.expenditures.all().order_by("-created_at"), many=True).data
+
+        return Response({
+            "project_id": project.project_id,
+            "title": project.title,
+            "sanctioned_amount": sanctioned_amount,
+            "released_amount": released_amount,
+            "utilized_amount": utilized_amount,
+            "remaining_amount": remaining_amount,
+            "utilization_percentage": pct,
+            "utilization_status": util_status,
+            "verified_by": verified_by_id,
+            "verified_by_name": verified_by_name,
+            "verified_at": verified_at,
+            "total_transactions": len(history),
+            "history": history
+        }, status=status.HTTP_200_OK)
+
+
+def recalculate_project_expenditure(project):
+    """Utility helper to recalculate and save cumulative expenditure_amount on ProjectExecution."""
+    total = sum(float(e.amount or 0) for e in project.expenditures.all())
+    project.expenditure_amount = Decimal(str(total))
+    project.save(update_fields=["expenditure_amount", "updated_at"])
+    return total
+
+
+class ProjectExpenditureViewSet(viewsets.ModelViewSet):
+    """
+    Complete RESTful ViewSet for Verified Project Expenditures / Budget Utilization.
+    Filterable by ?project=<project_id>.
+    """
+    queryset = ProjectExpenditure.objects.all().select_related("project", "verified_by")
+    serializer_class = ProjectExpenditureSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        proj_val = self.request.query_params.get("project") or self.request.query_params.get("project_id")
+        if proj_val:
+            proj_str = str(proj_val).strip()
+            if proj_str.isdigit():
+                qs = qs.filter(Q(project_id=int(proj_str)) | Q(project__project_id__iexact=proj_str))
+            else:
+                qs = qs.filter(Q(project__project_id__iexact=proj_str) | Q(project__project_id__icontains=proj_str))
+        return qs.order_by("-created_at")
+
+    def perform_create(self, serializer):
+        user = self.request.user if self.request.user.is_authenticated else None
+        exp = serializer.save(verified_by=user)
+        recalculate_project_expenditure(exp.project)
+
+    def perform_update(self, serializer):
+        exp = serializer.save()
+        recalculate_project_expenditure(exp.project)
+
+    def perform_destroy(self, instance):
+        project = instance.project
+        instance.delete()
+        recalculate_project_expenditure(project)
 
 
 class SiteDiaryViewSet(viewsets.ModelViewSet):
