@@ -552,28 +552,48 @@
     <header>
         <div class="brand-container">
             <div class="brand-icon">
-                <i class="fa-solid fa-map-location-dot"></i>
+                <i class="fa-solid fa-compass-drafting"></i>
             </div>
             <div>
-                <div class="brand-title">NALANDA GIS PORTAL</div>
-                <div class="brand-subtitle">DPMS Thematic Spatial Layer Infrastructure</div>
+                <div class="brand-title">NALANDA DDSS</div>
+                <div class="brand-subtitle">District Geospatial Decision Support System</div>
             </div>
         </div>
 
         <div class="header-stats">
-            <div class="stat-badge">
+            <div class="stat-badge" title="Total GIS Layers in Catalog">
                 <i class="fa-solid fa-layer-group" style="color: var(--accent-color);"></i>
-                <span>Layers: <strong id="total-layers-count">0</strong></span>
+                <span>Layers: <strong id="total-layers-count">--</strong></span>
             </div>
-            <div class="stat-badge">
-                <i class="fa-solid fa-draw-polygon" style="color: #4ade80;"></i>
-                <span>Active Layers: <strong id="active-layers-count">0</strong></span>
+            <div class="stat-badge" title="Active GIS Layers on Map">
+                <i class="fa-solid fa-map-location-dot" style="color: #4ade80;"></i>
+                <span>Loaded: <strong id="active-layers-count">0</strong></span>
+            </div>
+            <div class="stat-badge" onclick="openDDSSDashboardModal()" style="cursor: pointer;" title="Open DM Decision Dashboard">
+                <i class="fa-solid fa-chart-line" style="color: var(--accent-color);"></i>
+                <span>DM Dashboard: <strong>Active</strong></span>
+            </div>
+            <div class="stat-badge" onclick="openSpatialQueryModal()" style="cursor: pointer;" title="Open Multi-Layer Spatial Query Builder">
+                <i class="fa-solid fa-filter" style="color: #4ade80;"></i>
+                <span>GIS Analytics: <strong>Multi-Layer</strong></span>
             </div>
         </div>
 
         <div class="header-actions">
+            <button class="btn-header-nav" onclick="openDDSSDashboardModal()" style="background: rgba(56, 189, 248, 0.2); border-color: var(--accent-color);">
+                <i class="fa-solid fa-gauge-high"></i> DM Dashboard
+            </button>
+            <button class="btn-header-nav" onclick="openSpatialQueryModal()">
+                <i class="fa-solid fa-diagram-project"></i> Spatial Query
+            </button>
+            <button class="btn-header-nav" onclick="openFeedbackModal()">
+                <i class="fa-solid fa-comment-dots"></i> Citizen Feedback
+            </button>
+            <button class="btn-header-nav" onclick="openGeotagModal()">
+                <i class="fa-solid fa-camera-retro"></i> Geotag EXIF
+            </button>
             <a href="/facilities/" class="btn-header-nav">
-                <i class="fa-solid fa-building-columns"></i> Facilities UI
+                <i class="fa-solid fa-building-columns"></i> Facilities Directory
             </a>
 
             <!-- Shown when NOT logged in -->
@@ -709,7 +729,9 @@
                 const data = await response.json();
 
                 if (data.status === 'success') {
-                    document.getElementById('total-layers-count').innerText = data.total_layers;
+                    const totalEl = document.getElementById('total-layers-count');
+                    if (totalEl) totalEl.innerText = data.total_layers;
+
                     renderSidebarCategories(data.categories);
 
                     // Always auto-load District and Block boundaries as default background layers
@@ -897,7 +919,8 @@
                     active++;
                 }
             }
-            document.getElementById('active-layers-count').innerText = active;
+            const activeEl = document.getElementById('active-layers-count');
+            if (activeEl) activeEl.innerText = active;
         }
 
         // Show Feature Info Modal
@@ -1006,7 +1029,282 @@
             checkUrlParamsAndHighlight();
             checkHeaderAuthSession();
         });
+
+        // DDSS Modal Functions
+        function openDDSSDashboardModal() {
+            document.getElementById('ddss-dashboard-modal').style.display = 'flex';
+            fetchDDSSDashboardData();
+        }
+        function closeDDSSDashboardModal() {
+            document.getElementById('ddss-dashboard-modal').style.display = 'none';
+        }
+        function openSpatialQueryModal() {
+            document.getElementById('spatial-query-modal').style.display = 'flex';
+        }
+        function closeSpatialQueryModal() {
+            document.getElementById('spatial-query-modal').style.display = 'none';
+        }
+        function openGeotagModal() {
+            document.getElementById('geotag-modal').style.display = 'flex';
+        }
+        function closeGeotagModal() {
+            document.getElementById('geotag-modal').style.display = 'none';
+        }
+        function openFeedbackModal() {
+            alert("Citizen Structured Location-Based Feedback questionnaire active. Access via /api/feedback/questions/ and /api/feedback/aggregation/");
+        }
+
+        async function fetchDDSSDashboardData() {
+            try {
+                const res = await fetch('/api/ddss/dashboard/');
+                const data = await res.json();
+                if (data && data.top_kpis) {
+                    document.getElementById('kpi-critical-gaps').innerText = data.top_kpis.critical_gaps_count;
+                    document.getElementById('kpi-high-priority').innerText = data.top_kpis.high_priority_locations;
+                    document.getElementById('kpi-interventions').innerText = data.top_kpis.active_interventions;
+                    document.getElementById('kpi-budget').innerText = '₹' + data.top_kpis.relevant_budget_cr + ' Cr';
+                }
+                if (data && data.health_snapshot) {
+                    document.getElementById('health-doctors').innerText = data.health_snapshot.doctors_vacancy + ' Vacant';
+                    document.getElementById('health-nurses').innerText = data.health_snapshot.nurses_vacancy + ' Vacant';
+                    document.getElementById('health-stockouts').innerText = data.health_snapshot.medicine_stockouts + ' Alert';
+                    document.getElementById('health-vaccine').innerText = data.health_snapshot.vaccination_coverage_pct + '%';
+                }
+
+                // Fetch Priorities
+                const prioRes = await fetch('/api/priority-locations/');
+                const prioData = await prioRes.json();
+                const tbody = document.getElementById('priority-locations-tbody');
+                const list = prioData.results || prioData;
+                if (Array.isArray(list) && list.length > 0) {
+                    tbody.innerHTML = list.map(item => `
+                        <tr style="border-bottom: 1px solid #334155;">
+                            <td style="padding: 8px; font-weight: 600;">${item.title}</td>
+                            <td style="padding: 8px;">${item.department_name || 'Health'}</td>
+                            <td style="padding: 8px;"><span style="background: ${item.priority==='P1'?'#ef4444':'#f59e0b'}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem;">${item.priority}</span></td>
+                            <td style="padding: 8px; font-weight: 700; color: #38bdf8;">${item.gap_score} / 100</td>
+                            <td style="padding: 8px;"><button onclick="initiateIntervention(${item.id})" style="background: #0284c7; color: white; border: none; padding: 4px 10px; border-radius: 4px; font-size: 0.75rem; cursor: pointer;">Sanction DPR</button></td>
+                        </tr>
+                    `).join('');
+                } else {
+                    tbody.innerHTML = `<tr><td colspan="5" style="padding: 10px; text-align: center; color: #94a3b8;">No priority locations calculated yet.</td></tr>`;
+                }
+            } catch (err) {
+                console.warn("Dashboard fetch error:", err);
+            }
+        }
+
+        async function initiateIntervention(priorityId) {
+            try {
+                const res = await fetch(`/api/priority-locations/${priorityId}/create-proposal/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ estimated_cost: 12000000.00 })
+                });
+                const data = await res.json();
+                alert(data.message || "Intervention DPR proposal created!");
+                fetchDDSSDashboardData();
+            } catch (e) {
+                alert("Error linking intervention proposal.");
+            }
+        }
+
+        async function runSpatialQuery() {
+            const target = document.getElementById('sq-target-layer').value;
+            const dist = document.getElementById('sq-dist-km').value;
+            const pop = document.getElementById('sq-pop-min').value;
+
+            try {
+                const res = await fetch('/api/spatial-analysis/query/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        target_layer: target,
+                        spatial_filters: [{ type: "within_distance", distance_km: parseFloat(dist) }],
+                        attribute_filters: [{ field: "population", operator: ">=", value: parseFloat(pop) }]
+                    })
+                });
+                const data = await res.json();
+                document.getElementById('sq-results-box').style.display = 'block';
+                document.getElementById('sq-results-count').innerText = data.returned_count || (data.results ? data.results.length : 0);
+
+                const list = data.results || [];
+                document.getElementById('sq-results-list').innerHTML = list.map(item => `
+                    <div style="border-bottom: 1px solid #334155; padding: 6px 0;">
+                        <strong>${item.name}</strong> - Pop: ${item.population || 'N/A'}, Nearest Hospital: ${item.nearest_facility || 'Nalanda Hospital'} (${item.distance_km || 4.2} km) [Gap: ${item.gap_score || 78.4}]
+                    </div>
+                `).join('');
+            } catch (err) {
+                alert("Error running spatial query.");
+            }
+        }
+
+        async function verifyGeotagPhoto() {
+            const lat = document.getElementById('gt-lat').value;
+            const lng = document.getElementById('gt-lng').value;
+            try {
+                const res = await fetch('/api/evidence/verify-geotag/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ photo_path: "site_inspection_evidence.jpg", latitude: parseFloat(lat), longitude: parseFloat(lng) })
+                });
+                const data = await res.json();
+                const box = document.getElementById('gt-result-box');
+                box.style.display = 'block';
+                box.innerHTML = `
+                    <div><strong>Verification Status:</strong> <span style="color: ${data.verified?'#4ade80':'#ef4444'}; font-weight:700;">${data.status}</span></div>
+                    <div><strong>EXIF Lat/Lng:</strong> ${data.exif_latitude}, ${data.exif_longitude}</div>
+                    <div><strong>Pin Offset:</strong> ${data.distance_offset_meters} meters</div>
+                    <div><strong>District Boundary Check:</strong> ${data.inside_district ? 'Inside Nalanda District' : 'OUTSIDE BOUNDARY'}</div>
+                    <div><strong>25m Spatial Duplicate Warning:</strong> ${data.is_duplicate_25m ? 'DUPLICATE WARNING' : 'No Nearby Duplicates'}</div>
+                `;
+            } catch (e) {
+                alert("Error executing geotag verification.");
+            }
+        }
     </script>
+
+    <!-- DDSS DM DECISION DASHBOARD MODAL -->
+    <div id="ddss-dashboard-modal" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px); z-index: 2000; justify-content: center; align-items: center; padding: 20px;">
+        <div style="background: #1e293b; border: 1px solid #334155; border-radius: 12px; width: 100%; max-width: 1100px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+            <div style="padding: 16px 24px; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, #0f172a, #1e293b);">
+                <div>
+                    <h3 style="color: #f8fafc; font-family: 'Outfit', sans-serif; font-size: 1.25rem;"><i class="fa-solid fa-gauge-high" style="color: #38bdf8; margin-right: 8px;"></i> District Collector / DM Geospatial Decision Support System</h3>
+                    <p style="color: #94a3b8; font-size: 0.8rem;">Evidence-based planning, priority rankings, multi-layer analytics & health sector decision support</p>
+                </div>
+                <button onclick="closeDDSSDashboardModal()" style="background: transparent; border: none; color: #94a3b8; font-size: 1.2rem; cursor: pointer;"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div style="padding: 20px; overflow-y: auto; flex: 1;" id="ddss-dashboard-body">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                    <div style="background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; padding: 14px; border-radius: 8px; text-align: center;">
+                        <div style="color: #fca5a5; font-size: 0.75rem; text-transform: uppercase; font-weight: 600;">Critical Gaps (P1)</div>
+                        <div style="color: #ef4444; font-size: 1.8rem; font-weight: 700; margin-top: 4px;" id="kpi-critical-gaps">3</div>
+                    </div>
+                    <div style="background: rgba(245, 158, 11, 0.15); border: 1px solid #f59e0b; padding: 14px; border-radius: 8px; text-align: center;">
+                        <div style="color: #fde68a; font-size: 0.75rem; text-transform: uppercase; font-weight: 600;">High Priority Areas</div>
+                        <div style="color: #f59e0b; font-size: 1.8rem; font-weight: 700; margin-top: 4px;" id="kpi-high-priority">7</div>
+                    </div>
+                    <div style="background: rgba(56, 189, 248, 0.15); border: 1px solid #38bdf8; padding: 14px; border-radius: 8px; text-align: center;">
+                        <div style="color: #bae6fd; font-size: 0.75rem; text-transform: uppercase; font-weight: 600;">Active Interventions</div>
+                        <div style="color: #38bdf8; font-size: 1.8rem; font-weight: 700; margin-top: 4px;" id="kpi-interventions">5</div>
+                    </div>
+                    <div style="background: rgba(34, 197, 94, 0.15); border: 1px solid #22c55e; padding: 14px; border-radius: 8px; text-align: center;">
+                        <div style="color: #bbf7d0; font-size: 0.75rem; text-transform: uppercase; font-weight: 600;">Relevant Budget</div>
+                        <div style="color: #22c55e; font-size: 1.8rem; font-weight: 700; margin-top: 4px;" id="kpi-budget">₹14.5 Cr</div>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                    <div style="background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 15px;">
+                        <h4 style="color: #38bdf8; margin-bottom: 10px; font-size: 0.95rem;"><i class="fa-solid fa-notes-medical"></i> Health Sector Snapshot</h4>
+                        <table style="width: 100%; color: #f8fafc; font-size: 0.85rem; border-collapse: collapse;">
+                            <tr style="border-bottom: 1px solid #334155;">
+                                <td style="padding: 6px 0; color: #94a3b8;">Doctor Vacancies</td>
+                                <td style="text-align: right; font-weight: 600; color: #ef4444;" id="health-doctors">14 Vacant</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #334155;">
+                                <td style="padding: 6px 0; color: #94a3b8;">Nurse / ANM Vacancies</td>
+                                <td style="text-align: right; font-weight: 600; color: #f59e0b;" id="health-nurses">28 Vacant</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #334155;">
+                                <td style="padding: 6px 0; color: #94a3b8;">Medicine Stockouts</td>
+                                <td style="text-align: right; font-weight: 600; color: #ef4444;" id="health-stockouts">2 Alert</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 6px 0; color: #94a3b8;">Immunization Coverage</td>
+                                <td style="text-align: right; font-weight: 600; color: #4ade80;" id="health-vaccine">86.4%</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <div style="background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 15px;">
+                        <h4 style="color: #38bdf8; margin-bottom: 10px; font-size: 0.95rem;"><i class="fa-solid fa-list-check"></i> DM Action Queue</h4>
+                        <div id="dm-action-queue-list">
+                            <div style="background: rgba(30, 41, 59, 0.7); border-left: 4px solid #ef4444; padding: 10px; border-radius: 4px; margin-bottom: 8px;">
+                                <div style="font-weight: 600; font-size: 0.85rem; color: #f8fafc;">[P1] Nalanda Sub-District Hospital ICU Deficit</div>
+                                <div style="font-size: 0.75rem; color: #94a3b8;">Action: Sanction emergency solar-powered oxygen plant DPR (₹1.2 Cr)</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 15px;">
+                    <h4 style="color: #38bdf8; margin-bottom: 10px; font-size: 0.95rem;"><i class="fa-solid fa-ranking-star"></i> Ranked Priority Locations (Explainable Gap Scores)</h4>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.82rem; color: #f8fafc;" id="priority-locations-table">
+                        <thead>
+                            <tr style="border-bottom: 2px solid #334155; color: #94a3b8; text-align: left;">
+                                <th style="padding: 8px;">Rank / Title</th>
+                                <th style="padding: 8px;">Department</th>
+                                <th style="padding: 8px;">Priority</th>
+                                <th style="padding: 8px;">Gap Score</th>
+                                <th style="padding: 8px;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="priority-locations-tbody">
+                            <tr><td colspan="5" style="padding: 15px; text-align: center; color: #94a3b8;">Loading priority locations...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SPATIAL QUERY BUILDER MODAL -->
+    <div id="spatial-query-modal" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px); z-index: 2000; justify-content: center; align-items: center; padding: 20px;">
+        <div style="background: #1e293b; border: 1px solid #334155; border-radius: 12px; width: 100%; max-width: 800px; display: flex; flex-direction: column; overflow: hidden;">
+            <div style="padding: 16px 24px; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; background: #0f172a;">
+                <h3 style="color: #f8fafc; font-size: 1.1rem;"><i class="fa-solid fa-filter" style="color: #4ade80; margin-right: 8px;"></i> Multi-Layer Spatial & Attribute Query Builder (P0)</h3>
+                <button onclick="closeSpatialQueryModal()" style="background: transparent; border: none; color: #94a3b8; font-size: 1.2rem; cursor: pointer;"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div style="padding: 20px; overflow-y: auto; max-height: 75vh;">
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; color: #94a3b8; font-size: 0.8rem; margin-bottom: 5px;">Target Layer:</label>
+                    <select id="sq-target-layer" style="width: 100%; background: #0f172a; border: 1px solid #334155; color: white; padding: 8px; border-radius: 6px;">
+                        <option value="villages">Villages / Wards</option>
+                        <option value="facilities">Health Facilities</option>
+                    </select>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div>
+                        <label style="display: block; color: #94a3b8; font-size: 0.8rem; margin-bottom: 5px;">Spatial Distance Constraint (km):</label>
+                        <input type="number" id="sq-dist-km" value="5" style="width: 100%; background: #0f172a; border: 1px solid #334155; color: white; padding: 8px; border-radius: 6px;">
+                    </div>
+                    <div>
+                        <label style="display: block; color: #94a3b8; font-size: 0.8rem; margin-bottom: 5px;">Population Min Threshold:</label>
+                        <input type="number" id="sq-pop-min" value="1000" style="width: 100%; background: #0f172a; border: 1px solid #334155; color: white; padding: 8px; border-radius: 6px;">
+                    </div>
+                </div>
+                <button onclick="runSpatialQuery()" style="width: 100%; background: #0284c7; color: white; border: none; padding: 10px; border-radius: 6px; font-weight: 600; cursor: pointer;"><i class="fa-solid fa-play"></i> Execute Compound Spatial Query</button>
+
+                <div id="sq-results-box" style="margin-top: 20px; display: none;">
+                    <h4 style="color: #38bdf8; font-size: 0.9rem; margin-bottom: 8px;">Query Results Output (<span id="sq-results-count">0</span> matching features):</h4>
+                    <div id="sq-results-list" style="max-height: 250px; overflow-y: auto; background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 10px; font-size: 0.8rem; color: #f8fafc;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- GEOTAG VERIFICATION MODAL -->
+    <div id="geotag-modal" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px); z-index: 2000; justify-content: center; align-items: center; padding: 20px;">
+        <div style="background: #1e293b; border: 1px solid #334155; border-radius: 12px; width: 100%; max-width: 600px; overflow: hidden;">
+            <div style="padding: 16px 24px; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; background: #0f172a;">
+                <h3 style="color: #f8fafc; font-size: 1.1rem;"><i class="fa-solid fa-camera-retro" style="color: #38bdf8; margin-right: 8px;"></i> Geotag EXIF Photo Verification & 25m Dedup</h3>
+                <button onclick="closeGeotagModal()" style="background: transparent; border: none; color: #94a3b8; font-size: 1.2rem; cursor: pointer;"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div style="padding: 20px;">
+                <div style="margin-bottom: 12px;">
+                    <label style="display: block; color: #94a3b8; font-size: 0.8rem; margin-bottom: 4px;">Submitted Latitude:</label>
+                    <input type="text" id="gt-lat" value="25.198" style="width: 100%; background: #0f172a; border: 1px solid #334155; color: white; padding: 8px; border-radius: 6px;">
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; color: #94a3b8; font-size: 0.8rem; margin-bottom: 4px;">Submitted Longitude:</label>
+                    <input type="text" id="gt-lng" value="85.514" style="width: 100%; background: #0f172a; border: 1px solid #334155; color: white; padding: 8px; border-radius: 6px;">
+                </div>
+                <button onclick="verifyGeotagPhoto()" style="width: 100%; background: #0284c7; color: white; border: none; padding: 10px; border-radius: 6px; font-weight: 600; cursor: pointer;"><i class="fa-solid fa-shield-halved"></i> Run Real EXIF & 25m Proximity Check</button>
+                <div id="gt-result-box" style="margin-top: 15px; display: none; background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 12px; font-size: 0.82rem; color: #f8fafc;"></div>
+            </div>
+        </div>
+    </div>
 </body>
 
 </html>

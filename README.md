@@ -1,6 +1,6 @@
 # NDIS & Nalanda GIS Portal - Enterprise Backend API & System Guide
 
-Welcome to the **Nalanda District Information System (NDIS) & GIS Portal** complete architecture and REST API documentation. This platform powers spatial governance, thematic GIS infrastructure layer management, facilities directory sync, an end-to-end multi-role **Complaint Management & Infrastructure Grievance System**, **Development Planning ERP with 7-Step DPR Wizard**, **Government Project Execution & Contract Monitoring ERP**, **Enterprise Reports Export Center**, **Line Department Staff Directory & Onboarding**, and **State Governance Budget & Finance Module** for Bihar district administration.
+Welcome to the **Nalanda District Geospatial Decision Support System (DDSS) & E-Governance Platform** complete architecture and REST API documentation. This platform powers evidence-based district administration decision making, multi-layer compound spatial analytics, need-based gap and priority scoring, health decision analytics, structured citizen location feedback, truthful EXIF photo verification, 25m spatial deduplication, facilities directory sync, an end-to-end multi-role **Complaint Management & Infrastructure Grievance System**, **Development Planning ERP with 7-Step DPR Wizard**, **Government Project Execution & Contract Monitoring ERP**, **Enterprise Reports Export Center**, **Line Department Staff Directory & Onboarding**, and **State Governance Budget & Finance Module** for Bihar district administration.
 
 ---
 
@@ -154,6 +154,49 @@ Path Prefix: `/api/auth/`
 - **Endpoint:** `GET /api/auth/me/`
 - **Response:** Current logged-in user details with role code, scope, and department details.
 
+### 4.5 Change Password API
+- **Endpoint:** `POST /api/auth/change-password/`
+- **Auth Required:** Bearer Token
+- **Request Body:**
+  ```json
+  {
+    "old_password": "CurrentPassword123!",
+    "new_password": "NewSecurePassword123!",
+    "confirm_password": "NewSecurePassword123!"
+  }
+  ```
+- **Response (`200 OK`):** `"message": "Password changed successfully."`
+
+### 4.6 Forgot Password Request OTP API
+- **Endpoint:** `POST /api/auth/forgot-password/` (or `/api/auth/forgot-password/request-otp/`)
+- **Auth Required:** Public
+- **Request Body:** Accepts Username **OR** Email.
+  ```json
+  {
+    "identifier": "sunita_devi"
+  }
+  ```
+- **Response (`200 OK`):** Generates 6-digit OTP valid for 10 minutes and logs dispatch.
+
+### 4.7 Reset Password with OTP API
+- **Endpoint:** `POST /api/auth/forgot-password/reset/` (or `/api/auth/reset-password/`)
+- **Auth Required:** Public
+- **Request Body:**
+  ```json
+  {
+    "identifier": "sunita_devi",
+    "otp": "482910",
+    "new_password": "NewSecurePassword123!",
+    "confirm_password": "NewSecurePassword123!"
+  }
+  ```
+- **Response (`200 OK`):** `"message": "Password reset successfully. You can now login with your new password."`
+
+### 4.8 Logout API
+- **Endpoint:** `POST /api/auth/logout/`
+- **Request Body:** `{"refresh": "<refresh_token>"}`
+- **Response (`200 OK`):** Blacklists refresh token for secure session termination.
+
 ---
 
 ## 5. Complaint Management & Auto-Routing System
@@ -279,10 +322,16 @@ The Project Execution ERP module manages running infrastructure projects from sa
 - **Budget Sanction Action:** `POST /api/projects/{id}/sanction/`
   - Sanctions project budget, assigns sanction order number (`SAN-2026-NLD-XXX`), and transitions status to `IN_EXECUTION`.
 
-### 7.2 Work Assignment & Officer Field Review
-- **Work Assignment Action:** `POST /api/projects/{id}/assign-work/`
-  - Department Head / DM assigns project work to Department Officer, Engineer, and Contractor.
+### 7.2 Hierarchical 2-Level Work Assignment & Officer Field Review
+- **Combined Work Assignment Action:** `POST /api/projects/{id}/assign-work/`
+  - Department Head / DM assigns project work to Department Officer, Junior Engineer, and Contractor simultaneously.
   - Parameters: `assigned_officer_id`, `assigned_engineer_id`, `contractor_name`, `assignment_notes`, `target_completion_date`.
+- **Level 1 Officer Assignment Action:** `POST /api/projects/{id}/assign-officer/`
+  - Department Head assigns project responsibility to Nodal Department Officer.
+  - Parameters: `assigned_officer_id`, `assignment_notes`, `target_completion_date`.
+- **Level 2 Field Engineer Assignment Action:** `POST /api/projects/{id}/assign-engineer/`
+  - Department Officer assigns Junior Engineer (JE) / Field Inspector and Contractor.
+  - Parameters: `assigned_engineer_id`, `contractor_name`, `field_assignment_notes`, `target_completion_date`.
 - **Officer Review Action:** `POST /api/projects/{id}/officer-review/`
   - Department Officer reviews field work progress, Site Diaries, and Measurement Books.
   - Parameters: `officer_review_status` (`APPROVED` / `REJECTED`), `remarks`.
@@ -587,6 +636,10 @@ Registered Models in Django Admin (`http://127.0.0.1:8000/admin/`):
 | `/api/auth/login/` | `POST` | Public | Obtain JWT Access (30m) & Refresh tokens (Username or Email) |
 | `/api/auth/token/refresh/` | `POST` | Public | Refresh expired JWT access token |
 | `/api/auth/me/` | `GET` | Bearer | Retrieve authenticated user profile & permissions |
+| `/api/auth/change-password/` | `POST` | Bearer | Change password for authenticated user account |
+| `/api/auth/forgot-password/` | `POST` | Public | Request 6-digit OTP for password recovery (by username or email) |
+| `/api/auth/forgot-password/reset/` | `POST` | Public | Reset password using verified 6-digit OTP |
+| `/api/auth/logout/` | `POST` | Bearer / Public | Logout user and blacklist JWT refresh token |
 | `/api/auth/roles/` | `GET` | Public | List system roles |
 | `/api/users/` | `GET` / `POST` | Bearer / Admin | User directory CRUD list & create (filters: `search`, `department`, `role`, `district`) |
 | `/api/users/{id}/` | `GET` / `PUT` / `PATCH` / `DELETE` | Bearer / Admin | Retrieve, update, patch, or soft delete user account |
@@ -614,8 +667,17 @@ Registered Models in Django Admin (`http://127.0.0.1:8000/admin/`):
 | `/api/projects/` | `GET` / `POST` | Bearer | Project Execution ERP CRUD list & create (filters: `department`, `district`, `status`, `risk`, `search`) |
 | `/api/projects/{id}/` | `GET` / `PUT` / `PATCH` / `DELETE` | Bearer | Project details retrieve, update, and soft/hard delete |
 | `/api/projects/summary/` | `GET` | Bearer | Aggregate execution KPIs (running count, budget utilized, bill totals, net payable) |
-| `/api/projects/{id}/daily-progress/` | `POST` | Bearer | Log daily physical progress %, labour deployed, materials used, and site diary entry |
 | `/api/projects/{id}/sanction/` | `POST` | Bearer | Sanction project budget amount & issue sanction order number |
+| `/api/projects/{id}/assign-work/` | `POST` | Bearer | Combined Work Assignment Action (Dept Officer + Engineer + Contractor) |
+| `/api/projects/{id}/assign-officer/` | `POST` | Bearer | Level 1 Assignment Action (Dept Head -> Nodal Dept Officer) |
+| `/api/projects/{id}/assign-engineer/` | `POST` | Bearer | Level 2 Assignment Action (Dept Officer -> Junior Engineer & Contractor) |
+| `/api/projects/{id}/daily-progress/` | `POST` | Bearer | Log daily physical progress %, labour deployed, materials used, and site diary entry |
+| `/api/projects/{id}/officer-review/` | `POST` | Bearer | Department Officer Field Work Review Action (`APPROVED` / `REJECTED`) |
+| `/api/projects/{id}/verify-completion/` | `POST` | Bearer | Department Head Final Completion Verification & Project Completion |
+| `/api/projects/{id}/expenditure/` | `POST` / `GET` | Bearer (Dept Officer) | Record & list verified expenditure / budget utilization transactions |
+| `/api/projects/{id}/expenditure/{exp_id}/` | `GET` / `PUT` / `PATCH` / `DELETE` | Bearer (Dept Officer) | Retrieve, update, patch, or delete specific project expenditure item |
+| `/api/projects/{id}/budget-utilization/` | `GET` | Bearer | Get complete budget utilization summary (sanctioned, released, utilized, remaining, %) |
+| `/api/project-expenditures/` | `GET` / `POST` / `PUT` / `DELETE` | Bearer | Project Expenditures Standalone CRUD ViewSet (`?project=<id>`) |
 | `/api/site-diaries/` | `GET` / `POST` | Bearer | Site Diary CRUD list and create |
 | `/api/measurement-books/` | `GET` / `POST` | Bearer | Electronic Measurement Book (e-MB) CRUD list and create |
 | `/api/bills/` | `GET` / `POST` | Bearer (DM/Dept Head) | Project Bills CRUD list and create (financial authorization workflow) |

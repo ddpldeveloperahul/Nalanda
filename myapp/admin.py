@@ -503,3 +503,68 @@ class FinancialLedgerEntryAdmin(admin.ModelAdmin):
     list_filter = ["entry_type", "financial_year", "department", "district"]
     search_fields = ["transaction_id", "remarks", "department__name", "district__name"]
 
+
+# ==========================================
+# DDSS ADMIN REGISTRATIONS
+# ==========================================
+
+from myapp.models import (
+    HealthFacilityIndicator, HealthStaffing, HealthWorkload, MedicineStock,
+    Ambulance, VaccinationMetric, DiseaseRiskEvent, GapModelVersion,
+    PriorityLocation, FeedbackQuestionSet, FeedbackQuestion, FeedbackResponse,
+    GeotagVerification, SpatialQuery
+)
+
+@admin.register(HealthFacilityIndicator)
+class HealthFacilityIndicatorAdmin(admin.ModelAdmin):
+    list_display = ["id", "facility", "period", "bed_count", "icu_bed_count", "oxygen_status", "testing_equipment_status"]
+    list_filter = ["oxygen_status", "toilet_status", "ramp_status", "testing_equipment_status"]
+
+@admin.register(HealthStaffing)
+class HealthStaffingAdmin(admin.ModelAdmin):
+    list_display = ["id", "facility", "cadre", "sanctioned_count", "available_count", "vacancy_count", "as_of_date"]
+    list_filter = ["cadre"]
+
+@admin.register(MedicineStock)
+class MedicineStockAdmin(admin.ModelAdmin):
+    list_display = ["id", "facility", "medicine_name", "stock_type", "quantity", "stock_status", "as_of"]
+    list_filter = ["stock_type", "stock_status"]
+
+@admin.register(PriorityLocation)
+class PriorityLocationAdmin(admin.ModelAdmin):
+    list_display = ["id", "title", "department", "district", "priority", "gap_score", "model_version", "created_at"]
+    list_filter = ["priority", "department", "district"]
+
+@admin.register(FeedbackQuestionSet)
+class FeedbackQuestionSetAdmin(admin.ModelAdmin):
+    list_display = ["id", "title", "department", "service_type", "is_active"]
+
+@admin.register(FeedbackResponse)
+class FeedbackResponseAdmin(admin.ModelAdmin):
+    list_display = ["id", "question", "facility", "response_value", "sentiment_score", "created_at"]
+
+@admin.register(GeotagVerification)
+class GeotagVerificationAdmin(admin.ModelAdmin):
+    list_display = ["id", "photo_path", "status", "distance_offset_meters", "inside_district", "is_duplicate_25m", "verified_at"]
+    list_filter = ["status", "inside_district", "is_duplicate_25m"]
+
+from myapp.models import DepartmentIndicator, EducationFacilityIndicator, WaterFacilityIndicator, RoadIndicator
+
+@admin.register(DepartmentIndicator)
+class DepartmentIndicatorAdmin(admin.ModelAdmin):
+    list_display = ["id", "department", "district", "block", "indicator_code", "value", "unit", "period", "source"]
+    list_filter = ["department", "district", "period"]
+    search_fields = ["indicator_code", "indicator_name", "department__name", "department__code"]
+
+@admin.register(EducationFacilityIndicator)
+class EducationFacilityIndicatorAdmin(admin.ModelAdmin):
+    list_display = ["id", "facility", "period", "sanctioned_teachers", "available_teachers", "teacher_vacancies", "student_enrolment"]
+
+@admin.register(WaterFacilityIndicator)
+class WaterFacilityIndicatorAdmin(admin.ModelAdmin):
+    list_display = ["id", "facility", "village_ward", "household_coverage_percent", "functional_tap_connections", "water_quality_status"]
+
+@admin.register(RoadIndicator)
+class RoadIndicatorAdmin(admin.ModelAdmin):
+    list_display = ["id", "road_name", "block", "road_length_km", "accessibility_status", "bridge_gap_count"]
+

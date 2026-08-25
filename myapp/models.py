@@ -133,7 +133,10 @@ class VillageWard(models.Model):
 class Department(models.Model):
     """Line Department Master Entity (e.g., Health, Water Resources, Education, Tourism, Solar)."""
     name = models.CharField(max_length=150, unique=True, verbose_name="Department Name")
+    code = models.CharField(max_length=50, unique=True, null=True, blank=True, verbose_name="Department Code")
     description = models.TextField(blank=True, null=True, verbose_name="Description")
+    is_line_department = models.BooleanField(default=True, verbose_name="Is Line Department")
+    is_active = models.BooleanField(default=True, verbose_name="Is Active")
     created_at = models.DateTimeField(auto_now_add=True, db_index=True, verbose_name="Created At")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Updated At")
 
@@ -143,8 +146,15 @@ class Department(models.Model):
         verbose_name_plural = "Departments"
         ordering = ["name"]
 
+    def save(self, *args, **kwargs):
+        if not self.code and self.name:
+            import re
+            cleaned = re.sub(r'[^A-Z0-9_]', '', self.name.upper().replace(' ', '_').replace('&', 'AND'))
+            self.code = cleaned[:50]
+        super().save(*args, **kwargs)
+
     def __str__(self) -> str:
-        return self.name
+        return f"{self.name} ({self.code or 'N/A'})"
 
 
 class DepartmentOfficer(models.Model):
@@ -1998,6 +2008,490 @@ class FinancialLedgerEntry(models.Model):
 
     def __str__(self) -> str:
         return f"[{self.entry_type}] {self.transaction_id} - ₹{self.amount_cr} Cr"
+
+
+# ==========================================
+# 12. DISTRICT GEOSPATIAL DECISION SUPPORT SYSTEM (DDSS) MODELS
+# ==========================================
+
+class HealthFacilityIndicator(models.Model):
+    """
+    Facility-level readiness metrics for Health Decision Workspace.
+    """
+    facility = models.ForeignKey(Facility, on_delete=models.CASCADE, related_name="health_indicators", verbose_name="Facility")
+    period = models.CharField(max_length=20, default="2026-Q3", verbose_name="Reporting Period")
+
+    bed_count = models.PositiveIntegerField(default=0, verbose_name="Total General Beds")
+    icu_bed_count = models.PositiveIntegerField(default=0, verbose_name="ICU Beds Available")
+    nicu_bed_count = models.PositiveIntegerField(default=0, verbose_name="NICU Beds Available")
+    oxygen_status = models.CharField(max_length=30, choices=[("AVAILABLE", "Available"), ("DEFICIT", "Deficit"), ("CRITICAL", "Critical")], default="AVAILABLE")
+    toilet_status = models.CharField(max_length=30, choices=[("ADEQUATE", "Adequate"), ("INSUFFICIENT", "Insufficient"), ("NONE", "None")], default="ADEQUATE")
+    ramp_status = models.CharField(max_length=30, choices=[("FUNCTIONAL", "Functional"), ("NON_FUNCTIONAL", "Non-Functional"), ("MISSING", "Missing")], default="FUNCTIONAL")
+    testing_equipment_status = models.CharField(max_length=30, choices=[("OPERATIONAL", "Operational"), ("PARTIAL", "Partial Deficit"), ("DEFICIT", "Major Deficit")], default="OPERATIONAL")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "hlth_facility_indicator"
+        verbose_name = "Health Facility Indicator"
+        verbose_name_plural = "Health Facility Indicators"
+
+    def __str__(self):
+        return f"{self.facility.name} - {self.period}"
+
+
+class HealthStaffing(models.Model):
+    """
+    Cadre-wise human resource availability and vacancies (Doctors, Nurses, Lab Techs, ASHA/ANM).
+    """
+    CADRE_CHOICES = [
+        ("DOCTOR", "Medical Officer / Doctor"),
+        ("NURSE", "Staff Nurse / ANM"),
+        ("LAB_TECH", "Lab Technician"),
+        ("ASHA", "ASHA Worker"),
+        ("ADMIN_STAFF", "Administrative Staff"),
+    ]
+    facility = models.ForeignKey(Facility, on_delete=models.CASCADE, related_name="staffing_records", verbose_name="Facility")
+    village_ward = models.ForeignKey(VillageWard, on_delete=models.SET_NULL, null=True, blank=True, related_name="asha_staffing")
+    cadre = models.CharField(max_length=40, choices=CADRE_CHOICES, default="DOCTOR")
+    sanctioned_count = models.PositiveIntegerField(default=0)
+    available_count = models.PositiveIntegerField(default=0)
+    vacancy_count = models.PositiveIntegerField(default=0)
+    as_of_date = models.DateField(default=get_today_date)
+
+    class Meta:
+        db_table = "hlth_staffing"
+        verbose_name = "Health Staffing"
+        verbose_name_plural = "Health Staffing Records"
+
+    def save(self, *args, **kwargs):
+        self.vacancy_count = max(0, self.sanctioned_count - self.available_count)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.facility.name} - {self.cadre}: {self.available_count}/{self.sanctioned_count}"
+
+
+class HealthWorkload(models.Model):
+    """
+    Patient visits, admissions, and capacity pressure burden.
+    """
+    facility = models.ForeignKey(Facility, on_delete=models.CASCADE, related_name="workload_records")
+    period = models.CharField(max_length=20, default="2026-08")
+    patient_visits = models.PositiveIntegerField(default=0, verbose_name="OPD Patient Visits")
+    admissions = models.PositiveIntegerField(default=0, verbose_name="IPD Admissions")
+    referrals = models.PositiveIntegerField(default=0, verbose_name="Patient Referrals Out")
+    capacity_pressure = models.CharField(max_length=30, choices=[("NORMAL", "Normal"), ("MODERATE", "Moderate Pressure"), ("HIGH", "High Pressure"), ("CRITICAL", "Critical Overload")], default="NORMAL")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "hlth_workload"
+        verbose_name = "Health Workload"
+        verbose_name_plural = "Health Workload Records"
+
+
+class MedicineStock(models.Model):
+    """
+    Critical and routine medicine inventory & warehouse stockout tracking.
+    """
+    STOCK_TYPE_CHOICES = [("CRITICAL", "Critical Emergency Medicine"), ("ROUTINE", "Routine Essential Medicine"), ("VACCINE", "Vaccine Cold-Chain")]
+    STOCK_STATUS_CHOICES = [("ADEQUATE", "Adequate Stock"), ("LOW", "Low Stock Warning"), ("STOCKOUT", "Critical Stockout")]
+
+    facility = models.ForeignKey(Facility, on_delete=models.CASCADE, related_name="medicine_stocks")
+    medicine_name = models.CharField(max_length=150, verbose_name="Medicine Name")
+    stock_type = models.CharField(max_length=30, choices=STOCK_TYPE_CHOICES, default="ROUTINE")
+    quantity = models.PositiveIntegerField(default=0)
+    minimum_quantity = models.PositiveIntegerField(default=100)
+    days_of_stock = models.PositiveIntegerField(default=30)
+    stock_status = models.CharField(max_length=30, choices=STOCK_STATUS_CHOICES, default="ADEQUATE")
+    as_of = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "hlth_medicine_stock"
+        verbose_name = "Medicine Stock"
+        verbose_name_plural = "Medicine Stock Records"
+
+    def save(self, *args, **kwargs):
+        if self.quantity == 0:
+            self.stock_status = "STOCKOUT"
+        elif self.quantity < self.minimum_quantity:
+            self.stock_status = "LOW"
+        else:
+            self.stock_status = "ADEQUATE"
+        super().save(*args, **kwargs)
+
+
+class Ambulance(models.Model):
+    """
+    Emergency ambulance vehicles and service coverage bindings.
+    """
+    STATUS_CHOICES = [("AVAILABLE", "Available / Operational"), ("ON_CALL", "On Emergency Call"), ("MAINTENANCE", "Under Maintenance")]
+
+    ambulance_code = models.CharField(max_length=50, unique=True)
+    facility = models.ForeignKey(Facility, on_delete=models.SET_NULL, null=True, blank=True, related_name="ambulances")
+    village_ward = models.ForeignKey(VillageWard, on_delete=models.SET_NULL, null=True, blank=True)
+    driver_phone = models.CharField(max_length=20, blank=True, null=True)
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default="AVAILABLE")
+    geom = get_spatial_field("point")
+
+    class Meta:
+        db_table = "hlth_ambulance"
+        verbose_name = "Ambulance"
+        verbose_name_plural = "Ambulances"
+
+
+class VaccinationMetric(models.Model):
+    """
+    Immunization and vaccination coverage metrics by geography.
+    """
+    block = models.ForeignKey(Block, on_delete=models.CASCADE, related_name="vaccination_metrics")
+    period = models.CharField(max_length=20, default="2026-Q3")
+    target_population = models.PositiveIntegerField(default=1000)
+    vaccinated_count = models.PositiveIntegerField(default=850)
+    coverage_percent = models.FloatField(default=85.0)
+
+    class Meta:
+        db_table = "hlth_vaccination_metric"
+        verbose_name = "Vaccination Metric"
+        verbose_name_plural = "Vaccination Metrics"
+
+    def save(self, *args, **kwargs):
+        if self.target_population > 0:
+            self.coverage_percent = round((self.vaccinated_count / self.target_population) * 100.0, 2)
+        super().save(*args, **kwargs)
+
+
+class DiseaseRiskEvent(models.Model):
+    """
+    Seasonal disease outbreak clusters and high-risk spatial observations.
+    """
+    disease_name = models.CharField(max_length=150, verbose_name="Disease / Outbreak Name")
+    risk_level = models.CharField(max_length=30, choices=[("LOW", "Low Risk"), ("MEDIUM", "Medium Cluster"), ("HIGH", "High Outbreak"), ("CRITICAL", "Critical Outbreak")], default="MEDIUM")
+    affected_cases = models.PositiveIntegerField(default=1)
+    district = models.ForeignKey(District, on_delete=models.CASCADE)
+    block = models.ForeignKey(Block, on_delete=models.SET_NULL, null=True, blank=True)
+    season = models.CharField(max_length=50, default="Monsoon 2026")
+    geom = get_spatial_field("point")
+    observed_at = models.DateField(default=get_today_date)
+
+    class Meta:
+        db_table = "hlth_disease_risk_event"
+        verbose_name = "Disease Risk Event"
+        verbose_name_plural = "Disease Risk Events"
+
+
+class GapModelVersion(models.Model):
+    """
+    Stores explainable gap computation weights and versioning rules per department.
+    """
+    department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True, related_name="gap_models")
+    version = models.CharField(max_length=30, default="v1.0")
+    weights = models.JSONField(default=dict, help_text="Component weights JSON (w1..w8)")
+    description = models.TextField(blank=True, null=True)
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    approved_at = models.DateTimeField(default=timezone.now)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "ddss_gap_model_version"
+        verbose_name = "Gap Model Version"
+        verbose_name_plural = "Gap Model Versions"
+
+    def __str__(self):
+        dept_str = self.department.code if self.department else "ALL"
+        return f"Gap Model {self.version} [{dept_str}] ({'Active' if self.is_active else 'Inactive'})"
+
+
+class PriorityLocation(models.Model):
+    """
+    Ranked decision-support priority location with explainable gap breakdown and intervention linkage.
+    """
+    PRIORITY_CHOICES = [
+        ("P1", "P1 / CRITICAL"),
+        ("P2", "P2 / HIGH"),
+        ("P3", "P3 / MEDIUM"),
+        ("P4", "P4 / LOW"),
+    ]
+
+    title = models.CharField(max_length=255, verbose_name="Location / Need Title")
+    department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name="priority_locations")
+    district = models.ForeignKey(District, on_delete=models.CASCADE)
+    block = models.ForeignKey(Block, on_delete=models.SET_NULL, null=True, blank=True)
+    village_ward = models.ForeignKey(VillageWard, on_delete=models.SET_NULL, null=True, blank=True)
+    facility = models.ForeignKey(Facility, on_delete=models.SET_NULL, null=True, blank=True, related_name="priority_records")
+
+    gap_score = models.FloatField(default=0.0, verbose_name="Composite Gap Score (0-100)")
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default="P2")
+    component_scores = models.JSONField(default=dict, help_text="Breakdown of demand, capacity, accessibility, HR, medicine, coverage, citizen feedback gaps")
+    reason_codes = models.JSONField(default=list, help_text="Reason codes explaining score")
+    recommended_action = models.TextField(blank=True, null=True)
+    model_version = models.CharField(max_length=30, default="v1.0")
+
+    geom = get_spatial_field("point")
+    linked_proposal = models.ForeignKey("Proposal", on_delete=models.SET_NULL, null=True, blank=True, related_name="linked_priority_locations")
+    linked_project = models.ForeignKey("ProjectExecution", on_delete=models.SET_NULL, null=True, blank=True, related_name="linked_priority_locations")
+
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "ddss_priority_location"
+        verbose_name = "Priority Location"
+        verbose_name_plural = "Priority Locations"
+        ordering = ["-gap_score"]
+
+    def __str__(self):
+        return f"[{self.priority}] {self.title} (Gap: {self.gap_score})"
+
+
+class FeedbackQuestionSet(models.Model):
+    """
+    Structured questionnaire sets for citizen location feedback.
+    """
+    title = models.CharField(max_length=200)
+    department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True)
+    service_type = models.CharField(max_length=100, default="HEALTHCARE_SERVICE")
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "fb_question_set"
+        verbose_name = "Feedback Question Set"
+        verbose_name_plural = "Feedback Question Sets"
+
+
+class FeedbackQuestion(models.Model):
+    """
+    Individual structured question with predefined options.
+    """
+    question_set = models.ForeignKey(FeedbackQuestionSet, on_delete=models.CASCADE, related_name="questions")
+    question_text = models.TextField()
+    response_type = models.CharField(max_length=30, choices=[("SINGLE_CHOICE", "Single Choice Rating"), ("RATING_5", "1 to 5 Star Rating"), ("TEXT", "Text Note")], default="SINGLE_CHOICE")
+    options = models.JSONField(default=list, help_text="Predefined option strings e.g. ['Very Good', 'Good', 'Average', 'Poor', 'Very Poor']")
+
+    class Meta:
+        db_table = "fb_question"
+        verbose_name = "Feedback Question"
+        verbose_name_plural = "Feedback Questions"
+
+
+class FeedbackResponse(models.Model):
+    """
+    Geotagged citizen perception response to structured questions.
+    """
+    question = models.ForeignKey(FeedbackQuestion, on_delete=models.CASCADE, related_name="responses")
+    facility = models.ForeignKey(Facility, on_delete=models.SET_NULL, null=True, blank=True, related_name="feedback_responses")
+    village_ward = models.ForeignKey(VillageWard, on_delete=models.SET_NULL, null=True, blank=True)
+    citizen_session_id = models.CharField(max_length=100, blank=True, null=True)
+    response_value = models.CharField(max_length=255)
+    sentiment_score = models.FloatField(default=3.0, help_text="1.0 (Very Poor) to 5.0 (Very Good)")
+    geom = get_spatial_field("point")
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = "fb_response"
+        verbose_name = "Feedback Response"
+        verbose_name_plural = "Feedback Responses"
+        ordering = ["-created_at"]
+
+
+class GeotagVerification(models.Model):
+    """
+    Truthful EXIF metadata extraction and spatial boundary/distance verification log.
+    """
+    VERIFICATION_STATUS_CHOICES = [
+        ("VERIFIED", "Verified (EXIF GPS & Boundary Matched)"),
+        ("REVIEW", "Review Required (Distance Offset or Border Warning)"),
+        ("REJECTED", "Rejected (No EXIF GPS / Out of Boundary / Far Distance)"),
+    ]
+
+    photo_path = models.CharField(max_length=500)
+    exif_latitude = models.FloatField(null=True, blank=True)
+    exif_longitude = models.FloatField(null=True, blank=True)
+    submitted_latitude = models.FloatField(null=True, blank=True)
+    submitted_longitude = models.FloatField(null=True, blank=True)
+    distance_offset_meters = models.FloatField(null=True, blank=True)
+    inside_district = models.BooleanField(default=True)
+    is_duplicate_25m = models.BooleanField(default=False)
+    status = models.CharField(max_length=30, choices=VERIFICATION_STATUS_CHOICES, default="VERIFIED")
+    failure_reason = models.TextField(blank=True, null=True)
+    verified_at = models.DateTimeField(auto_now_add=True)
+    verified_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+
+    class Meta:
+        db_table = "gis_geotag_verification"
+        verbose_name = "Geotag Verification Log"
+        verbose_name_plural = "Geotag Verification Logs"
+
+
+class SpatialQuery(models.Model):
+    """
+    Saved Multi-Layer Compound Spatial Queries for Administrators.
+    """
+    title = models.CharField(max_length=200)
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    query_json = models.JSONField(default=dict)
+    is_shared = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "gis_spatial_query"
+        verbose_name = "Spatial Query"
+        verbose_name_plural = "Spatial Queries"
+
+
+# ==========================================
+# 13. MULTI-DEPARTMENT DDSS INDICATORS & SPECIALIZED MODELS
+# ==========================================
+
+class DepartmentIndicator(models.Model):
+    """
+    Common decision-support indicator repository for ANY line department.
+    Traceable to: Department, State, District, Block, Location/Facility, Period, Source.
+    """
+    STATUS_CHOICES = [
+        ("DRAFT", "Draft"),
+        ("VERIFIED", "Verified"),
+        ("PUBLISHED", "Published"),
+        ("ARCHIVED", "Archived"),
+    ]
+
+    department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name="indicators", verbose_name="Line Department")
+    state = models.ForeignKey(State, on_delete=models.SET_NULL, null=True, blank=True)
+    district = models.ForeignKey(District, on_delete=models.CASCADE, related_name="department_indicators")
+    block = models.ForeignKey(Block, on_delete=models.SET_NULL, null=True, blank=True, related_name="department_indicators")
+    facility = models.ForeignKey(Facility, on_delete=models.SET_NULL, null=True, blank=True, related_name="department_indicators")
+    village_ward = models.ForeignKey(VillageWard, on_delete=models.SET_NULL, null=True, blank=True)
+
+    indicator_code = models.CharField(max_length=100, db_index=True, verbose_name="Indicator Code (e.g. TEACHER_VACANCY, WATER_COVERAGE, ROAD_ACCESSIBILITY)")
+    indicator_name = models.CharField(max_length=200, verbose_name="Indicator Name")
+    value = models.FloatField(default=0.0, verbose_name="Numeric Value")
+    unit = models.CharField(max_length=50, default="count", verbose_name="Unit of Measurement")
+    period = models.CharField(max_length=30, default="2026-08", verbose_name="Reporting Period")
+    source = models.CharField(max_length=200, default="Line Department MIS", verbose_name="Data Source")
+    source_record_id = models.CharField(max_length=100, blank=True, null=True)
+    source_as_of = models.DateField(null=True, blank=True, verbose_name="Data As Of Date")
+    data_status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="VERIFIED")
+    verified_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="verified_indicators")
+    verified_at = models.DateTimeField(null=True, blank=True)
+
+    geom = get_spatial_field("point")
+    metadata = models.JSONField(default=dict, blank=True, verbose_name="Additional Metadata (JSONB)")
+
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "ddss_department_indicator"
+        verbose_name = "Department Indicator"
+        verbose_name_plural = "Department Indicators"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"[{self.department.code}] {self.indicator_code}: {self.value} {self.unit} ({self.period})"
+
+
+class EducationFacilityIndicator(models.Model):
+    """
+    Specialized decision indicators for Education Department.
+    """
+    facility = models.ForeignKey(Facility, on_delete=models.CASCADE, related_name="education_indicators")
+    period = models.CharField(max_length=20, default="2026-08")
+    sanctioned_teachers = models.PositiveIntegerField(default=10)
+    available_teachers = models.PositiveIntegerField(default=7)
+    teacher_vacancies = models.PositiveIntegerField(default=3)
+    student_enrolment = models.PositiveIntegerField(default=320)
+    classroom_count = models.PositiveIntegerField(default=8)
+    drinking_water_status = models.BooleanField(default=True)
+    separate_girls_toilet = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "edu_facility_indicator"
+        verbose_name = "Education Facility Indicator"
+        verbose_name_plural = "Education Facility Indicators"
+
+    def save(self, *args, **kwargs):
+        self.teacher_vacancies = max(0, self.sanctioned_teachers - self.available_teachers)
+        super().save(*args, **kwargs)
+
+    @property
+    def teacher_vacancy_percentage(self) -> float:
+        if self.sanctioned_teachers > 0:
+            return round((self.teacher_vacancies / self.sanctioned_teachers) * 100.0, 1)
+        return 0.0
+
+
+class WaterFacilityIndicator(models.Model):
+    """
+    Specialized decision indicators for Water Resources / Jal Jeevan Mission.
+    """
+    facility = models.ForeignKey(Facility, on_delete=models.SET_NULL, null=True, blank=True, related_name="water_indicators")
+    village_ward = models.ForeignKey(VillageWard, on_delete=models.SET_NULL, null=True, blank=True)
+    period = models.CharField(max_length=20, default="2026-08")
+    household_coverage_percent = models.FloatField(default=75.0)
+    functional_tap_connections = models.PositiveIntegerField(default=250)
+    non_functional_sources_count = models.PositiveIntegerField(default=2)
+    daily_supply_hours = models.FloatField(default=4.0)
+    water_quality_status = models.CharField(max_length=30, choices=[("SAFE", "Safe Drinking Water"), ("TURBID", "High Turbidity"), ("CONTAMINATED", "Contaminated / Deficit")], default="SAFE")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "wtr_facility_indicator"
+        verbose_name = "Water Facility Indicator"
+        verbose_name_plural = "Water Facility Indicators"
+
+    @property
+    def coverage_gap(self) -> float:
+        return round(max(0.0, 100.0 - self.household_coverage_percent), 1)
+
+    @property
+    def source_gap(self) -> float:
+        return round(self.non_functional_sources_count * 25.0, 1)
+
+    @property
+    def supply_gap(self) -> float:
+        return round(max(0.0, (8.0 - self.daily_supply_hours) * 12.5), 1)
+
+
+class RoadIndicator(models.Model):
+    """
+    Specialized decision indicators for Public Works Department (PWD).
+    """
+    road_name = models.CharField(max_length=200, verbose_name="Road / Connectivity Name")
+    department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True)
+    district = models.ForeignKey(District, on_delete=models.SET_NULL, null=True, blank=True)
+    block = models.ForeignKey(Block, on_delete=models.CASCADE)
+    road_length_km = models.FloatField(default=12.5)
+    paved_length_km = models.FloatField(default=8.0)
+    unpaved_poor_length_km = models.FloatField(default=4.5)
+    accessibility_status = models.CharField(max_length=30, choices=[("GOOD", "All-Weather Good Access"), ("MODERATE", "Fair Access"), ("POOR", "Poor Monsoon Accessibility")], default="POOR")
+    bridge_gap_count = models.PositiveIntegerField(default=1)
+    geom = get_spatial_field("geometry")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "pwd_road_indicator"
+        verbose_name = "Road Indicator"
+        verbose_name_plural = "Road Indicators"
+
+    @property
+    def paved_percentage(self) -> float:
+        if self.road_length_km > 0:
+            return round((self.paved_length_km / self.road_length_km) * 100.0, 1)
+        return 0.0
+
+    @property
+    def poor_road_percentage(self) -> float:
+        if self.road_length_km > 0:
+            return round((self.unpaved_poor_length_km / self.road_length_km) * 100.0, 1)
+        return 0.0
+
+    @property
+    def accessibility_score(self) -> float:
+        base = 80.0 if self.accessibility_status == "GOOD" else (50.0 if self.accessibility_status == "MODERATE" else 20.0)
+        penalty = self.bridge_gap_count * 15.0
+        return round(max(0.0, base - penalty), 1)
 
 
 

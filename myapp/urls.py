@@ -38,6 +38,8 @@ router.register(r'department-budgets', views.DepartmentBudgetViewSet, basename='
 router.register(r'district-allocations', views.DistrictAllocationViewSet, basename='district-allocations')
 router.register(r'schemes', views.SchemeMasterViewSet, basename='schemes')
 router.register(r'financial-ledger', views.FinancialLedgerViewSet, basename='financial-ledger')
+router.register(r'priority-locations', views.PriorityLocationViewSet, basename='priority-locations')
+router.register(r'ddst/indicators', views.DepartmentIndicatorViewSet, basename='ddst-indicators')
 
 urlpatterns = [
     path('', views.index, name='index'),
@@ -57,9 +59,7 @@ urlpatterns = [
     path('api/auth/roles/', views.RoleListView.as_view(), name='roles-list'),
     path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token-refresh'),
     path('api/auth/forgot-password/', views.ForgotPasswordRequestAPIView.as_view(), name='forgot-password-request'),
-    path('api/auth/forgot-password/request-otp/', views.ForgotPasswordRequestAPIView.as_view(), name='forgot-password-request-otp'),
     path('api/auth/forgot-password/reset/', views.ResetPasswordWithOTPAPIView.as_view(), name='forgot-password-reset'),
-    path('api/auth/reset-password/', views.ResetPasswordWithOTPAPIView.as_view(), name='reset-password'),
     path('api/auth/change-password/', views.ChangePasswordAPIView.as_view(), name='change-password'),
     path('api/auth/logout/', views.LogoutAPIView.as_view(), name='logout'),
     
@@ -67,17 +67,84 @@ urlpatterns = [
     path('api/state-budget/summary/', views.StateBudgetAPIView.as_view(), name='state-budget-summary'),
     path('api/state-budget/', views.StateBudgetAPIView.as_view(), name='state-budget'),
 
+    # DDSS Multi-Department & Decision APIs
+    path('api/ddst/departments/', views.LineDepartmentListAPIView.as_view(), name='ddst-departments'),
+    path('api/ddst/department/<str:department_code>/dashboard/', views.DepartmentDashboardAPIView.as_view(), name='ddst-department-dashboard'),
+    path('api/ddst/dashboard/', views.DMDecisionDashboardAPIView.as_view(), name='ddst-dashboard-alias'),
+    path('api/ddss/dashboard/', views.DMDecisionDashboardAPIView.as_view(), name='ddss-dashboard'),
+    path('api/gap-analysis/', views.GapAnalysisAPIView.as_view(), name='gap-analysis-list'),
+    path('api/gap-analysis/<int:location_id>/', views.GapAnalysisAPIView.as_view(), name='gap-analysis-detail'),
+    path('api/gap-analysis/rankings/', views.GapPriorityDashboardAPIView.as_view(), name='gap-analysis-rankings'),
+    path('api/gap-priority/', views.GapPriorityDashboardAPIView.as_view(), name='gap-priority-dashboard'),
+    path('api/gap-priority/rankings/', views.GapPriorityDashboardAPIView.as_view(), name='gap-priority-rankings'),
+    path('api/gap-priority/overview/', views.GapPriorityDashboardAPIView.as_view(), name='gap-priority-overview'),
+    path('api/gap-priority/map/', views.GapPriorityDashboardAPIView.as_view(), name='gap-priority-map'),
+    path('api/priority-locations/rankings/', views.GapPriorityDashboardAPIView.as_view(), name='priority-locations-rankings'),
+
+    # DDSS Health Sector & Spatial Query APIs
+    path('api/spatial-analysis/query/', views.SpatialAnalysisQueryAPIView.as_view(), name='spatial-analysis-query'),
+    path('api/spatial-query/', views.SpatialAnalysisQueryAPIView.as_view(), name='spatial-query-alias'),
+    path('api/health/facilities/', views.HealthFacilitiesAPIView.as_view(), name='health-facilities'),
+    path('api/health/staffing/', views.HealthStaffingAPIView.as_view(), name='health-staffing'),
+    path('api/health/staffing/<int:pk>/', views.HealthStaffingAPIView.as_view(), name='health-staffing-detail'),
+    path('api/health/human-resources/', views.HealthStaffingAPIView.as_view(), name='health-human-resources-alias'),
+    path('api/health/telemetry/', views.HealthInfrastructureAPIView.as_view(), name='health-telemetry-alias'),
+    path('api/health/workload/', views.HealthWorkloadAPIView.as_view(), name='health-workload'),
+    path('api/health/workload/<int:pk>/', views.HealthWorkloadAPIView.as_view(), name='health-workload-detail'),
+    path('api/health/infrastructure/', views.HealthInfrastructureAPIView.as_view(), name='health-infrastructure'),
+    path('api/health/infrastructure/<int:pk>/', views.HealthInfrastructureAPIView.as_view(), name='health-infrastructure-detail'),
+    path('api/health/medicines/', views.HealthMedicinesAPIView.as_view(), name='health-medicines'),
+    path('api/health/medicines/<int:pk>/', views.HealthMedicinesAPIView.as_view(), name='health-medicines-detail'),
+    path('api/medicines/', views.HealthMedicinesAPIView.as_view(), name='medicines-alias'),
+    path('api/health/ambulances/', views.HealthAmbulancesAPIView.as_view(), name='health-ambulances'),
+    path('api/health/ambulances/<int:pk>/', views.HealthAmbulancesAPIView.as_view(), name='health-ambulances-detail'),
+    path('api/ambulances/', views.HealthAmbulancesAPIView.as_view(), name='ambulances-alias'),
+    path('api/health/vaccination/', views.HealthVaccinationAPIView.as_view(), name='health-vaccination'),
+    path('api/health/vaccination/<int:pk>/', views.HealthVaccinationAPIView.as_view(), name='health-vaccination-detail'),
+    path('api/vaccinations/', views.HealthVaccinationAPIView.as_view(), name='vaccinations-alias'),
+    path('api/health/risk/', views.HealthRiskAPIView.as_view(), name='health-risk'),
+    path('api/disease-surveillance/', views.HealthRiskAPIView.as_view(), name='disease-surveillance-alias'),
+
+    # DDSS Education, Water, Road (PWD) & Universal Multi-Department Indicator APIs
+    path('api/education/indicators/', views.EducationFacilityIndicatorAPIView.as_view(), name='education-indicators'),
+    path('api/education/indicators/<int:pk>/', views.EducationFacilityIndicatorAPIView.as_view(), name='education-indicators-detail'),
+    path('api/education/indicator/', views.EducationFacilityIndicatorAPIView.as_view(), name='education-indicator-singular'),
+    path('api/education/schools/', views.EducationFacilityIndicatorAPIView.as_view(), name='education-schools-alias'),
+    path('api/education/telemetry/', views.EducationFacilityIndicatorAPIView.as_view(), name='education-telemetry-alias'),
+    path('api/water/indicators/', views.WaterFacilityIndicatorAPIView.as_view(), name='water-indicators'),
+    path('api/water/indicators/<int:pk>/', views.WaterFacilityIndicatorAPIView.as_view(), name='water-indicators-detail'),
+    path('api/water/schemes/', views.WaterFacilityIndicatorAPIView.as_view(), name='water-schemes-alias'),
+    path('api/water/sources/', views.WaterFacilityIndicatorAPIView.as_view(), name='water-sources-alias'),
+    path('api/water/telemetry/', views.WaterFacilityIndicatorAPIView.as_view(), name='water-telemetry-alias'),
+    path('api/forest/', views.ForestCoverAPIView.as_view(), name='forest-cover'),
+    path('api/road/indicators/', views.RoadIndicatorAPIView.as_view(), name='road-indicators'),
+    path('api/road/indicators/<int:pk>/', views.RoadIndicatorAPIView.as_view(), name='road-indicators-detail'),
+    path('api/pwd/indicators/', views.RoadIndicatorAPIView.as_view(), name='pwd-indicators'),
+    path('api/pwd/telemetry/', views.RoadIndicatorAPIView.as_view(), name='pwd-telemetry-alias'),
+    path('api/urban/indicators/', views.DepartmentIndicatorAPIView.as_view(), name='urban-indicators-alias'),
+    path('api/urban/telemetry/', views.DepartmentIndicatorAPIView.as_view(), name='urban-telemetry-alias'),
+    path('api/ddst/indicators/', views.DepartmentIndicatorAPIView.as_view(), name='ddst-indicators-apiview'),
+    path('api/ddst/indicators/<int:pk>/', views.DepartmentIndicatorAPIView.as_view(), name='ddst-indicators-apiview-detail'),
+
+    # Citizen Perception Feedback & Validation APIs
+    path('api/feedback/questions/', views.FeedbackQuestionsAPIView.as_view(), name='feedback-questions'),
+    path('api/feedback/responses/', views.FeedbackResponseAPIView.as_view(), name='feedback-responses'),
+    path('api/feedback/aggregation/', views.FeedbackAggregationAPIView.as_view(), name='feedback-aggregation'),
+    path('api/feedback/analytics/', views.FeedbackAnalyticsAPIView.as_view(), name='feedback-analytics'),
+    path('api/gis/validate-coordinate/', views.GISValidateCoordinateAPIView.as_view(), name='gis-validate-coordinate'),
+    path('api/gis/check-duplicate/', views.GISCheckDuplicateAPIView.as_view(), name='gis-check-duplicate'),
+    path('api/evidence/verify-geotag/', views.EvidenceVerifyGeotagAPIView.as_view(), name='evidence-verify-geotag'),
+
     # GIS Read & Layer Display Endpoints
     path('api/gis/catalog/', views.GISCatalogListView.as_view(), name='gis-catalog-list'),
     path('api/gis/layers/<str:layer_name>/', views.GISLayerGeoJSONView.as_view(), name='gis-layer-geojson'),
     path('api/gis/upload-layer/', views.GISLayerUploadView.as_view(), name='gis-layer-upload'),
 
-    # Department Specific Complaints & Users APIs
+    # Department Complaints & Users APIs
     path('api/department/<str:department_id>/complain/', views.DepartmentComplaintsAPIView.as_view(), name='department-complaints-singular'),
     path('api/department/<str:department_id>/complaints/', views.DepartmentComplaintsAPIView.as_view(), name='department-complaints-plural'),
     path('api/departments/<str:department_id>/complain/', views.DepartmentComplaintsAPIView.as_view(), name='departments-complaints-singular'),
     path('api/department/<str:department_id>/users/', views.DepartmentUsersAPIView.as_view(), name='department-users'),
-    path('api/departments/<str:department_id>/users/', views.DepartmentUsersAPIView.as_view(), name='departments-users'),
 
     # GIS Spatial Query Engine & Planning ERP
     path('api/spatial-query/', views.SpatialQueryAPIView.as_view(), name='spatial-query'),

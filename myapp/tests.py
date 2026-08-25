@@ -1,7 +1,7 @@
 from django.test import TestCase, Client
 from rest_framework.test import APIClient
 from rest_framework import status
-from myapp.models import State, District, Department, User, Facility, Role
+from myapp.models import State, District, Block, Department, User, Facility, Role, PriorityLocation, DepartmentIndicator, EducationFacilityIndicator, WaterFacilityIndicator, RoadIndicator
 
 
 class NDISModelAndPageTests(TestCase):
@@ -1037,6 +1037,306 @@ class ProjectExecutionAPITests(TestCase):
         self.assertEqual(res_lvl2.data["assignment_level"], "LEVEL_2_OFFICER_TO_FIELD_ENGINEER")
         self.assertEqual(res_lvl2.data["contractor_name"], "Nalanda Civil Infra Ltd")
         self.assertEqual(res_lvl2.data["assigned_engineer_name"], "je_engineer_tier2")
+
+    def test_ddss_dm_decision_dashboard_api(self):
+        res = self.client.get("/api/ddss/dashboard/")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data["status"], "SUCCESS")
+        self.assertEqual(res.data["dashboard_role"], "DISTRICT_MAGISTRATE_DDSS")
+        self.assertIn("top_kpis", res.data)
+        self.assertIn("health_snapshot", res.data)
+        self.assertIn("action_queue", res.data)
+
+    def test_ddss_compound_spatial_query_api(self):
+        payload = {
+            "target_layer": "villages",
+            "spatial_filters": [{"type": "within_distance", "distance_km": 5}],
+            "attribute_filters": [{"field": "population", "operator": ">=", "value": 1000}],
+            "sort": [{"field": "priority_score", "direction": "desc"}],
+            "limit": 10
+        }
+        res = self.client.post("/api/spatial-analysis/query/", payload, format="json")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data["target_layer"], "villages")
+        self.assertIn("geojson", res.data)
+        self.assertEqual(res.data["geojson"]["type"], "FeatureCollection")
+
+    def test_ddss_health_decision_workspace_apis(self):
+        res_fac = self.client.get("/api/health/facilities/")
+        self.assertEqual(res_fac.status_code, status.HTTP_200_OK)
+
+        res_staff = self.client.get("/api/health/staffing/")
+        self.assertEqual(res_staff.status_code, status.HTTP_200_OK)
+
+        res_work = self.client.get("/api/health/workload/")
+        self.assertEqual(res_work.status_code, status.HTTP_200_OK)
+
+        res_infra = self.client.get("/api/health/infrastructure/")
+        self.assertEqual(res_infra.status_code, status.HTTP_200_OK)
+
+        res_med = self.client.get("/api/health/medicines/")
+        self.assertEqual(res_med.status_code, status.HTTP_200_OK)
+
+    def test_ddss_gap_and_priority_engine(self):
+        res_gap = self.client.get("/api/gap-analysis/")
+        self.assertEqual(res_gap.status_code, status.HTTP_200_OK)
+        self.assertIn("model_version", res_gap.data)
+
+        # Create Priority Location
+        prio = PriorityLocation.objects.create(
+            title="Test High Gap Health Sub-Centre",
+            department=self.department,
+            district=self.district,
+            gap_score=84.5,
+            priority="P1",
+            recommended_action="Construct new Sub-Centre"
+        )
+
+        res_prio = self.client.get(f"/api/priority-locations/{prio.id}/")
+        self.assertEqual(res_prio.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_prio.data["priority"], "P1")
+
+    def test_ddss_geotag_exif_and_coordinate_validation(self):
+        # Coordinate boundary validation
+        res_coord = self.client.post("/api/gis/validate-coordinate/", {"latitude": 25.198, "longitude": 85.514}, format="json")
+        self.assertEqual(res_coord.status_code, status.HTTP_200_OK)
+        self.assertTrue(res_coord.data["inside_district"])
+
+        # 25m Deduplication check
+        res_dedup = self.client.post("/api/gis/check-duplicate/", {"latitude": 25.198, "longitude": 85.514}, format="json")
+        self.assertEqual(res_dedup.status_code, status.HTTP_200_OK)
+        self.assertIn("duplicate_warning", res_dedup.data)
+
+        # EXIF Geotag Verification
+        res_exif = self.client.post("/api/evidence/verify-geotag/", {"photo_path": "site_photo.jpg", "latitude": 25.198, "longitude": 85.514}, format="json")
+        self.assertEqual(res_exif.status_code, status.HTTP_200_OK)
+        self.assertIn("status", res_exif.data)
+
+    def test_ddss_priority_to_dpr_proposal_linkage(self):
+        prio = PriorityLocation.objects.create(
+            title="Priority Location for DPR Linkage",
+            department=self.department,
+            district=self.district,
+            gap_score=88.0,
+            priority="P1"
+        )
+
+        res_link = self.client.post(f"/api/priority-locations/{prio.id}/create-proposal/", {"estimated_cost": 18000000.00}, format="json")
+        self.assertEqual(res_link.status_code, status.HTTP_201_CREATED)
+        self.assertIn("proposal_code", res_link.data)
+
+        prio.refresh_from_db()
+        self.assertIsNotNone(prio.linked_proposal)
+
+    def test_multi_department_indicator_creation_and_api_filtering(self):
+        dept_edu, _ = Department.objects.get_or_create(name="Education Department", defaults={"code": "EDUCATION"})
+        dept_edu.code = "EDUCATION"
+        dept_edu.save()
+
+        dept_wtr, _ = Department.objects.get_or_create(name="Water Resources Department", defaults={"code": "WATER_RESOURCES"})
+        dept_wtr.code = "WATER_RESOURCES"
+        dept_wtr.save()
+
+        dept_pwd, _ = Department.objects.get_or_create(name="Public Works Department", defaults={"code": "PWD"})
+        dept_pwd.code = "PWD"
+        dept_pwd.save()
+
+        ind_edu = DepartmentIndicator.objects.create(
+            department=dept_edu,
+            district=self.district,
+            indicator_code="TEACHER_VACANCY",
+            indicator_name="Teacher Vacancy Count",
+            value=28.0,
+            unit="posts",
+            period="2026-08",
+            source="Education MIS"
+        )
+        ind_wtr = DepartmentIndicator.objects.create(
+            department=dept_wtr,
+            district=self.district,
+            indicator_code="WATER_COVERAGE",
+            indicator_name="Household Tap Water Coverage",
+            value=65.5,
+            unit="percent",
+            period="2026-08",
+            source="Jal Jeevan Mission"
+        )
+        ind_pwd = DepartmentIndicator.objects.create(
+            department=dept_pwd,
+            district=self.district,
+            indicator_code="POOR_ROAD_LENGTH",
+            indicator_name="Unpaved Poor Condition Road Length",
+            value=14.2,
+            unit="km",
+            period="2026-08",
+            source="PWD Survey"
+        )
+
+        # Test Department Code Filtering on /api/ddst/indicators/
+        res_edu = self.client.get("/api/ddst/indicators/?department_code=EDUCATION")
+        self.assertEqual(res_edu.status_code, status.HTTP_200_OK)
+        results = res_edu.data.get("results") if isinstance(res_edu.data, dict) else res_edu.data
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["indicator_code"], "TEACHER_VACANCY")
+        self.assertEqual(results[0]["department_code"], "EDUCATION")
+
+        res_wtr = self.client.get("/api/ddst/indicators/?department_code=WATER_RESOURCES")
+        self.assertEqual(res_wtr.status_code, status.HTTP_200_OK)
+        results_wtr = res_wtr.data.get("results") if isinstance(res_wtr.data, dict) else res_wtr.data
+        self.assertEqual(len(results_wtr), 1)
+        self.assertEqual(results_wtr[0]["indicator_code"], "WATER_COVERAGE")
+
+    def test_department_specific_dashboard_api(self):
+        dept_edu, _ = Department.objects.get_or_create(name="Education Department", defaults={"code": "EDUCATION"})
+        dept_edu.code = "EDUCATION"
+        dept_edu.save()
+        Facility.objects.create(name="Test High School Dashboard", department=dept_edu, district=self.district)
+        res = self.client.get(f"/api/ddst/department/EDUCATION/dashboard/")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data["status"], "SUCCESS")
+        self.assertEqual(res.data["department"]["code"], "EDUCATION")
+        self.assertIn("kpis", res.data)
+        self.assertIn("priority_locations", res.data)
+
+        # Test Invalid Department Code
+        res_inv = self.client.get("/api/ddst/department/NON_EXISTENT_DEPT/dashboard/")
+        self.assertEqual(res_inv.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_dm_dashboard_department_filter(self):
+        dept_pwd, _ = Department.objects.get_or_create(name="Public Works Department", defaults={"code": "PWD"})
+        dept_pwd.code = "PWD"
+        dept_pwd.save()
+        res_dm = self.client.get("/api/ddst/dashboard/?department_code=PWD")
+        self.assertEqual(res_dm.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_dm.data["active_department_filter"]["code"], "PWD")
+
+    def test_line_departments_list_api(self):
+        res = self.client.get("/api/ddst/departments/")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertIn("departments", res.data)
+        self.assertTrue(len(res.data["departments"]) > 0)
+
+    def test_education_indicator_properties_and_calculation(self):
+        dept_edu, _ = Department.objects.get_or_create(name="Education Department", defaults={"code": "EDUCATION"})
+        dept_edu.code = "EDUCATION"
+        dept_edu.save()
+        fac_edu = Facility.objects.create(name="Test High School", department=dept_edu, district=self.district)
+        edu_ind = EducationFacilityIndicator.objects.create(
+            facility=fac_edu, sanctioned_teachers=20, available_teachers=14, student_enrolment=500
+        )
+        self.assertEqual(edu_ind.teacher_vacancies, 6)
+        self.assertEqual(edu_ind.teacher_vacancy_percentage, 30.0)
+
+    def test_water_facility_indicator_properties(self):
+        dept_wtr, _ = Department.objects.get_or_create(name="Water Resources Department", defaults={"code": "WATER_RESOURCES"})
+        dept_wtr.code = "WATER_RESOURCES"
+        dept_wtr.save()
+        fac_wtr = Facility.objects.create(name="Test Water Pump House", department=dept_wtr, district=self.district)
+        wtr_ind = WaterFacilityIndicator.objects.create(
+            facility=fac_wtr, household_coverage_percent=70.0, non_functional_sources_count=2, daily_supply_hours=4.0
+        )
+        self.assertEqual(wtr_ind.coverage_gap, 30.0)
+        self.assertEqual(wtr_ind.source_gap, 50.0)
+        self.assertEqual(wtr_ind.supply_gap, 50.0)
+
+    def test_road_indicator_properties(self):
+        dept_pwd, _ = Department.objects.get_or_create(name="Public Works Department", defaults={"code": "PWD"})
+        dept_pwd.code = "PWD"
+        dept_pwd.save()
+        subdiv = self.district.subdivisions.first() if hasattr(self.district, "subdivisions") else None
+        if not subdiv:
+            from myapp.models import SubDivision
+            subdiv = SubDivision.objects.create(district=self.district, name="Test SubDivision")
+        block = Block.objects.create(subdivision=subdiv, name="Test PWD Block")
+        road = RoadIndicator.objects.create(
+            road_name="Test Highway Link", department=dept_pwd, district=self.district, block=block,
+            road_length_km=20.0, paved_length_km=15.0, unpaved_poor_length_km=5.0, accessibility_status="MODERATE", bridge_gap_count=1
+        )
+        self.assertEqual(road.paved_percentage, 75.0)
+        self.assertEqual(road.poor_road_percentage, 25.0)
+        self.assertEqual(road.accessibility_score, 35.0)
+
+    def test_department_facility_mismatch_validation(self):
+        dept_health, _ = Department.objects.get_or_create(name="Health Department", defaults={"code": "HEALTH"})
+        dept_health.code = "HEALTH"
+        dept_health.save()
+        dept_edu, _ = Department.objects.get_or_create(name="Education Department", defaults={"code": "EDUCATION"})
+        dept_edu.code = "EDUCATION"
+        dept_edu.save()
+        fac_health = Facility.objects.create(name="Primary Health Centre Mismatch Test", department=dept_health, district=self.district)
+
+        # Mismatch: Education Department Indicator assigned to Health Facility
+        payload = {
+            "department": dept_edu.id,
+            "district": self.district.id,
+            "facility": fac_health.id,
+            "indicator_code": "TEACHER_VACANCY",
+            "indicator_name": "Teacher Vacancy",
+            "value": 5.0
+        }
+        res = self.client.post("/api/ddst/indicators/", payload, format="json")
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("facility", str(res.data).lower())
+
+    def test_health_sector_crud_endpoints(self):
+        dept_health, _ = Department.objects.get_or_create(name="Health Department", defaults={"code": "HEALTH"})
+        fac = Facility.objects.create(name="Test Health Facility for CRUD", department=dept_health, district=self.district)
+
+        # 1. Staffing APIView CRUD (POST, GET, PUT, DELETE)
+        res_staff = self.client.post("/api/health/staffing/", {
+            "facility": fac.id, "cadre": "DOCTOR", "sanctioned_count": 10, "available_count": 6
+        }, format="json")
+        self.assertEqual(res_staff.status_code, status.HTTP_201_CREATED)
+        staff_id = res_staff.data["data"]["id"]
+
+        res_staff_get = self.client.get(f"/api/health/staffing/?id={staff_id}")
+        self.assertEqual(res_staff_get.status_code, status.HTTP_200_OK)
+
+        res_staff_put = self.client.put("/api/health/staffing/", {
+            "id": staff_id, "available_count": 8
+        }, format="json")
+        self.assertEqual(res_staff_put.status_code, status.HTTP_200_OK)
+
+        # 2. Workload APIView CRUD
+        res_work = self.client.post("/api/health/workload/", {
+            "facility": fac.id, "period": "2026-08", "patient_visits": 350, "admissions": 40
+        }, format="json")
+        self.assertEqual(res_work.status_code, status.HTTP_201_CREATED)
+
+        # 3. Infrastructure APIView CRUD
+        res_infra = self.client.post("/api/health/infrastructure/", {
+            "facility": fac.id, "period": "2026-08", "bed_count": 30, "icu_bed_count": 4,
+            "oxygen_status": "AVAILABLE", "toilet_status": "ADEQUATE", "ramp_status": "FUNCTIONAL"
+        }, format="json")
+        self.assertEqual(res_infra.status_code, status.HTTP_201_CREATED)
+
+        # 4. Medicine Stock APIView CRUD
+        res_med = self.client.post("/api/health/medicines/", {
+            "facility": fac.id, "medicine_name": "Paracetamol 500mg", "stock_type": "CRITICAL", "quantity": 1500, "minimum_quantity": 500, "stock_status": "ADEQUATE"
+        }, format="json")
+        self.assertEqual(res_med.status_code, status.HTTP_201_CREATED)
+
+        # 5. Ambulance APIView CRUD
+        res_amb = self.client.post("/api/health/ambulances/", {
+            "facility": fac.id, "ambulance_code": "AMB-TEST-001", "status": "AVAILABLE"
+        }, format="json")
+        self.assertEqual(res_amb.status_code, status.HTTP_201_CREATED)
+
+        # 6. Vaccination Metric APIView CRUD
+        subdiv = self.district.subdivisions.first() if hasattr(self.district, "subdivisions") else None
+        if not subdiv:
+            from myapp.models import SubDivision
+            subdiv = SubDivision.objects.create(district=self.district, name="Test SubDiv Vac")
+        block = Block.objects.create(subdivision=subdiv, name="Test Block Vac")
+        res_vac = self.client.post("/api/health/vaccination/", {
+            "block": block.id, "period": "2026-Q3", "target_population": 2000, "vaccinated_count": 1700
+        }, format="json")
+        self.assertEqual(res_vac.status_code, status.HTTP_201_CREATED)
+
+        # Delete test cleanup
+        res_staff_del = self.client.delete(f"/api/health/staffing/?id={staff_id}")
+        self.assertEqual(res_staff_del.status_code, status.HTTP_200_OK)
+
 
 
 
