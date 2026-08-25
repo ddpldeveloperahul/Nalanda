@@ -5833,13 +5833,13 @@ class SpatialAnalysisQueryAPIView(APIView):
             f_qs = Facility.objects.select_related("department", "category", "district").all()
 
             if "school" in q_lower or "education" in q_lower:
-                f_qs = f_qs.filter(department__code__iexact="EDUCATION")
+                f_qs = f_qs.filter(Q(department__code__iexact="EDUCATION") | Q(department__name__icontains="Education") | Q(department__name__icontains="School"))
             elif "water" in q_lower:
-                f_qs = f_qs.filter(department__code__iexact="WATER_RESOURCES")
+                f_qs = f_qs.filter(Q(department__code__iexact="WATER_RESOURCES") | Q(department__name__icontains="Water") | Q(department__name__icontains="JJM"))
             elif "road" in q_lower or "pwd" in q_lower:
-                f_qs = f_qs.filter(department__code__iexact="PWD")
+                f_qs = f_qs.filter(Q(department__code__iexact="PWD") | Q(department__name__icontains="PWD") | Q(department__name__icontains="Public Works") | Q(department__name__icontains="Road"))
             elif "hospital" in q_lower or "doctor" in q_lower or "health" in q_lower:
-                f_qs = f_qs.filter(department__code__iexact="HEALTH")
+                f_qs = f_qs.filter(Q(department__code__iexact="HEALTH") | Q(department__name__icontains="Health"))
 
             if not f_qs.exists():
                 f_qs = Facility.objects.select_related("department", "category", "district").all()
