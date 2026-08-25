@@ -84,6 +84,7 @@ urlpatterns = [
     # DDSS Health Sector & Spatial Query APIs
     path('api/spatial-analysis/query/', views.SpatialAnalysisQueryAPIView.as_view(), name='spatial-analysis-query'),
     path('api/spatial-query/', views.SpatialAnalysisQueryAPIView.as_view(), name='spatial-query-alias'),
+    path('api/spatial-query/query/', views.SpatialAnalysisQueryAPIView.as_view(), name='spatial-query-query-alias'),
     path('api/health/facilities/', views.HealthFacilitiesAPIView.as_view(), name='health-facilities'),
     path('api/health/staffing/', views.HealthStaffingAPIView.as_view(), name='health-staffing'),
     path('api/health/staffing/<int:pk>/', views.HealthStaffingAPIView.as_view(), name='health-staffing-detail'),
