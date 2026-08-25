@@ -16,14 +16,24 @@ if HAS_GEODJANGO:
 def haversine_distance(lat1, lon1, lat2, lon2):
     """
     Computes distance between two coordinates in Kilometers using Haversine formula.
+    Safely casts input arguments to pure Python floats to handle GDAL/GEOS/numpy scalar wrappers.
     """
+    try:
+        y1 = float(lat1.y) if hasattr(lat1, 'y') else float(lat1)
+        x1 = float(lon1.x) if hasattr(lon1, 'x') else float(lon1)
+        y2 = float(lat2.y) if hasattr(lat2, 'y') else float(lat2)
+        x2 = float(lon2.x) if hasattr(lon2, 'x') else float(lon2)
+    except Exception:
+        return 0.0
+
     R = 6371.0
-    dlat = math.radians(lat2 - lat1)
-    dlon = math.radians(lon2 - lon1)
-    a = (math.sin(dlat / 2) ** 2 +
-         math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) *
-         math.sin(dlon / 2) ** 2)
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    dlat = math.radians(y2 - y1)
+    dlon = math.radians(x2 - x1)
+    a = (math.sin(dlat / 2.0) ** 2 +
+         math.cos(math.radians(y1)) * math.cos(math.radians(y2)) *
+         math.sin(dlon / 2.0) ** 2)
+    a = max(0.0, min(1.0, a))
+    c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
     return R * c
 
 

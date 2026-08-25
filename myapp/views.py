@@ -982,12 +982,6 @@ class FacilityViewSet(viewsets.ModelViewSet):
         serializer = FacilityHistorySerializer(history_qs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-
-
-
-
-
-
 #=============================================
 # GIS LAYER & FEATURE CRUD VIEWSETS
 # ==========================================
@@ -1046,8 +1040,6 @@ class GISCatalogViewSet(viewsets.ModelViewSet):
             {"message": f"Layer '{layer_name}' and all associated features and facilities deleted successfully."},
             status=status.HTTP_200_OK,
         )
-
-
 
 class GISFeatureViewSet(viewsets.ModelViewSet):
     """

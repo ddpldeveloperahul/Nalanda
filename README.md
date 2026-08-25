@@ -590,15 +590,33 @@ Path Prefix: `/api/facilities/`
 
 ---
 
-## 13. Smart Spatial Query Engine & User Management Modules
+## 13. Smart Spatial Query Engine, Department Indicators & Feedback Analytics
 
-### 13.1 Smart Spatial Query Engine
-- **Endpoint:** `GET /api/spatial-query/`
-- **Description:** Executes natural language and preset spatial queries across 3 perspectives: **Citizens**, **Government Administration**, and **Line Departments**.
-- **Query Parameters:** `q` / `search`, `lat`, `lng`, `radius` (meters), `limit`.
+### 13.1 Smart Natural Language Spatial Query Engine
+- **Primary Endpoint:** `GET /api/spatial-query/` (Alias Routes: `GET /api/spatial-analysis/query/` and `POST /api/spatial-analysis/query/`)
+- **Description:** Executes multi-sector natural language spatial queries, GIS radius searches, and attribute filters across 3 official perspectives (**Citizens**, **Government Administration**, **Line Departments**).
+- **Supported Query Capabilities (91+ Pre-Configured Queries):**
+  - **57 Multi-Sector Queries:** Covers Health (1-8), Education (9-13), Water (14-19), PWD/Roads (20-24), Urban (25-28), Electricity/Energy (29-32), Forest/Environment (33-35), Tourism (36-38), Cross-Department (39-47), and Multi-Sector Executive Decision Questions (48-57).
+  - **34 Official Preset Queries (`Queries for Nalanda.pdf`):** Full intent matching for citizen facility finders, government administration gap analyses, and line department planning supports.
+- **Real Haversine Distance & Radius Filter Engine:** Computes real Haversine distance (`d_km`) between user coordinates (`lat`, `lng`) and target facilities/villages, filtering results dynamically within requested `radius` (km).
+- **Query Parameters:** `q` / `search`, `lat` (e.g. `25.198`), `lng` (e.g. `85.514`), `radius` (e.g. `5`), `limit` (e.g. `20`).
 
-### 13.2 Complete User Directory & Department Users API
-- **User CRUD:** `GET` / `POST` / `PUT` / `PATCH` / `DELETE` `/api/users/` & `/api/users/{id}/`
+### 13.2 Department-Specific Decision Indicators
+- **Education Indicators API (`GET /api/education/indicators/`):** Returns `sanctioned_teachers`, `available_teachers`, `teacher_vacancies`, `teacher_vacancy_percentage`, `student_enrolment`, `classroom_count`, `drinking_water_status`, and `separate_girls_toilet`.
+- **Health Staffing & Facility Indicators API (`GET /api/health/staffing/`):** Returns doctor/nurse vacancies, ICU bed availability, patient visits, ambulance count, and medicine stockouts.
+- **Water Infrastructure Indicators API (`GET /api/water/indicators/`):** Returns water coverage %, daily supply hours, non-functional water sources, and household tap coverage.
+- **PWD Road Infrastructure Indicators API (`GET /api/pwd/indicators/`):** Returns unpaved road %, bridge gap locations, and all-weather road connectivity.
+- **Urban Development Indicators API (`GET /api/urban/indicators/`):** Returns sewerage coverage %, waste collection %, and sanitation complaint density.
+
+### 13.3 Citizen Feedback Real-Time Analytics API
+- **Endpoint:** `GET /api/feedback/analytics/`
+- **Description:** Returns 100% dynamic, real-time database aggregations for citizen location feedback.
+- **Query Filters:** `?start_date=20-08-2026&end_date=25-08-2026&department=13`
+- **Flexible Date Parsing:** Supports both `DD-MM-YYYY` (e.g., `20-08-2026`) and ISO `YYYY-MM-DD` (e.g., `2026-08-20`) formats.
+- **Metrics Calculated:** Real response count (`total_responses`), average rating score, active block ratings, question-level response distributions, and daily response time-series trends.
+
+### 13.4 User Directory & Department Users API
+- **User Directory CRUD:** `GET` / `POST` / `PUT` / `PATCH` / `DELETE` `/api/users/` & `/api/users/{id}/`
 - **Department-Wise Users Endpoint:** `GET /api/department/{department_id}/users/`
 
 ---
@@ -645,6 +663,13 @@ Registered Models in Django Admin (`http://127.0.0.1:8000/admin/`):
 | `/api/users/{id}/` | `GET` / `PUT` / `PATCH` / `DELETE` | Bearer / Admin | Retrieve, update, patch, or soft delete user account |
 | `/api/department/{department_id}/users/` | `GET` | Bearer | Get department-wise user list with role breakdown |
 | `/api/spatial-query/` | `GET` | Bearer / Public | Smart Natural Language Spatial Query Engine (`?q=...`, `?lat=...`, `?lng=...`, `?radius=...`) |
+| `/api/spatial-analysis/query/` | `GET` / `POST` | Bearer / Public | Multi-Layer Compound Spatial Query Engine (Natural Language GET & Compound Attribute JSON POST) |
+| `/api/feedback/analytics/` | `GET` | Bearer / Public | Dynamic Citizen Location Feedback Real-Time Analytics (`?start_date=...`, `?end_date=...`, `?department=...`) |
+| `/api/education/indicators/` | `GET` / `POST` / `PUT` | Bearer / Public | Education Department Facility Indicators (Teacher Vacancies %, Enrolment, Classrooms) |
+| `/api/health/staffing/` | `GET` / `POST` / `PUT` | Bearer / Public | Health Department Staffing & Facility Indicators (Doctor/Nurse Vacancies, ICU Beds, Stockouts) |
+| `/api/water/indicators/` | `GET` / `POST` / `PUT` | Bearer / Public | Water Resources & JJM Indicators (Water Coverage %, Daily Hours, Non-Functional Sources) |
+| `/api/pwd/indicators/` | `GET` / `POST` / `PUT` | Bearer / Public | Public Works Dept Road Indicators (Unpaved %, Bridge Gap Count, Connectivity) |
+| `/api/urban/indicators/` | `GET` / `POST` / `PUT` | Bearer / Public | Urban Development & Sanitation Indicators (Sewerage Coverage %, Waste Collection %) |
 | `/api/planning/dashboard/` | `GET` | Bearer / Public | Development Planning ERP dashboard KPIs, suggested needs & DPR repository |
 | `/api/proposals/` | `GET` / `POST` | Bearer | DPR Proposals CRUD list & create (filters: `department`, `district`, `status`, `stage`, `priority`, `block`, `search`) |
 | `/api/proposals/{id}/` | `GET` / `PUT` / `PATCH` / `DELETE` | Bearer | Proposal details retrieve, update, and soft delete |
