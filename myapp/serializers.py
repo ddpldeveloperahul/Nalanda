@@ -707,7 +707,7 @@ class FacilitySerializer(serializers.ModelSerializer):
             attrs.setdefault("pothole_count", road_ind.pothole_count)
 
         # Department specific fallbacks for Health, Education, Water, PWD & Urban
-        dept_code = (instance.department.code if instance.department else "").upper()
+        dept_code = ((instance.department.code or instance.department.name or "") if instance.department else "").upper()
         if "EDUCATION" in dept_code:
             attrs.setdefault("student_count", attrs.get("student_count", 320))
             attrs.setdefault("students", attrs.get("students", 320))

@@ -582,7 +582,7 @@ Path Prefix: `/api/gis/`
 
 Path Prefix: `/api/facilities/`
 
-- **List & Filter Facilities:** `GET /api/facilities/?search=hospital&category=1`
+- **List & Filter Facilities:** `GET /api/facilities/?search=hospital&category=1` (Public `AllowAny` access enabled for unauthenticated map display)
 - **Facility CRUD:** `/api/facilities/{id}/`
 - **GeoJSON Facility Export:** `GET /api/facilities/geojson/`
 - **Bulk GIS Layer Sync:** `POST /api/facilities/bulk-sync-gis/`

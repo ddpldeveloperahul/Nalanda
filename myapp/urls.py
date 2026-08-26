@@ -109,7 +109,7 @@ urlpatterns = [
     # DDSS Education, Water, Road (PWD) & Universal Multi-Department Indicator APIs
     path('api/education/indicators/', views.EducationFacilityIndicatorAPIView.as_view(), name='education-indicators'),
     path('api/education/indicators/<int:pk>/', views.EducationFacilityIndicatorAPIView.as_view(), name='education-indicators-detail'),
-    path('api/education/indicator/', views.EducationFacilityIndicatorAPIView.as_view(), name='education-indicator-singular'),
+    # path('api/education/indicator/', views.EducationFacilityIndicatorAPIView.as_view(), name='education-indicator-singular'),
     path('api/education/schools/', views.EducationFacilityIndicatorAPIView.as_view(), name='education-schools-alias'),
     path('api/education/telemetry/', views.EducationFacilityIndicatorAPIView.as_view(), name='education-telemetry-alias'),
     path('api/water/indicators/', views.WaterFacilityIndicatorAPIView.as_view(), name='water-indicators'),
@@ -148,7 +148,6 @@ urlpatterns = [
     path('api/department/<str:department_id>/users/', views.DepartmentUsersAPIView.as_view(), name='department-users'),
 
     # GIS Spatial Query Engine & Planning ERP
-    path('api/spatial-query/', views.SpatialQueryAPIView.as_view(), name='spatial-query'),
     path('api/planning/dashboard/', views.PlanningERPAPIView.as_view(), name='planning-dashboard'),
 
     # GIS RESTful CRUD ViewSets

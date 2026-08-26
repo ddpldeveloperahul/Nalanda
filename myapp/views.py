@@ -865,7 +865,7 @@ class FacilityViewSet(viewsets.ModelViewSet):
     """
     queryset = Facility.objects.all().select_related("district", "department", "category", "catalog_entry", "gis_feature").order_by("id")
     serializer_class = FacilitySerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    permission_classes = [permissions.AllowAny]
 
     def get_queryset(self):
         if Facility.objects.count() == 0:
@@ -1013,7 +1013,7 @@ class GISCatalogViewSet(viewsets.ModelViewSet):
     """
     queryset = GISCatalogEntry.objects.all().order_by("id")
     serializer_class = GISCatalogSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    permission_classes = [permissions.AllowAny]
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -1055,7 +1055,7 @@ class GISFeatureViewSet(viewsets.ModelViewSet):
     """
     queryset = GISLayerFeature.objects.all().select_related("catalog_entry").order_by("id")
     serializer_class = GISLayerFeatureSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    permission_classes = [permissions.AllowAny]
     parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get_queryset(self):
@@ -6722,7 +6722,7 @@ class GapPriorityDashboardAPIView(APIView):
                 "title": loc.title,
                 "department_id": loc.department_id,
                 "department_name": loc.department.name if loc.department else "N/A",
-                "department_code": loc.department.code if loc.department else "ALL",
+                "department_code": (loc.department.code or loc.department.name or "ALL") if loc.department else "ALL",
                 "district_id": loc.district_id,
                 "district_name": loc.district.name if loc.district else "Nalanda",
                 "block_id": loc.block_id,
@@ -6757,7 +6757,7 @@ class GapPriorityDashboardAPIView(APIView):
                     "id": fac.id,
                     "name": fac.name,
                     "category": fac.category.name if fac.category else "Facility",
-                    "department_code": fac.department.code if fac.department else "ALL",
+                    "department_code": (fac.department.code or fac.department.name or "ALL") if fac.department else "ALL",
                     "department_name": fac.department.name if fac.department else "Line Department",
                     "latitude": lat,
                     "longitude": lng,
