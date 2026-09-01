@@ -1036,30 +1036,8 @@ class GISCatalogViewSet(viewsets.ModelViewSet):
         AssetCategory.objects.filter(catalog_entry=instance).delete()
         Facility.objects.filter(catalog_entry=instance).delete()
         formatted_name = layer_name.replace("_", " ").title()
+        AssetCategory.objects.filter(name__iexact=formatted_name).delete()
         self.perform_destroy(instance)
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-
-class GISCatalogAPIView(APIView):
-    """
-    Categorized GIS Layer Catalog API per Master Prompt Section 40.
-    """
-    permission_classes = [permissions.AllowAny]
-
-    def get(self, request):
-        qs = GISCatalogEntry.objects.all().order_by("category", "layer_name")
-        categories = {}
-        for entry in qs:
-            cat = entry.category or "General"
-            if cat not in categories:
-                categories[cat] = []
-            categories[cat].append({
-                "name": entry.layer_name,
-                "displayName": entry.layer_name.replace("_", " ").title(),
-                "geometryType": entry.geometry_type,
-                "featureCount": entry.feature_count or 20
-            })
-        return Response({"categories": categories}, status=status.HTTP_200_OK)
         return Response(
             {"message": f"Layer '{layer_name}' and all associated features and facilities deleted successfully."},
             status=status.HTTP_200_OK,
@@ -7577,10 +7555,3 @@ def gap_priority_tester(request):
     Renders the interactive Gap & Priority API Tester Workspace UI.
     """
     return render(request, 'gap_priority_tester.html')
-
-
-def spatial_analysis_tester(request):
-    """
-    Renders the interactive Spatial Analysis API Tester Workspace UI.
-    """
-    return render(request, 'spatial_analysis_tester.html')
