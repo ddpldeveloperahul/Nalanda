@@ -7555,3 +7555,10 @@ def gap_priority_tester(request):
     Renders the interactive Gap & Priority API Tester Workspace UI.
     """
     return render(request, 'gap_priority_tester.html')
+
+
+def spatial_analysis_tester(request):
+    """
+    Renders the interactive Spatial Analysis API Tester Workspace UI.
+    """
+    return render(request, 'spatial_analysis_tester.html')
