@@ -76,10 +76,12 @@ urlpatterns = [
     path('api/gap-analysis/<int:location_id>/', views.GapAnalysisAPIView.as_view(), name='gap-analysis-detail'),
     path('api/gap-analysis/rankings/', views.GapPriorityDashboardAPIView.as_view(), name='gap-analysis-rankings'),
     path('api/gap-priority/', views.GapPriorityDashboardAPIView.as_view(), name='gap-priority-dashboard'),
+    path('api/gap-priority/<int:pk>/', views.GapPriorityDashboardAPIView.as_view(), name='gap-priority-detail'),
     path('api/gap-priority/rankings/', views.GapPriorityDashboardAPIView.as_view(), name='gap-priority-rankings'),
     path('api/gap-priority/overview/', views.GapPriorityDashboardAPIView.as_view(), name='gap-priority-overview'),
     path('api/gap-priority/map/', views.GapPriorityDashboardAPIView.as_view(), name='gap-priority-map'),
     path('api/priority-locations/rankings/', views.GapPriorityDashboardAPIView.as_view(), name='priority-locations-rankings'),
+    path('gap-priority-tester/', views.gap_priority_tester, name='gap-priority-tester'),
 
     # DDSS Health Sector & Spatial Query APIs
     path('api/spatial-analysis/query/', views.SpatialAnalysisQueryAPIView.as_view(), name='spatial-analysis-query'),

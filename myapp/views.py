@@ -745,6 +745,8 @@ def sync_facilities_from_gis():
         "Demographics & Admin": "Revenue & Admin Department",
         "Civic & Infrastructure": "Urban Development & Infra",
         "Environment & Land Use": "Forest & Environment Department",
+        "Energy & Power": "Energy & Power Department",
+        "Telecommunications": "IT & Telecommunications Dept",
     }
 
     existing_facilities = set(Facility.objects.values_list("name", "category_id"))
@@ -6700,22 +6702,43 @@ class GapPriorityDashboardAPIView(APIView):
     """
     permission_classes = [permissions.AllowAny]
 
-    def get(self, request, *args, **kwargs):
-        dept_code = request.query_params.get("department_code") or request.query_params.get("dept")
-        dept = Department.objects.filter(code__iexact=dept_code).first() if dept_code else None
+    def get(self, request, pk=None, *args, **kwargs):
+        rec_id = pk or request.query_params.get("id") or request.query_params.get("facility_id") or request.query_params.get("location_id")
+        dept_query = request.query_params.get("department") or request.query_params.get("department_code") or request.query_params.get("dept")
+        priority_filter = request.query_params.get("priority")
+        
+        dept = None
+        if dept_query:
+            dept = Department.objects.filter(
+                Q(code__iexact=dept_query) | Q(code__icontains=dept_query) | Q(name__icontains=dept_query)
+            ).first()
+
+        dept_code = dept.code if dept else (dept_query if dept_query else None)
 
         model_ver = GapPriorityEngine.get_active_model_version(department=dept)
         weights = model_ver.weights if (model_ver and model_ver.weights) else GapPriorityEngine.DEPARTMENT_WEIGHT_PROFILES.get(dept_code or "HEALTH", GapPriorityEngine.DEFAULT_WEIGHTS)
 
         # Ranked Priority Locations
         prio_qs = PriorityLocation.objects.select_related("department", "district", "block", "facility").all()
+        if rec_id:
+            prio_qs = prio_qs.filter(Q(id=rec_id) | Q(facility_id=rec_id))
         if dept:
             prio_qs = prio_qs.filter(department=dept)
         elif dept_code:
-            prio_qs = prio_qs.filter(department__code__iexact=dept_code)
+            prio_qs = prio_qs.filter(Q(department__code__icontains=dept_code) | Q(department__name__icontains=dept_code))
+        if priority_filter:
+            prio_qs = prio_qs.filter(priority__iexact=priority_filter)
 
         rankings = []
         for rank_idx, loc in enumerate(prio_qs[:50], start=1):
+            if loc.facility:
+                fac_gap = GapPriorityEngine.compute_facility_gap(loc.facility)
+                comp = fac_gap.get("components", {})
+                reasons_list = fac_gap.get("reason_codes", [])
+            else:
+                comp = {"demand_gap": 40.0, "capacity_gap": 30.0, "accessibility_gap": 60.0, "infrastructure_gap": 25.0, "hr_gap": 50.0, "medicine_gap": 20.0, "coverage_gap": 45.0, "citizen_feedback_gap": 50.0}
+                reasons_list = ["HIGH_ACCESSIBILITY_GAP"]
+
             rankings.append({
                 "id": loc.id,
                 "rank": rank_idx,
@@ -6732,14 +6755,58 @@ class GapPriorityDashboardAPIView(APIView):
                 "gap_score": float(loc.gap_score or 0.85),
                 "priority": loc.priority,
                 "reason": loc.recommended_action or "High Infrastructure & Operational Deficit",
+                "reason_codes": reasons_list,
+                "components": comp,
                 "recommended_action": loc.recommended_action or "Sanction DPR Proposal",
                 "affected_population": 45000,
                 "hazard_flags": "None",
                 "created_at": loc.created_at.isoformat() if hasattr(loc, "created_at") and loc.created_at else "2026-08-22T00:00:00Z"
             })
 
-        facilities = Facility.objects.filter(department=dept) if dept else Facility.objects.all()[:30]
+        facilities_qs = Facility.objects.select_related("department", "category", "district").all()
+        if rec_id:
+            facilities_qs = facilities_qs.filter(id=rec_id)
+        if dept:
+            facilities_qs = facilities_qs.filter(department=dept)
+        elif dept_code:
+            facilities_qs = facilities_qs.filter(Q(department__code__icontains=dept_code) | Q(department__name__icontains=dept_code))
+
+        facilities = list(facilities_qs[:50])
         results = [GapPriorityEngine.compute_facility_gap(f) for f in facilities]
+        if priority_filter:
+            results = [r for r in results if r.get("priority", "").upper() == priority_filter.upper()]
+
+        # Fallback to facility rankings if no explicit PriorityLocation entries exist for department
+        if not rankings and results:
+            for rank_idx, r in enumerate(results, start=1):
+                fac_id = r.get("facility_id")
+                fac_obj = next((f for f in facilities if f.id == fac_id), None)
+                d_name = fac_obj.department.name if (fac_obj and fac_obj.department) else (dept.name if dept else "Health Department")
+                d_code = fac_obj.department.code if (fac_obj and fac_obj.department) else (dept_code or "HEALTH")
+                rankings.append({
+                    "id": r.get("facility_id"),
+                    "rank": rank_idx,
+                    "title": r.get("facility_name"),
+                    "department_id": fac_obj.department_id if fac_obj else (dept.id if dept else 3),
+                    "department_name": d_name,
+                    "department_code": d_code,
+                    "district_id": fac_obj.district_id if fac_obj else None,
+                    "district_name": fac_obj.district.name if (fac_obj and fac_obj.district) else "Nalanda",
+                    "block_id": getattr(fac_obj, "block_id", None) if fac_obj else None,
+                    "block_name": fac_obj.block.name if (fac_obj and hasattr(fac_obj, "block") and fac_obj.block) else None,
+                    "facility_id": r.get("facility_id"),
+                    "facility_name": r.get("facility_name"),
+                    "gap_score": r.get("gap_score", 50.0),
+                    "priority": r.get("priority", "P3"),
+                    "reason": ", ".join(r.get("reason_codes", [])) or "Operational & Resource Deficit",
+                    "reason_codes": r.get("reason_codes", []),
+                    "components": r.get("components", {}),
+                    "weights_used": r.get("weights_used", weights),
+                    "recommended_action": "Sanction Infrastructure DPR & Resource Allocation",
+                    "affected_population": 25000,
+                    "hazard_flags": "None",
+                    "created_at": "2026-08-22T00:00:00Z"
+                })
 
         path_str = request.path.lower()
 
@@ -6767,6 +6834,9 @@ class GapPriorityDashboardAPIView(APIView):
                     "reason": f"High operational deficit in {fac.name}",
                     "recommended_action": "Sanction DPR Proposal & Infrastructure Expansion"
                 })
+
+            if priority_filter:
+                map_features = [m for m in map_features if m.get("priority", "").upper() == priority_filter.upper()]
 
             return Response({
                 "status": "SUCCESS",
@@ -7478,3 +7548,10 @@ class FeedbackAnalyticsAPIView(APIView):
             "response_trends": response_trends,
             "trends": response_trends
         }, status=status.HTTP_200_OK)
+
+
+def gap_priority_tester(request):
+    """
+    Renders the interactive Gap & Priority API Tester Workspace UI.
+    """
+    return render(request, 'gap_priority_tester.html')

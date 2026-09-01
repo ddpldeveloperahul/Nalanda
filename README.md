@@ -648,6 +648,7 @@ Registered Models in Django Admin (`http://127.0.0.1:8000/admin/`):
 
 ## 16. Complete Master REST API Reference Table
 
+### 16.1 Authentication, Roles & User Directory APIs
 | Path | Method | Auth Required | Description |
 | :--- | :--- | :--- | :--- |
 | `/api/auth/signup/` | `POST` | Public | Register new user account with role selection |
@@ -661,17 +662,80 @@ Registered Models in Django Admin (`http://127.0.0.1:8000/admin/`):
 | `/api/auth/roles/` | `GET` | Public | List system roles |
 | `/api/users/` | `GET` / `POST` | Bearer / Admin | User directory CRUD list & create (filters: `search`, `department`, `role`, `district`) |
 | `/api/users/{id}/` | `GET` / `PUT` / `PATCH` / `DELETE` | Bearer / Admin | Retrieve, update, patch, or soft delete user account |
-| `/api/department/{department_id}/users/` | `GET` | Bearer | Get department-wise user list with role breakdown |
-| `/api/spatial-query/` | `GET` | Bearer / Public | Smart Natural Language Spatial Query Engine (`?q=...`, `?lat=...`, `?lng=...`, `?radius=...`) |
-| `/api/spatial-analysis/query/` | `GET` / `POST` | Bearer / Public | Multi-Layer Compound Spatial Query Engine (Natural Language GET & Compound Attribute JSON POST) |
-| `/api/feedback/analytics/` | `GET` | Bearer / Public | Dynamic Citizen Location Feedback Real-Time Analytics (`?start_date=...`, `?end_date=...`, `?department=...`) |
-| `/api/education/indicators/` | `GET` / `POST` / `PUT` | Bearer / Public | Education Department Facility Indicators (Teacher Vacancies %, Enrolment, Classrooms) |
-| `/api/health/staffing/` | `GET` / `POST` / `PUT` | Bearer / Public | Health Department Staffing & Facility Indicators (Doctor/Nurse Vacancies, ICU Beds, Stockouts) |
-| `/api/water/indicators/` | `GET` / `POST` / `PUT` | Bearer / Public | Water Resources & JJM Indicators (Water Coverage %, Daily Hours, Non-Functional Sources) |
-| `/api/pwd/indicators/` | `GET` / `POST` / `PUT` | Bearer / Public | Public Works Dept Road Indicators (Unpaved %, Bridge Gap Count, Connectivity) |
-| `/api/urban/indicators/` | `GET` / `POST` / `PUT` | Bearer / Public | Urban Development & Sanitation Indicators (Sewerage Coverage %, Waste Collection %) |
-| `/api/planning/dashboard/` | `GET` | Bearer / Public | Development Planning ERP dashboard KPIs, suggested needs & DPR repository |
+| `/api/department/{department_id}/users/` | `GET` | Bearer / Public | Get department-wise user list with role breakdown |
+
+### 16.2 Smart Natural Language Spatial Query Engine APIs
+| Path | Method | Auth Required | Description |
+| :--- | :--- | :--- | :--- |
+| `/api/spatial-query/` | `GET` | Public / Bearer | Smart Natural Language Spatial Query Engine (`?q=...`, `?lat=...`, `?lng=...`, `?radius=...`) |
+| `/api/spatial-analysis/query/` | `GET` / `POST` | Public / Bearer | Multi-Layer Compound Spatial Query Engine (Natural Language GET & Compound Attribute JSON POST) |
+| `/api/spatial-query/query/` | `GET` / `POST` | Public / Bearer | Shortcut Alias endpoint matching `/api/spatial-analysis/query/` |
+
+### 16.3 Multi-Sector Gap Analysis & Gap Priority Decision Engine APIs
+| Path | Method | Auth Required | Description |
+| :--- | :--- | :--- | :--- |
+| `/api/gap-priority/` | `GET` / `POST` | Public / Bearer | Master Gap Priority Dashboard & Weighted Need Matrix Engine |
+| `/api/gap-priority/rankings/` | `GET` | Public / Bearer | Top Priority Infrastructure Deficit Rankings |
+| `/api/gap-priority/overview/` | `GET` | Public / Bearer | Executive Overview KPIs for Sector Gap Priorities |
+| `/api/gap-priority/map/` | `GET` | Public / Bearer | Spatial Map Points with Gap Score Weights & Color Coding (`#ef4444`, `#f97316`) |
+| `/api/priority-locations/rankings/` | `GET` | Public / Bearer | Alias endpoint for Priority Location Gap Rankings |
+| `/api/gap-analysis/` | `GET` / `POST` | Public / Bearer | Gap Analysis Location Repository List & Create |
+| `/api/gap-analysis/{location_id}/` | `GET` / `PUT` / `DELETE` | Public / Bearer | Retrieve, update, or delete specific Gap Analysis location record |
+| `/api/gap-analysis/rankings/` | `GET` | Public / Bearer | Alias route for Gap Analysis Priority Rankings |
+| `/api/priority-locations/` | `GET` / `POST` / `PUT` / `DELETE` | Public / Bearer | Priority Location CRUD ViewSet (`?department=...`, `?district=...`) |
+| `/api/ddst/departments/` | `GET` | Public / Bearer | Line Department Metadata Directory for DDST/DDSS decision engine |
+| `/api/ddst/department/{department_code}/dashboard/` | `GET` | Public / Bearer | Department-Specific Executive Decision Dashboard KPIs |
+| `/api/ddst/dashboard/` | `GET` | Public / Bearer | District Magistrate Multi-Department Decision Matrix Dashboard |
+| `/api/ddss/dashboard/` | `GET` | Public / Bearer | Alias route for DM Executive Decision Support System Dashboard |
+
+### 16.4 Line Department Indicator, Workload & Sector Telemetry APIs
+| Path | Method | Auth Required | Description |
+| :--- | :--- | :--- | :--- |
+| `/api/health/facilities/` | `GET` | Public / Bearer | Health Sector Facilities list (`?department=...`) |
+| `/api/health/staffing/` | `GET` / `POST` / `PUT` | Public / Bearer | Health Department Staffing & Doctor/Nurse Vacancies Indicator |
+| `/api/health/staffing/{id}/` | `GET` / `PUT` / `DELETE` | Public / Bearer | Health Staffing detail retrieve, update, or delete |
+| `/api/health/human-resources/` | `GET` | Public / Bearer | Alias endpoint for Health Human Resources & Staffing |
+| `/api/health/telemetry/` | `GET` | Public / Bearer | Alias endpoint for Health Infrastructure Telemetry |
+| `/api/health/workload/` | `GET` / `POST` / `PUT` / `DELETE` | Public / Bearer | Health OPD/IPD Patient Workload Visits Indicator (`?period=...`) |
+| `/api/health/workload/{id}/` | `GET` / `PUT` / `DELETE` | Public / Bearer | Health Workload detail retrieve, update, or delete |
+| `/api/health/infrastructure/` | `GET` / `POST` / `PUT` / `DELETE` | Public / Bearer | Health ICU Beds & Oxygen Plant Infrastructure Indicator |
+| `/api/health/infrastructure/{id}/` | `GET` / `PUT` / `DELETE` | Public / Bearer | Health Infrastructure detail retrieve, update, or delete |
+| `/api/health/medicines/` | `GET` / `POST` / `PUT` / `DELETE` | Public / Bearer | Health Medicine Warehouse Stockout Indicator |
+| `/api/health/medicines/{id}/` | `GET` / `PUT` / `DELETE` | Public / Bearer | Health Medicine Stock detail retrieve, update, or delete |
+| `/api/medicines/` | `GET` | Public / Bearer | Alias endpoint for Health Medicine Stockouts |
+| `/api/health/ambulances/` | `GET` / `POST` / `PUT` / `DELETE` | Public / Bearer | Health Emergency Ambulance Fleet Availability Indicator |
+| `/api/health/ambulances/{id}/` | `GET` / `PUT` / `DELETE` | Public / Bearer | Health Ambulance detail retrieve, update, or delete |
+| `/api/ambulances/` | `GET` | Public / Bearer | Alias endpoint for Ambulance Fleet Availability |
+| `/api/health/vaccination/` | `GET` / `POST` / `PUT` / `DELETE` | Public / Bearer | Health Immunization & Vaccination Coverage Indicator |
+| `/api/health/vaccination/{id}/` | `GET` / `PUT` / `DELETE` | Public / Bearer | Health Vaccination detail retrieve, update, or delete |
+| `/api/vaccinations/` | `GET` | Public / Bearer | Alias endpoint for Vaccination Coverage |
+| `/api/health/risk/` | `GET` | Public / Bearer | Health Epidemic & Disease Surveillance Risk Signal |
+| `/api/disease-surveillance/` | `GET` | Public / Bearer | Alias endpoint for Disease Surveillance Risk |
+| `/api/education/indicators/` | `GET` / `POST` / `PUT` / `DELETE` | Public / Bearer | Education Department Indicators (Teacher Vacancies %, Enrolment, Classrooms) |
+| `/api/education/indicators/{id}/` | `GET` / `PUT` / `DELETE` | Public / Bearer | Education Indicator detail retrieve, update, or delete |
+| `/api/education/schools/` | `GET` | Public / Bearer | Alias endpoint for Education School Indicators |
+| `/api/education/telemetry/` | `GET` | Public / Bearer | Alias endpoint for Education Facility Telemetry |
+| `/api/water/indicators/` | `GET` / `POST` / `PUT` / `DELETE` | Public / Bearer | Water Resources & JJM Indicators (Water Coverage %, Daily Hours, Non-Functional) |
+| `/api/water/indicators/{id}/` | `GET` / `PUT` / `DELETE` | Public / Bearer | Water Indicator detail retrieve, update, or delete |
+| `/api/water/schemes/` | `GET` | Public / Bearer | Alias endpoint for Water Har Ghar Nal Ka Jal Schemes |
+| `/api/water/sources/` | `GET` | Public / Bearer | Alias endpoint for Water Sources Telemetry |
+| `/api/water/telemetry/` | `GET` | Public / Bearer | Alias endpoint for Water Facility Telemetry |
+| `/api/road/indicators/` | `GET` / `POST` / `PUT` / `DELETE` | Public / Bearer | Public Works Department Road Indicators (Unpaved %, Bridge Gap Count) |
+| `/api/road/indicators/{id}/` | `GET` / `PUT` / `DELETE` | Public / Bearer | Road Indicator detail retrieve, update, or delete |
+| `/api/pwd/indicators/` | `GET` | Public / Bearer | Alias endpoint for PWD Road Indicators |
+| `/api/pwd/telemetry/` | `GET` | Public / Bearer | Alias endpoint for PWD Road Infrastructure Telemetry |
+| `/api/urban/indicators/` | `GET` / `POST` / `PUT` / `DELETE` | Public / Bearer | Urban Development & Sanitation Indicators (Sewerage Coverage %, Waste Collection %) |
+| `/api/urban/telemetry/` | `GET` | Public / Bearer | Alias endpoint for Urban Infrastructure Telemetry |
+| `/api/ddst/indicators/` | `GET` / `POST` / `PUT` / `DELETE` | Public / Bearer | Universal Multi-Department Indicator API |
+| `/api/ddst/indicators/{id}/` | `GET` / `PUT` / `DELETE` | Public / Bearer | Universal Department Indicator detail retrieve, update, or delete |
+| `/api/forest/` | `GET` | Public / Bearer | Forest Cover & Environmental Greenery Data API |
+
+### 16.5 Development Planning & DPR Proposal ERP APIs
+| Path | Method | Auth Required | Description |
+| :--- | :--- | :--- | :--- |
+| `/api/planning/dashboard/` | `GET` | Public / Bearer | Development Planning ERP dashboard KPIs, suggested needs & DPR repository |
 | `/api/proposals/` | `GET` / `POST` | Bearer | DPR Proposals CRUD list & create (filters: `department`, `district`, `status`, `stage`, `priority`, `block`, `search`) |
+| `/api/proposal/` | `GET` / `POST` | Bearer | Alias endpoint for DPR Proposals |
 | `/api/proposals/{id}/` | `GET` / `PUT` / `PATCH` / `DELETE` | Bearer | Proposal details retrieve, update, and soft delete |
 | `/api/proposals/{id}/step2-survey-inspection/` | `POST` | Bearer | Step 2: Save Survey & Site Inspection notes and GIS coordinates |
 | `/api/proposals/{id}/step3-technical-dpr/` | `POST` | Bearer | Step 3: Save Technical Scope and engineering specifications |
@@ -689,7 +753,12 @@ Registered Models in Django Admin (`http://127.0.0.1:8000/admin/`):
 | `/api/proposals/{id}/release/` | `POST` | Bearer | Release proposal budget (One-Time `FULL` or `INSTALLMENT`-wise tranches) |
 | `/api/proposals/{id}/releases/` | `GET` | Bearer | Retrieve full fund release tranches history with date & timestamp |
 | `/api/proposal-releases/` | `GET` / `POST` | Bearer | Proposal fund releases CRUD ViewSet (`?proposal=<id>`) |
+
+### 16.6 Project Execution, e-MB & Financial ERP APIs
+| Path | Method | Auth Required | Description |
+| :--- | :--- | :--- | :--- |
 | `/api/projects/` | `GET` / `POST` | Bearer | Project Execution ERP CRUD list & create (filters: `department`, `district`, `status`, `risk`, `search`) |
+| `/api/project/` | `GET` / `POST` | Bearer | Alias endpoint for Project Execution |
 | `/api/projects/{id}/` | `GET` / `PUT` / `PATCH` / `DELETE` | Bearer | Project details retrieve, update, and soft/hard delete |
 | `/api/projects/summary/` | `GET` | Bearer | Aggregate execution KPIs (running count, budget utilized, bill totals, net payable) |
 | `/api/projects/{id}/sanction/` | `POST` | Bearer | Sanction project budget amount & issue sanction order number |
@@ -708,19 +777,21 @@ Registered Models in Django Admin (`http://127.0.0.1:8000/admin/`):
 | `/api/bills/` | `GET` / `POST` | Bearer (DM/Dept Head) | Project Bills CRUD list and create (financial authorization workflow) |
 | `/api/bills/{id}/` | `GET` / `PUT` / `PATCH` / `DELETE` | Bearer (DM/Dept Head) | Bill details retrieve, update, patch, or delete |
 | `/api/execution-risks/` | `GET` / `POST` | Bearer | Execution Risk signals CRUD list and create |
-| `/api/reports/` | `GET` / `POST` | Bearer / Public | Enterprise Reports catalog list & create (filters: `category`, `department`) |
-| `/api/reports/generate/` | `POST` | Bearer / Public | Generate on-demand report action (`sla_audit`, `asset_audit`, `grievance`, `workflow`) |
-| `/api/reports/{id}/download/` | `GET` | Bearer / Public | Download generated PDF / CSV report document file |
-| `/api/employees/` | `GET` / `POST` | Bearer / Public | Line Department Employee Directory CRUD list & create (filters: `search`, `role`, `status`, `block`) |
-| `/api/employees/{id}/` | `GET` / `PUT` / `PATCH` / `DELETE` | Bearer / Public | Retrieve, update, patch, or delete employee profile |
-| `/api/employees/invite/` | `POST` | Bearer / Public | Issue secure 7-day UUID onboarding invitation token |
-| `/api/employees/accept-invite/` | `POST` | Public | Accept onboarding invitation, set password, and activate user account |
+
+### 16.7 State Governance Master Budget & Finance APIs
+| Path | Method | Auth Required | Description |
+| :--- | :--- | :--- | :--- |
 | `/api/state-budget/summary/` | `GET` | Bearer (State Finance Admin) | Master State Governance Budget Dashboard Summary API (`?financial_year=...`, `?department=...`, `?district=...`, `?scheme=...`) |
-| `/api/state-budgets/` | `GET` / `POST` / `PUT` / `DELETE` | Bearer (State Finance Admin) | State Master Budget CRUD list, create, update, delete |
+| `/api/state-budget/` | `GET` | Bearer (State Finance Admin) | State Governance Budget overview list |
+| `/api/state-budgets/` | `GET` / `POST` / `PUT` / `DELETE` | Bearer (State Finance Admin) | State Master Budget CRUD ViewSet |
 | `/api/department-budgets/` | `GET` / `POST` / `PUT` / `DELETE` | Bearer (State Finance Admin) | Department Budget allocations, sanctions, and utilization CRUD |
 | `/api/district-allocations/` | `GET` / `POST` / `PUT` / `DELETE` | Bearer (State Finance Admin) | District Budget allocations CRUD |
 | `/api/schemes/` | `GET` / `POST` / `PUT` / `DELETE` | Bearer (State Finance Admin) | State & Central Schemes Master repository CRUD |
 | `/api/financial-ledger/` | `GET` / `POST` / `PUT` / `DELETE` | Bearer (State Finance Admin) | Financial Ledger transaction entries CRUD |
+
+### 16.8 Citizen Grievances, SLA Audit & Spatial Heatmap APIs
+| Path | Method | Auth Required | Description |
+| :--- | :--- | :--- | :--- |
 | `/api/complaints/` | `GET` | Bearer / Public | List complaints filtered by role/department scope |
 | `/api/complaints/` | `POST` | Bearer | Submit complaint with auto-routing & spatial calculations |
 | `/api/complaints/{id}/assign/` | `POST` | Bearer | Assign ticket to officer / engineer |
@@ -739,15 +810,61 @@ Registered Models in Django Admin (`http://127.0.0.1:8000/admin/`):
 | `/api/complaints/heatmap/` | `GET` | Public / Bearer | Fetch weighted spatial points for heatmaps |
 | `/api/complaints/nearby/` | `GET` | Public / Bearer | Query complaints within spatial radius (m) |
 | `/api/complaints/nearest-facility/` | `GET` | Public / Bearer | Calculate distance & return top N nearest spatial facilities |
+| `/api/department/{department_id}/complain/` | `POST` | Bearer / Public | Single complaint creation for specific department |
+| `/api/department/{department_id}/complaints/` | `GET` | Bearer / Public | Complaints list for specific department |
+| `/api/departments/{department_id}/complain/` | `POST` | Bearer / Public | Alias route for department complaint submission |
+
+### 16.9 Citizen Perception Feedback & Analytics APIs
+| Path | Method | Auth Required | Description |
+| :--- | :--- | :--- | :--- |
+| `/api/feedback/questions/` | `GET` / `POST` | Public / Bearer | Citizen Feedback Questions Directory |
+| `/api/feedback/responses/` | `GET` / `POST` | Public / Bearer | Citizen Location Feedback Responses List & Create |
+| `/api/feedback/aggregation/` | `GET` | Public / Bearer | Aggregated Feedback Ratings by Location & Block |
+| `/api/feedback/analytics/` | `GET` | Public / Bearer | Dynamic Citizen Location Feedback Real-Time Analytics (`?start_date=...`, `?end_date=...`, `?department=...`) |
+
+### 16.10 GIS Validation, Geotag Verification & Vector Layer APIs
+| Path | Method | Auth Required | Description |
+| :--- | :--- | :--- | :--- |
+| `/api/gis/validate-coordinate/` | `POST` | Public / Bearer | Validate if coordinates (lat, lng) lie within Bihar/Nalanda bounds |
+| `/api/gis/check-duplicate/` | `POST` | Public / Bearer | Check for existing duplicate spatial asset within buffer distance |
+| `/api/evidence/verify-geotag/` | `POST` | Public / Bearer | Extract EXIF metadata & verify image geotag location |
+| `/api/gis/catalog/` | `GET` | Public | List published GIS layer catalog (65 total layers) |
+| `/api/gis/catalog-crud/` | `GET` / `POST` / `PUT` / `DELETE` | Public / Bearer | GIS Catalog Entry CRUD ViewSet |
+| `/api/gis/features/` | `GET` / `POST` / `PUT` / `DELETE` | Public / Bearer | Individual GIS Layer Features CRUD ViewSet (`?catalog_entry=...`, `?layer_name=...`) |
+| `/api/gis/features/geojson/` | `GET` | Public | Export filtered GIS features as standard GeoJSON FeatureCollection |
+| `/api/gis/features/bulk-create/` | `POST` | Public / Bearer | Bulk create GIS features for catalog entry |
+| `/api/gis/layers/{layer_name}/` | `GET` | Public | Fetch vector layer GeoJSON by shapefile layer name |
+| `/api/gis/upload-layer/` | `POST` | Bearer / Public | Upload shapefile `.zip` bundle & auto-ingest features |
+
+### 16.11 Facilities Directory & SCD Type 2 Audit APIs
+| Path | Method | Auth Required | Description |
+| :--- | :--- | :--- | :--- |
+| `/api/facilities/` | `GET` / `POST` | Public | Facilities directory list and create (Public `AllowAny` enabled for map display) |
+| `/api/facilities/{id}/` | `GET` / `PUT` / `DELETE` | Public | Facility retrieve, update, delete |
+| `/api/facilities/geojson/` | `GET` | Public | Export 73,400+ facilities as GeoJSON FeatureCollection |
+| `/api/facilities/sync-gis/` | `POST` | Public / Bearer | Bulk sync GIS layer features into Facilities directory |
+| `/api/facilities/{id}/history/` | `GET` | Public / Bearer | Audit version history viewer (SCD Type 2 snapshots) |
+| `/api/asset-categories/` | `GET` / `POST` / `PUT` / `DELETE` | Public / Bearer | Asset Categories CRUD ViewSet |
+
+### 16.12 Dashboards, Notifications, Reports & Spatial Entities APIs
+| Path | Method | Auth Required | Description |
+| :--- | :--- | :--- | :--- |
 | `/api/dashboards/citizen/` | `GET` | Bearer / Public | Citizen portal metrics summary |
 | `/api/dashboards/department/` | `GET` | Bearer / Public | Department queue & SLA metrics |
 | `/api/dashboards/officer/` | `GET` | Bearer / Public | Today's officer work queue |
 | `/api/dashboards/district/` | `GET` | Bearer / Public | District-wide department & status metrics |
 | `/api/dashboards/state/` | `GET` | Bearer / Public | District rankings comparison matrix |
+| `/api/dashboards/` | `GET` / `POST` | Bearer / Public | Dashboards CRUD ViewSet |
 | `/api/notifications/` | `GET` | Bearer | List dispatched notifications |
-| `/api/facilities/` | `GET` / `POST` | Bearer / Public | Facilities directory list and create |
-| `/api/facilities/{id}/` | `GET` / `PUT` / `DELETE` | Bearer / Public | Facility retrieve, update, delete |
-| `/api/facilities/geojson/` | `GET` | Public | Export facilities as GeoJSON FeatureCollection |
-| `/api/gis/catalog/` | `GET` | Public | List published GIS layer catalog |
-| `/api/gis/layers/{layer}/` | `GET` | Public | Fetch vector layer GeoJSON |
-| `/api/gis/upload-layer/` | `POST` | Bearer | Upload shapefile `.zip` bundle |
+| `/api/reports/` | `GET` / `POST` | Bearer / Public | Enterprise Reports catalog list & create (filters: `category`, `department`) |
+| `/api/reports/generate/` | `POST` | Bearer / Public | Generate on-demand report action (`sla_audit`, `asset_audit`, `grievance`, `workflow`) |
+| `/api/reports/{id}/download/` | `GET` | Bearer / Public | Download generated PDF / CSV report document file |
+| `/api/employees/` | `GET` / `POST` | Bearer / Public | Line Department Employee Directory CRUD list & create |
+| `/api/employees/{id}/` | `GET` / `PUT` / `PATCH` / `DELETE` | Bearer / Public | Retrieve, update, patch, or delete employee profile |
+| `/api/employees/invite/` | `POST` | Bearer / Public | Issue secure 7-day UUID onboarding invitation token |
+| `/api/employees/accept-invite/` | `POST` | Public | Accept onboarding invitation, set password, and activate user account |
+| `/api/departments/` | `GET` / `POST` / `PUT` / `DELETE` | Public / Bearer | Department Master CRUD ViewSet |
+| `/api/department-officers/` | `GET` / `POST` / `PUT` / `DELETE` | Public / Bearer | Department Nodal Officers CRUD ViewSet |
+| `/api/states/` | `GET` / `POST` / `PUT` / `DELETE` | Public / Bearer | States Master CRUD ViewSet |
+| `/api/districts/` | `GET` / `POST` / `PUT` / `DELETE` | Public / Bearer | Districts Master CRUD ViewSet |
+| `/api/blocks/` | `GET` / `POST` / `PUT` / `DELETE` | Public / Bearer | Blocks Master CRUD ViewSet |

@@ -82,6 +82,21 @@ CATEGORY_MAPPING = {
     "PoliceStation": ("Civic & Infrastructure", "Police Stations"),
     "PostOffice": ("Civic & Infrastructure", "Post Offices"),
     "Temple": ("Civic & Infrastructure", "Temples"),
+
+    # Reasi Infrastructure & Utility Layers
+    "Power_NW_Pnt": ("Energy & Power", "Power Network Points"),
+    "Power_NW_Line": ("Energy & Power", "Power Transmission Lines"),
+    "Communication_Pnt": ("Telecommunications", "Communication Towers & Nodes"),
+    "Water_NW_Pnt": ("Hydrology & Water", "Water Supply Points"),
+    "Water_NW_Line": ("Hydrology & Water", "Water Supply Pipelines"),
+    "WaterBodies_Line": ("Hydrology & Water", "Water Body Streams"),
+    "WaterBodies_Poly": ("Hydrology & Water", "Water Bodies & Reservoirs"),
+    "Road_CLine": ("Transportation", "Road Centerlines"),
+    "Road_Poly": ("Transportation", "Road Polygons"),
+    "Rail_Line": ("Transportation", "Railway Lines"),
+    "Bridge_Flyover_Line": ("Transportation", "Bridges & Flyovers"),
+    "ULU_POLY": ("Environment & Land Use", "Urban Land Use Zones"),
+    "BuildingFootprint": ("Civic & Infrastructure", "Building Footprints"),
 }
 
 

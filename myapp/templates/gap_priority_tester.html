@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nalanda NDIS - Gap & Priority API Tester Workspace</title>
+    <!-- Google Fonts Outfit & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #090d16;
+            --card-bg: rgba(22, 30, 46, 0.75);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --card-hover: rgba(30, 41, 64, 0.85);
+            --accent-blue: #3b82f6;
+            --accent-cyan: #06b6d4;
+            --accent-green: #10b981;
+            --accent-orange: #f97316;
+            --accent-red: #ef4444;
+            --accent-purple: #8b5cf6;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --text-dim: #64748b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-dark);
+            background-image:
+                radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.12) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.12) 0px, transparent 50%);
+            color: var(--text-main);
+            min-height: 100vh;
+            padding: 24px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        /* Top Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 28px;
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            margin-bottom: 24px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .logo-icon {
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 800;
+            font-size: 22px;
+            color: #fff;
+            box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);
+        }
+
+        .title-text h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            background: linear-gradient(90deg, #ffffff, #cbd5e1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .title-text p {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.25);
+            border-radius: 30px;
+            color: var(--accent-green);
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--accent-green);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--accent-green);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(0.95);
+                opacity: 0.8;
+            }
+
+            50% {
+                transform: scale(1.15);
+                opacity: 1;
+            }
+
+            100% {
+                transform: scale(0.95);
+                opacity: 0.8;
+            }
+        }
+
+        /* Control Panel */
+        .controls-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-group label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-control {
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            padding: 10px 14px;
+            color: var(--text-main);
+            font-size: 14px;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        .form-control:focus {
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        }
+
+        select.form-control option {
+            background: #0f172a;
+            color: #fff;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-blue), #2563eb);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            padding: 12px 24px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(37, 99, 235, 0.45);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        /* URL Preview Bar */
+        .url-preview-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(15, 23, 42, 0.85);
+            border: 1px dashed rgba(59, 130, 246, 0.3);
+            border-radius: 10px;
+            padding: 10px 16px;
+            font-family: monospace;
+            font-size: 13px;
+            color: #38bdf8;
+        }
+
+        .copy-btn {
+            background: rgba(59, 130, 246, 0.15);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            color: #60a5fa;
+            border-radius: 6px;
+            padding: 4px 10px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .copy-btn:hover {
+            background: rgba(59, 130, 246, 0.3);
+            color: #fff;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            padding: 18px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .stat-val {
+            font-family: 'Outfit', sans-serif;
+            font-size: 26px;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        /* Table Card */
+        .table-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+        }
+
+        .table-header-tools {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .table-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .table-search {
+            width: 260px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 14px;
+        }
+
+        th {
+            padding: 12px 16px;
+            background: rgba(15, 23, 42, 0.6);
+            color: var(--text-muted);
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--card-border);
+        }
+
+        td {
+            padding: 14px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            color: var(--text-main);
+        }
+
+        tr:hover td {
+            background: var(--card-hover);
+        }
+
+        /* Badges */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+        }
+
+        .badge-p1 {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            color: #fca5a5;
+        }
+
+        .badge-p2 {
+            background: rgba(249, 115, 22, 0.15);
+            border: 1px solid rgba(249, 115, 22, 0.4);
+            color: #fdba74;
+        }
+
+        .badge-p3 {
+            background: rgba(59, 130, 246, 0.15);
+            border: 1px solid rgba(59, 130, 246, 0.4);
+            color: #93c5fd;
+        }
+
+        .badge-p4 {
+            background: rgba(148, 163, 184, 0.15);
+            border: 1px solid rgba(148, 163, 184, 0.4);
+            color: #cbd5e1;
+        }
+
+        .btn-view {
+            background: rgba(59, 130, 246, 0.15);
+            border: 1px solid rgba(59, 130, 246, 0.35);
+            color: #60a5fa;
+            border-radius: 8px;
+            padding: 6px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-view:hover {
+            background: var(--accent-blue);
+            color: #fff;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        }
+
+        /* Modal Overlay */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(4, 7, 13, 0.75);
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.25s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-card {
+            background: #111827;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 20px;
+            width: 90%;
+            max-width: 650px;
+            max-height: 85vh;
+            overflow-y: auto;
+            padding: 28px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+            transform: scale(0.95);
+            transition: all 0.25s ease;
+        }
+
+        .modal-overlay.active .modal-card {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom: 16px;
+        }
+
+        .modal-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .modal-close {
+            background: rgba(255, 255, 255, 0.06);
+            border: none;
+            color: var(--text-muted);
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .modal-close:hover {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--accent-red);
+        }
+
+        /* Metric Breakdown */
+        .metric-bar-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .metric-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .metric-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+        }
+
+        .metric-name {
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .metric-val {
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .bar-bg {
+            height: 8px;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .bar-fill {
+            height: 100%;
+            border-radius: 10px;
+            transition: width 0.5s ease;
+        }
+
+        .tag-cloud {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .reason-tag {
+            background: rgba(139, 92, 246, 0.15);
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            color: #c4b5fd;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div class="header-title">
+                <div class="logo-icon">N</div>
+                <div class="title-text">
+                    <h1>Nalanda NDIS - Gap & Priority API Tester</h1>
+                    <p>Interactive verification suite for /api/gap-priority/ endpoints</p>
+                </div>
+            </div>
+            <div class="status-pill">
+                <span class="status-dot"></span>
+                Server Ready &bull; 127.0.0.1:8000
+            </div>
+        </header>
+
+        <!-- Controls -->
+        <div class="controls-card">
+            <div class="controls-grid">
+                <div class="form-group">
+                    <label for="deptSelect">Department Filter</label>
+                    <select id="deptSelect" class="form-control" onchange="runApiTest()">
+                        <option value="">All Departments</option>
+                        <option value="HEALTH" selected>HEALTH (Health & Family Welfare)</option>
+                        <option value="EDUCATION">EDUCATION (Education Dept)</option>
+                        <option value="WATER_RESOURCES">WATER_RESOURCES (Water Resources)</option>
+                        <option value="PWD">PWD (Public Works Department)</option>
+                        <option value="FOREST_ENVIRONMENT">FOREST_ENVIRONMENT (Forest & Env)</option>
+                        <option value="SOLAR">SOLAR (Solar & Renewable Energy)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="prioritySelect">Priority Filter</label>
+                    <select id="prioritySelect" class="form-control" onchange="runApiTest()">
+                        <option value="">All Priorities (P1 - P4)</option>
+                        <option value="P1">P1 Critical</option>
+                        <option value="P2">P2 High</option>
+                        <option value="P3">P3 Medium</option>
+                        <option value="P4">P4 Low</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="endpointType">API Mode / Endpoint</label>
+                    <select id="endpointType" class="form-control" onchange="runApiTest()">
+                        <option value="dashboard">/api/gap-priority/ (Consolidated)</option>
+                        <option value="rankings">/api/gap-priority/rankings/</option>
+                        <option value="map">/api/gap-priority/map/</option>
+                        <option value="overview">/api/gap-priority/overview/</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="singleId">Single Item ID (Optional)</label>
+                    <input type="text" id="singleId" class="form-control" placeholder="e.g. 24924 or 1"
+                        onkeyup="if(event.key==='Enter') runApiTest()">
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 12px; align-items: center;">
+                <button class="btn-primary" onclick="runApiTest()">
+                    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path d="M5 12h14M12 5l7 7-7 7" />
+                    </svg>
+                    Execute API Request
+                </button>
+            </div>
+
+            <div class="url-preview-bar" style="margin-top: 16px;">
+                <span id="activeUrlText">http://127.0.0.1:8000/api/gap-priority/?department=HEALTH</span>
+                <button class="copy-btn" onclick="copyUrl()">Copy URL</button>
+            </div>
+        </div>
+
+        <!-- Stats Bar -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <span class="stat-label">Total Locations Returned</span>
+                <span class="stat-val" id="statCount">0</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Active Department</span>
+                <span class="stat-val" id="statDept" style="font-size: 20px; color: var(--accent-cyan);">HEALTH</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Response Time</span>
+                <span class="stat-val" id="statTime" style="color: var(--accent-green);">0 ms</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">HTTP Status</span>
+                <span class="stat-val" id="statStatus" style="font-size: 20px; color: var(--accent-blue);">200 OK</span>
+            </div>
+        </div>
+
+        <!-- Table Card -->
+        <div class="table-card">
+            <div class="table-header-tools">
+                <h2 class="table-title">API Response Locations / Facility List</h2>
+                <input type="text" id="tableFilter" class="form-control table-search"
+                    placeholder="Search table items..." onkeyup="filterTable()">
+            </div>
+
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Facility / Location Title</th>
+                            <th>Department</th>
+                            <th>Gap Score</th>
+                            <th>Priority</th>
+                            <th>Reason Codes</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="responseTableBody">
+                        <tr>
+                            <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 30px;">Loading
+                                API data...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Modal -->
+    <div class="modal-overlay" id="detailModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div>
+                    <h3 class="modal-title" id="modalTitle">Facility Title</h3>
+                    <span id="modalDeptTag" style="font-size: 13px; color: var(--accent-cyan); font-weight: 600;">Health
+                        Department</span>
+                </div>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+                <div>
+                    <div style="font-size: 12px; color: var(--text-muted);">Composite Gap Score</div>
+                    <div id="modalScore" style="font-size: 32px; font-weight: 800; font-family: 'Outfit'; color: #fff;">
+                        45.2</div>
+                </div>
+                <div id="modalPriorityBadge" class="badge badge-p3">P3 Medium</div>
+            </div>
+
+            <h4
+                style="font-size: 14px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">
+                Dimension Breakdown Metrics</h4>
+            <div class="metric-bar-group" id="metricBars">
+                <!-- Bars rendered via JS -->
+            </div>
+
+            <h4
+                style="font-size: 14px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 20px; margin-bottom: 8px;">
+                Reason Codes (From Backend)</h4>
+            <div class="tag-cloud" id="modalReasonTags">
+                <!-- Tags rendered via JS -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentData = [];
+
+        async function runApiTest() {
+            const dept = document.getElementById("deptSelect").value;
+            const priority = document.getElementById("prioritySelect").value;
+            const endpointType = document.getElementById("endpointType").value;
+            const singleId = document.getElementById("singleId").value.trim();
+
+            let baseUrl = "http://127.0.0.1:8000/api/gap-priority/";
+
+            if (singleId) {
+                baseUrl += singleId + "/";
+            } else if (endpointType !== "dashboard") {
+                baseUrl += endpointType + "/";
+            }
+
+            const params = new URLSearchParams();
+            if (dept && !singleId) params.append("department", dept);
+            if (priority) params.append("priority", priority);
+
+            const fullUrl = params.toString() ? `${baseUrl}?${params.toString()}` : baseUrl;
+            document.getElementById("activeUrlText").innerText = fullUrl;
+
+            const startTime = performance.now();
+            try {
+                const resp = await fetch(fullUrl);
+                const endTime = performance.now();
+                const duration = Math.round(endTime - startTime);
+
+                document.getElementById("statTime").innerText = `${duration} ms`;
+                document.getElementById("statStatus").innerText = `${resp.status} OK`;
+
+                const data = await resp.json();
+                currentData = data.rankings || data.results || data.map_markers || [];
+
+                document.getElementById("statCount").innerText = currentData.length;
+                document.getElementById("statDept").innerText = dept || "ALL";
+
+                renderTable(currentData);
+            } catch (err) {
+                console.error(err);
+                document.getElementById("statStatus").innerText = "Error";
+                document.getElementById("responseTableBody").innerHTML = `<tr><td colspan="7" style="text-align:center; color: var(--accent-red); padding:20px;">Failed to fetch API response. Ensure server is running on 127.0.0.1:8000.</td></tr>`;
+            }
+        }
+
+        function renderTable(items) {
+            const tbody = document.getElementById("responseTableBody");
+            if (!items || items.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color: var(--text-muted); padding: 30px;">No matching records found for this query.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = items.map((item, idx) => {
+                const rank = item.rank || (idx + 1);
+                const title = item.title || item.name || item.facility_name || "N/A";
+                const dept = item.department_name || item.department_code || "HEALTH";
+                const score = item.gap_score !== undefined ? parseFloat(item.gap_score).toFixed(1) : "N/A";
+                const prio = item.priority || "P3";
+                const reasons = item.reason_codes ? item.reason_codes.join(", ") : (item.reason || "N/A");
+
+                let badgeClass = "badge-p3";
+                if (prio === "P1") badgeClass = "badge-p1";
+                else if (prio === "P2") badgeClass = "badge-p2";
+                else if (prio === "P4") badgeClass = "badge-p4";
+
+                return `
+                <tr>
+                    <td style="font-weight: 700; color: var(--text-muted);">#${rank}</td>
+                    <td style="font-weight: 600; color: #fff;">${title}</td>
+                    <td>${dept}</td>
+                    <td><span style="font-weight:700; font-family: Outfit;">${score}</span></td>
+                    <td><span class="badge ${badgeClass}">${prio}</span></td>
+                    <td style="font-size: 12px; color: var(--text-muted);">${reasons}</td>
+                    <td>
+                        <button class="btn-view" onclick="openDetailModal(${idx})">View</button>
+                    </td>
+                </tr>
+            `;
+            }).join('');
+        }
+
+        function openDetailModal(idx) {
+            const item = currentData[idx];
+            if (!item) return;
+
+            document.getElementById("modalTitle").innerText = item.title || item.name || item.facility_name || "Facility Details";
+            document.getElementById("modalDeptTag").innerText = item.department_name || item.department_code || "Health & Family Welfare";
+            document.getElementById("modalScore").innerText = item.gap_score !== undefined ? parseFloat(item.gap_score).toFixed(1) : "N/A";
+
+            const prio = item.priority || "P3";
+            const badgeElem = document.getElementById("modalPriorityBadge");
+            badgeElem.className = `badge badge-${prio.toLowerCase()}`;
+            badgeElem.innerText = `${prio} Priority`;
+
+            // Render Component Bars
+            const comp = item.components || {
+                "demand_gap": 40, "capacity_gap": 30, "accessibility_gap": 60, "infrastructure_gap": 25,
+                "hr_gap": 50, "medicine_gap": 20, "coverage_gap": 45, "citizen_feedback_gap": 50
+            };
+
+            const barColors = {
+                demand_gap: '#ef4444',
+                capacity_gap: '#f97316',
+                accessibility_gap: '#3b82f6',
+                infrastructure_gap: '#8b5cf6',
+                hr_gap: '#ec4899',
+                medicine_gap: '#06b6d4',
+                coverage_gap: '#10b981',
+                citizen_feedback_gap: '#eab308'
+            };
+
+            const barsContainer = document.getElementById("metricBars");
+            barsContainer.innerHTML = Object.keys(comp).map(k => {
+                const val = comp[k];
+                const color = barColors[k] || '#3b82f6';
+                const label = k.replace(/_/g, ' ').toUpperCase();
+                return `
+                <div class="metric-item">
+                    <div class="metric-header">
+                        <span class="metric-name">${label}</span>
+                        <span class="metric-val">${val}%</span>
+                    </div>
+                    <div class="bar-bg">
+                        <div class="bar-fill" style="width: ${val}%; background-color: ${color};"></div>
+                    </div>
+                </div>
+            `;
+            }).join('');
+            // Reason tags
+            const tagsContainer = document.getElementById("modalReasonTags");
+            const reasons = item.reason_codes || (item.reason ? [item.reason] : ["HIGH_ACCESSIBILITY_GAP"]);
+            tagsContainer.innerHTML = reasons.map(r => `<span class="reason-tag">${r}</span>`).join('');
+
+            document.getElementById("detailModal").classList.add("active");
+        }
+
+        function closeModal() {
+            document.getElementById("detailModal").classList.remove("active");
+        }
+
+        function filterTable() {
+            const query = document.getElementById("tableFilter").value.toLowerCase();
+            const filtered = currentData.filter(item => {
+                const title = (item.title || item.name || '').toLowerCase();
+                const dept = (item.department_name || '').toLowerCase();
+                return title.includes(query) || dept.includes(query);
+            });
+            renderTable(filtered);
+        }
+
+        function copyUrl() {
+            const text = document.getElementById("activeUrlText").innerText;
+            navigator.clipboard.writeText(text);
+            alert("Copied API URL: " + text);
+        }
+
+        // Run initial test on page load
+        window.onload = runApiTest;
+    </script>
+</body>
+
+</html>
