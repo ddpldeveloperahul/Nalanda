@@ -82,11 +82,15 @@ urlpatterns = [
     path('api/gap-priority/map/', views.GapPriorityDashboardAPIView.as_view(), name='gap-priority-map'),
     path('api/priority-locations/rankings/', views.GapPriorityDashboardAPIView.as_view(), name='priority-locations-rankings'),
     path('gap-priority-tester/', views.gap_priority_tester, name='gap-priority-tester'),
+    path('spatial-analysis-tester/', views.spatial_analysis_tester, name='spatial-analysis-tester'),
 
     # DDSS Health Sector & Spatial Query APIs
     path('api/spatial-analysis/query/', views.SpatialAnalysisQueryAPIView.as_view(), name='spatial-analysis-query'),
     path('api/spatial-query/', views.SpatialAnalysisQueryAPIView.as_view(), name='spatial-query-alias'),
     path('api/spatial-query/query/', views.SpatialAnalysisQueryAPIView.as_view(), name='spatial-query-query-alias'),
+    path('api/query/', views.SpatialAnalysisQueryAPIView.as_view(), name='query-alias'),
+    path('api/saved-queries/', views.SpatialAnalysisQueryAPIView.as_view(), name='saved-queries-alias'),
+    path('api/gis/catalog/', views.GISCatalogAPIView.as_view(), name='gis-catalog-master'),
     path('api/health/facilities/', views.HealthFacilitiesAPIView.as_view(), name='health-facilities'),
     path('api/health/staffing/', views.HealthStaffingAPIView.as_view(), name='health-staffing'),
     path('api/health/staffing/<int:pk>/', views.HealthStaffingAPIView.as_view(), name='health-staffing-detail'),
