@@ -9,7 +9,7 @@ from myapp.models import (
     GISCatalogEntry, GISDatasetVersionHistory, GISDataProvenance, GISProcessingJob, GISLayerFeature,
     Complaint, ComplaintCategory, ComplaintStatus, ComplaintEvidence, ComplaintPriority, ComplaintTimeline,
     ProjectExecution, SiteDiary, MeasurementBook, ProjectBill, ExecutionRisk, Report, Employee, EmployeeInvitation,
-    StateBudget, DepartmentBudget, DistrictAllocation, SchemeMaster, FinancialLedgerEntry, ProposalFundRelease, ProjectExpenditure,FieldInspection
+    StateBudget, DepartmentBudget, DistrictAllocation, SchemeMaster, FinancialLedgerEntry, ProposalFundRelease, ProjectExpenditure, FieldInspection, InterventionProposal
 )
 
 try:
@@ -577,4 +577,13 @@ class FieldInspectionAdmin(admin.ModelAdmin):
     search_fields = ["id", "location_name", "inspection_team", "remarks", "instructions"]
     readonly_fields = ["created_at", "updated_at"]
     ordering = ["-scheduled_date", "-created_at"]
+
+
+@admin.register(InterventionProposal)
+class InterventionProposalAdmin(admin.ModelAdmin):
+    list_display = ["id", "location_name", "intervention_type", "estimated_cost", "expected_timeline", "status", "priority_level", "created_at"]
+    list_filter = ["status", "intervention_type", "department_code", "priority_level", "created_at"]
+    search_fields = ["id", "location_name", "title", "description", "remarks"]
+    readonly_fields = ["created_at", "updated_at"]
+    ordering = ["-created_at"]
     
