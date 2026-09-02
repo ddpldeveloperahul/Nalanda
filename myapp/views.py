@@ -66,6 +66,8 @@ from myapp.serializers import (
     FeedbackQuestionSetSerializer,
     FeedbackQuestionSerializer,
     FeedbackResponseSerializer,
+    FieldInspectionSerializer,
+    InterventionProposalSerializer,
 )
 from myapp.services.complaint_service import (
     ComplaintService,
@@ -7562,3 +7564,693 @@ def spatial_analysis_tester(request):
     Renders the interactive Spatial Analysis API Tester Workspace UI.
     """
     return render(request, 'spatial_analysis_tester.html')
+
+
+class ScheduleFieldInspectionAPIView(APIView):
+    """
+    DM / District Executive Command Center API for Scheduling Field Inspections.
+    Matches exact frontend modal form fields and returns INS-2026-XXXXX format.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        department_code = request.query_params.get("department") or request.query_params.get("department_code")
+        status_filter = request.query_params.get("status")
+        block_name = request.query_params.get("block")
+
+        qs = FieldInspection.objects.all()
+        if department_code:
+            qs = qs.filter(department_code__iexact=department_code)
+        if status_filter:
+            qs = qs.filter(status__iexact=status_filter)
+        if block_name:
+            qs = qs.filter(block__name__iexact=block_name)
+
+        serializer = FieldInspectionSerializer(qs[:100], many=True)
+        return Response({
+            "status": "success",
+            "dm_command_center": "Nalanda District Magistrate Executive Command Center",
+            "total_count": qs.count(),
+            "inspections": serializer.data
+        }, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        from datetime import datetime as dt, date as dt_date
+        data = request.data or {}
+
+        entity_id = data.get("entity_id") or data.get("facility_id") or data.get("location_id")
+        facility_name = data.get("facility_name") or data.get("location_name") or data.get("facility") or data.get("title") or "Primary Health Centre"
+        inspection_purpose = data.get("inspection_purpose") or data.get("purpose")
+        preferred_date_raw = data.get("preferred_date") or data.get("scheduled_date") or data.get("inspection_date")
+        scheduled_time_raw = data.get("scheduled_time") or data.get("preferred_time") or data.get("time") or "10:30"
+        inspection_team = data.get("inspection_team") or data.get("team")
+
+        # Validate required fields
+        errors = {}
+        if not inspection_purpose:
+            errors["inspection_purpose"] = ["This field is required."]
+        if not preferred_date_raw:
+            errors["preferred_date"] = ["This field is required."]
+        if not inspection_team:
+            errors["inspection_team"] = ["This field is required."]
+
+        if errors:
+            return Response({
+                "status": "error",
+                "message": "Validation failed: Required fields are missing.",
+                "errors": errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        dept_code = data.get("department") or data.get("department_code") or "HEALTH"
+        district_name = data.get("district") or "Nalanda"
+        block_name = data.get("block") or "Rahui"
+        instructions = data.get("instructions") or data.get("notes") or data.get("remarks") or ""
+
+        inspector_name = data.get("assigned_officer") or data.get("inspector_name") or inspection_team
+        inspector_designation = data.get("inspector_designation") or "District Field Inspector"
+
+        gap_score_raw = data.get("coverage_gap_score") or data.get("gap_score") or 100.0
+        try:
+            gap_score_val = float(str(gap_score_raw).replace("%", "").strip())
+        except Exception:
+            gap_score_val = 100.0
+
+        priority_lvl = data.get("priority_level") or data.get("priority") or "P1"
+
+        # Resolve Objects
+        dist_obj = District.objects.filter(name__iexact=district_name).first()
+        block_obj = Block.objects.filter(name__iexact=block_name).first()
+        dept_obj = Department.objects.filter(code__iexact=dept_code).first()
+
+        facility_obj = None
+        if entity_id:
+            try:
+                facility_obj = Facility.objects.filter(id=int(entity_id)).first()
+            except (ValueError, TypeError):
+                pass
+
+        # Parse Date safely (handles dd-mm-yyyy and yyyy-mm-dd)
+        sched_date = None
+        if preferred_date_raw:
+            p_str = str(preferred_date_raw).strip()
+            for fmt in ["%d-%m-%Y", "%Y-%m-%d", "%d/%m/%Y"]:
+                try:
+                    sched_date = dt.strptime(p_str, fmt).date()
+                    break
+                except Exception:
+                    pass
+        if not sched_date:
+            sched_date = dt_date.today()
+
+        # Parse Time safely (handles HH:MM, HH:MM:SS, hh:mm AM/PM)
+        sched_time = None
+        if scheduled_time_raw:
+            t_str = str(scheduled_time_raw).strip()
+            for t_fmt in ["%H:%M", "%H:%M:%S", "%I:%M %p", "%I:%M%p"]:
+                try:
+                    sched_time = dt.strptime(t_str, t_fmt).time()
+                    break
+                except Exception:
+                    pass
+
+        # Create record
+        inspection = FieldInspection.objects.create(
+            title=f"Field Inspection: {facility_name}",
+            facility=facility_obj,
+            location_name=facility_name,
+            department=dept_obj,
+            department_code=dept_code.upper(),
+            district=dist_obj,
+            block=block_obj,
+            inspection_purpose=inspection_purpose,
+            purpose=inspection_purpose,
+            preferred_date=sched_date,
+            scheduled_date=sched_date,
+            scheduled_time=sched_time,
+            inspection_team=inspection_team,
+            inspector_name=inspector_name,
+            inspector_designation=inspector_designation,
+            instructions=instructions,
+            remarks=instructions,
+            status="scheduled",
+            coverage_gap_score=gap_score_val,
+            priority_level=priority_lvl,
+            created_by=request.user if request.user.is_authenticated else None
+        )
+
+        return Response({
+            "status": "success",
+            "message": "The inspection has been scheduled and the field team will be notified.",
+            "data": {
+                "id": inspection.id,
+                "facility": facility_name,
+                "status": "scheduled",
+                "inspection_purpose": inspection_purpose,
+                "preferred_date": sched_date.strftime("%Y-%m-%d"),
+                "scheduled_date": sched_date.strftime("%Y-%m-%d"),
+                "scheduled_time": sched_time.strftime("%H:%M:%S") if sched_time else str(scheduled_time_raw),
+                "inspection_team": inspection_team,
+                "instructions": instructions,
+                "coverage_gap_score": f"{int(gap_score_val)}%",
+                "priority_level": priority_lvl,
+                "created_at": inspection.created_at.isoformat()
+            }
+        }, status=status.HTTP_201_CREATED)
+
+
+def get_inspection_object(pk_or_code):
+    lookup = str(pk_or_code).strip()
+    if lookup.isdigit():
+        return FieldInspection.objects.filter(id=int(lookup)).first()
+    return None
+
+
+class FieldInspectionDetailAPIView(APIView):
+    """
+    API for retrieving, editing (postponing/rescheduling), and cancelling a Field Inspection by ID/code.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, pk_or_code):
+        inspection = get_inspection_object(pk_or_code)
+        if not inspection:
+            return Response({"status": "error", "message": f"Inspection '{pk_or_code}' not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = FieldInspectionSerializer(inspection)
+        return Response({
+            "status": "success",
+            "data": serializer.data
+        }, status=status.HTTP_200_OK)
+
+    def put(self, request, pk_or_code):
+        return self.patch(request, pk_or_code)
+
+    def patch(self, request, pk_or_code):
+        from datetime import datetime as dt
+        inspection = get_inspection_object(pk_or_code)
+        if not inspection:
+            return Response({"status": "error", "message": f"Inspection ID #{pk_or_code} not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        data = request.data or {}
+
+        if "new_date" in data or "preferred_date" in data or "scheduled_date" in data:
+            p_date_raw = data.get("new_date") or data.get("preferred_date") or data.get("scheduled_date")
+            new_date = None
+            if p_date_raw:
+                p_str = str(p_date_raw).strip()
+                for fmt in ["%d-%m-%Y", "%Y-%m-%d", "%d/%m/%Y"]:
+                    try:
+                        new_date = dt.strptime(p_str, fmt).date()
+                        break
+                    except Exception:
+                        pass
+            if new_date:
+                inspection.preferred_date = new_date
+                inspection.scheduled_date = new_date
+                inspection.status = "postponed"
+
+        if "inspection_purpose" in data or "purpose" in data:
+            inspection.inspection_purpose = data.get("inspection_purpose") or data.get("purpose")
+            inspection.purpose = inspection.inspection_purpose
+
+        if "inspection_team" in data or "team" in data:
+            inspection.inspection_team = data.get("inspection_team") or data.get("team")
+
+        if "instructions" in data or "notes" in data:
+            inspection.instructions = data.get("instructions") or data.get("notes")
+
+        if "scheduled_time" in data or "preferred_time" in data or "time" in data:
+            s_time_raw = data.get("scheduled_time") or data.get("preferred_time") or data.get("time")
+            if s_time_raw:
+                t_str = str(s_time_raw).strip()
+                for t_fmt in ["%H:%M", "%H:%M:%S", "%I:%M %p", "%I:%M%p"]:
+                    try:
+                        inspection.scheduled_time = dt.strptime(t_str, t_fmt).time()
+                        break
+                    except Exception:
+                        pass
+
+        if "reason" in data or "remarks" in data:
+            inspection.remarks = data.get("reason") or data.get("remarks")
+
+        if "status" in data:
+            st = str(data.get("status")).lower()
+            if st in ["scheduled", "postponed", "cancelled", "in_progress", "completed"]:
+                inspection.status = st
+
+        inspection.save()
+
+        return Response({
+            "status": "success",
+            "message": f"Field inspection ID #{inspection.id} updated / postponed successfully.",
+            "data": {
+                "id": inspection.id,
+                "facility": inspection.location_name,
+                "status": inspection.status,
+                "inspection_purpose": inspection.inspection_purpose,
+                "preferred_date": inspection.preferred_date.strftime("%Y-%m-%d") if inspection.preferred_date else None,
+                "scheduled_date": inspection.scheduled_date.strftime("%Y-%m-%d") if inspection.scheduled_date else None,
+                "scheduled_time": inspection.scheduled_time.strftime("%H:%M:%S") if inspection.scheduled_time else None,
+                "inspection_team": inspection.inspection_team,
+                "instructions": inspection.instructions,
+                "remarks": inspection.remarks,
+                "updated_at": inspection.updated_at.isoformat()
+            }
+        }, status=status.HTTP_200_OK)
+
+    def delete(self, request, pk_or_code):
+        inspection = get_inspection_object(pk_or_code)
+        if not inspection:
+            return Response({"status": "error", "message": f"Inspection ID #{pk_or_code} not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        deleted_id = inspection.id
+        facility_name = inspection.location_name
+        inspection.delete()
+
+        return Response({
+            "status": "success",
+            "message": f"Field inspection ID #{deleted_id} for '{facility_name}' permanently deleted from database.",
+            "deleted_id": deleted_id
+        }, status=status.HTTP_200_OK)
+
+
+class FieldInspectionCancelAPIView(APIView):
+    """
+    Explicit API endpoint to cancel a field inspection: POST /api/inspections/schedule/<id>/cancel/
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, pk_or_code):
+        inspection = get_inspection_object(pk_or_code)
+        if not inspection:
+            return Response({"status": "error", "message": f"Inspection ID #{pk_or_code} not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        data = request.data or {}
+        reason = data.get("reason") or data.get("remarks") or data.get("cancellation_reason") or "Inspection cancelled by DM Command Center authority."
+
+        inspection.status = "cancelled"
+        inspection.remarks = reason
+        inspection.save(update_fields=["status", "remarks"])
+
+        return Response({
+            "status": "success",
+            "message": f"Field inspection ID #{inspection.id} cancelled successfully.",
+            "data": {
+                "id": inspection.id,
+                "facility": inspection.location_name,
+                "status": "cancelled",
+                "cancellation_reason": reason,
+                "cancelled_at": inspection.updated_at.isoformat()
+            }
+        }, status=status.HTTP_200_OK)
+
+
+class FieldInspectionPostponeAPIView(APIView):
+    """
+    Explicit API endpoint to postpone / reschedule a field inspection: POST /api/inspections/<id>/postpone/
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, pk_or_code):
+        from datetime import datetime as dt
+        inspection = get_inspection_object(pk_or_code)
+        if not inspection:
+            return Response({"status": "error", "message": f"Inspection '{pk_or_code}' not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        data = request.data or {}
+        new_date_raw = data.get("new_date") or data.get("preferred_date") or data.get("scheduled_date")
+        reason = data.get("reason") or data.get("remarks") or data.get("instructions") or "Postponed by field inspection authority."
+
+        if not new_date_raw:
+            return Response({
+                "status": "error",
+                "message": "Validation failed: 'new_date' or 'preferred_date' is required for postponing."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        new_date = None
+        p_str = str(new_date_raw).strip()
+        for fmt in ["%d-%m-%Y", "%Y-%m-%d", "%d/%m/%Y"]:
+            try:
+                new_date = dt.strptime(p_str, fmt).date()
+                break
+            except Exception:
+                pass
+
+        if not new_date:
+            return Response({
+                "status": "error",
+                "message": "Invalid date format. Use 'dd-mm-yyyy' or 'yyyy-mm-dd'."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        inspection.preferred_date = new_date
+        inspection.scheduled_date = new_date
+        inspection.status = "postponed"
+        if data.get("inspection_team"):
+            inspection.inspection_team = data.get("inspection_team")
+        if data.get("instructions"):
+            inspection.instructions = data.get("instructions")
+        if data.get("inspection_purpose"):
+            inspection.inspection_purpose = data.get("inspection_purpose")
+        inspection.remarks = reason
+        inspection.save()
+
+        return Response({
+            "status": "success",
+            "message": f"Field inspection ID #{inspection.id} postponed and rescheduled to {new_date.strftime('%Y-%m-%d')}.",
+            "data": {
+                "id": inspection.id,
+                "facility": inspection.location_name,
+                "status": "postponed",
+                "rescheduled_date": new_date.strftime("%Y-%m-%d"),
+                "inspection_team": inspection.inspection_team,
+                "instructions": inspection.instructions,
+                "postponement_reason": reason,
+                "updated_at": inspection.updated_at.isoformat()
+            }
+        }, status=status.HTTP_200_OK)
+
+
+class FieldInspectionCompleteAPIView(APIView):
+    """
+    Explicit API endpoint to mark a field inspection as COMPLETED: POST /api/inspections/schedule/<id>/complete/
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, pk_or_code):
+        inspection = get_inspection_object(pk_or_code)
+        if not inspection:
+            return Response({"status": "error", "message": f"Inspection ID #{pk_or_code} not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        data = request.data or {}
+        remarks = data.get("remarks") or data.get("completion_notes") or data.get("findings") or "Field inspection completed successfully on site."
+        inspector_name = data.get("inspector_name") or data.get("assigned_officer") or inspection.inspector_name
+
+        inspection.status = "completed"
+        inspection.remarks = remarks
+        if inspector_name:
+            inspection.inspector_name = inspector_name
+        inspection.save()
+
+        return Response({
+            "status": "success",
+            "message": f"Field inspection ID #{inspection.id} marked as COMPLETED successfully.",
+            "data": {
+                "id": inspection.id,
+                "facility": inspection.location_name,
+                "status": "completed",
+                "inspector_name": inspection.inspector_name,
+                "inspection_team": inspection.inspection_team,
+                "findings_and_remarks": inspection.remarks,
+                "completed_at": inspection.updated_at.isoformat()
+            }
+        }, status=status.HTTP_200_OK)
+
+
+def get_intervention_proposal_object(pk):
+    lookup = str(pk).strip()
+    if lookup.isdigit():
+        return InterventionProposal.objects.filter(id=int(lookup)).first()
+    return None
+
+
+class ProposeInterventionAPIView(APIView):
+    """
+    DM Executive Command Center API for Proposing Interventions.
+    Matches exact UI Modal in screenshots: intervention_type, description, estimated_cost, expected_timeline.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        department_code = request.query_params.get("department") or request.query_params.get("department_code")
+        status_filter = request.query_params.get("status")
+        block_name = request.query_params.get("block")
+
+        qs = InterventionProposal.objects.all()
+        if department_code:
+            qs = qs.filter(department_code__iexact=department_code)
+        if status_filter:
+            qs = qs.filter(status__iexact=status_filter)
+        if block_name:
+            qs = qs.filter(block__name__iexact=block_name)
+
+        serializer = InterventionProposalSerializer(qs[:100], many=True)
+        return Response({
+            "status": "success",
+            "dm_command_center": "Nalanda District Magistrate Executive Command Center",
+            "total_count": qs.count(),
+            "proposals": serializer.data
+        }, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        data = request.data or {}
+
+        entity_id = data.get("entity_id") or data.get("facility_id") or data.get("location_id")
+        facility_name = data.get("facility_name") or data.get("location_name") or data.get("facility") or data.get("title") or "Sarmera"
+        facility_type = data.get("facility_type") or "Headquarters"
+        dept_code = data.get("department") or data.get("department_code") or "HEALTH"
+        district_name = data.get("district") or "Nalanda"
+        block_name = data.get("block") or "Sarmera"
+
+        intervention_type = data.get("intervention_type") or data.get("type")
+        description = data.get("description") or data.get("intervention_needed") or data.get("details") or data.get("what_needs_to_be_done")
+        
+        estimated_cost_raw = data.get("estimated_cost") or data.get("cost") or 0.0
+        expected_timeline = data.get("expected_timeline") or data.get("timeline") or "30 days"
+
+        gap_score_raw = data.get("coverage_gap_score") or data.get("gap_score") or 88.0
+        try:
+            gap_score_val = float(str(gap_score_raw).replace("%", "").strip())
+        except Exception:
+            gap_score_val = 88.0
+
+        priority_lvl = data.get("priority_level") or data.get("priority") or "P1"
+
+        # Validate required fields
+        errors = {}
+        if not intervention_type:
+            errors["intervention_type"] = ["This field is required."]
+        if not description:
+            errors["description"] = ["This field is required."]
+
+        if errors:
+            return Response({
+                "status": "error",
+                "message": "Validation failed: Required fields are missing.",
+                "errors": errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Parse cost safely (handles "50 Lacs", "5000000", "₹50,000")
+        cost_val = 0.0
+        if estimated_cost_raw:
+            c_str = str(estimated_cost_raw).replace("₹", "").replace(",", "").strip()
+            if "lac" in c_str.lower() or "lakh" in c_str.lower():
+                num_part = re.findall(r"[-+]?\d*\.\d+|\d+", c_str)
+                if num_part:
+                    cost_val = float(num_part[0]) * 100000.0
+            elif "cr" in c_str.lower() or "crore" in c_str.lower():
+                num_part = re.findall(r"[-+]?\d*\.\d+|\d+", c_str)
+                if num_part:
+                    cost_val = float(num_part[0]) * 10000000.0
+            else:
+                try:
+                    cost_val = float(c_str)
+                except Exception:
+                    cost_val = 0.0
+
+        # Resolve Objects
+        dist_obj = District.objects.filter(name__iexact=district_name).first()
+        block_obj = Block.objects.filter(name__iexact=block_name).first()
+        dept_obj = Department.objects.filter(code__iexact=dept_code).first()
+
+        facility_obj = None
+        if entity_id:
+            try:
+                facility_obj = Facility.objects.filter(id=int(entity_id)).first()
+            except (ValueError, TypeError):
+                pass
+
+        proposal = InterventionProposal.objects.create(
+            title=f"Intervention: {intervention_type} @ {facility_name}",
+            facility=facility_obj,
+            location_name=facility_name,
+            facility_type=facility_type,
+            department=dept_obj,
+            department_code=dept_code.upper(),
+            district=dist_obj,
+            block=block_obj,
+            intervention_type=intervention_type,
+            description=description,
+            estimated_cost=cost_val,
+            expected_timeline=expected_timeline,
+            coverage_gap_score=gap_score_val,
+            priority_level=priority_lvl,
+            status="PROPOSED",
+            created_by=request.user if request.user.is_authenticated else None
+        )
+
+        return Response({
+            "status": "success",
+            "message": "Intervention proposal created successfully.",
+            "data": {
+                "id": proposal.id,
+                "facility_name": facility_name,
+                "facility_type": facility_type,
+                "intervention_type": intervention_type,
+                "description": description,
+                "estimated_cost": float(proposal.estimated_cost),
+                "expected_timeline": expected_timeline,
+                "coverage_gap_score": f"{int(gap_score_val)}%",
+                "priority_level": priority_lvl,
+                "status": proposal.status,
+                "created_at": proposal.created_at.isoformat()
+            }
+        }, status=status.HTTP_201_CREATED)
+
+
+class InterventionProposalDetailAPIView(APIView):
+    """
+    API for retrieving, updating, and deleting an Intervention Proposal by ID.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, pk):
+        proposal = get_intervention_proposal_object(pk)
+        if not proposal:
+            return Response({"status": "error", "message": f"Intervention proposal ID #{pk} not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = InterventionProposalSerializer(proposal)
+        return Response({
+            "status": "success",
+            "data": serializer.data
+        }, status=status.HTTP_200_OK)
+
+    def put(self, request, pk):
+        return self.patch(request, pk)
+
+    def patch(self, request, pk):
+        proposal = get_intervention_proposal_object(pk)
+        if not proposal:
+            return Response({"status": "error", "message": f"Intervention proposal ID #{pk} not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        data = request.data or {}
+
+        if "intervention_type" in data or "type" in data:
+            proposal.intervention_type = data.get("intervention_type") or data.get("type")
+
+        if "description" in data or "details" in data or "intervention_needed" in data:
+            proposal.description = data.get("description") or data.get("details") or data.get("intervention_needed")
+
+        if "estimated_cost" in data or "cost" in data:
+            c_raw = data.get("estimated_cost") or data.get("cost")
+            try:
+                proposal.estimated_cost = float(str(c_raw).replace("₹", "").replace(",", "").strip())
+            except Exception:
+                pass
+
+        if "expected_timeline" in data or "timeline" in data:
+            proposal.expected_timeline = data.get("expected_timeline") or data.get("timeline")
+
+        if "status" in data:
+            st = str(data.get("status")).upper()
+            if st in ["PROPOSED", "UNDER_REVIEW", "APPROVED", "REJECTED", "IN_PROGRESS", "COMPLETED", "CANCELLED"]:
+                proposal.status = st
+
+        if "remarks" in data:
+            proposal.remarks = data.get("remarks")
+
+        proposal.save()
+
+        return Response({
+            "status": "success",
+            "message": f"Intervention proposal ID #{proposal.id} updated successfully.",
+            "data": {
+                "id": proposal.id,
+                "facility_name": proposal.location_name,
+                "facility_type": proposal.facility_type,
+                "intervention_type": proposal.intervention_type,
+                "description": proposal.description,
+                "estimated_cost": float(proposal.estimated_cost),
+                "expected_timeline": proposal.expected_timeline,
+                "status": proposal.status,
+                "remarks": proposal.remarks,
+                "updated_at": proposal.updated_at.isoformat()
+            }
+        }, status=status.HTTP_200_OK)
+
+    def delete(self, request, pk):
+        proposal = get_intervention_proposal_object(pk)
+        if not proposal:
+            return Response({"status": "error", "message": f"Intervention proposal ID #{pk} not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        deleted_id = proposal.id
+        facility_name = proposal.location_name
+        proposal.delete()
+
+        return Response({
+            "status": "success",
+            "message": f"Intervention proposal ID #{deleted_id} for '{facility_name}' permanently deleted from database.",
+            "deleted_id": deleted_id
+        }, status=status.HTTP_200_OK)
+
+
+class InterventionProposalStatusActionAPIView(APIView):
+    """
+    Dedicated Status Transition APIs for Intervention Proposals:
+    - POST /api/interventions/propose/<id>/review/   -> UNDER_REVIEW
+    - POST /api/interventions/propose/<id>/approve/  -> APPROVED
+    - POST /api/interventions/propose/<id>/reject/   -> REJECTED
+    - POST /api/interventions/propose/<id>/start/    -> IN_PROGRESS
+    - POST /api/interventions/propose/<id>/complete/ -> COMPLETED
+    - POST /api/interventions/propose/<id>/cancel/   -> CANCELLED
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, pk, action_type):
+        proposal = get_intervention_proposal_object(pk)
+        if not proposal:
+            return Response({"status": "error", "message": f"Intervention proposal ID #{pk} not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        data = request.data or {}
+        remarks = data.get("remarks") or data.get("reason") or data.get("notes") or ""
+
+        action_map = {
+            "review": "UNDER_REVIEW",
+            "under_review": "UNDER_REVIEW",
+            "approve": "APPROVED",
+            "approved": "APPROVED",
+            "reject": "REJECTED",
+            "rejected": "REJECTED",
+            "start": "IN_PROGRESS",
+            "in_progress": "IN_PROGRESS",
+            "complete": "COMPLETED",
+            "completed": "COMPLETED",
+            "cancel": "CANCELLED",
+            "cancelled": "CANCELLED",
+            "propose": "PROPOSED",
+            "proposed": "PROPOSED",
+        }
+
+        new_status = action_map.get(action_type.lower())
+        if not new_status:
+            return Response({
+                "status": "error",
+                "message": f"Invalid status action '{action_type}'. Valid actions are: review, approve, reject, start, complete, cancel."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        proposal.status = new_status
+        if remarks:
+            proposal.remarks = remarks
+        proposal.save()
+
+        return Response({
+            "status": "success",
+            "message": f"Intervention proposal ID #{proposal.id} status transitioned to {new_status}.",
+            "data": {
+                "id": proposal.id,
+                "facility_name": proposal.location_name,
+                "intervention_type": proposal.intervention_type,
+                "status": proposal.status,
+                "remarks": proposal.remarks,
+                "updated_at": proposal.updated_at.isoformat()
+            }
+        }, status=status.HTTP_200_OK)

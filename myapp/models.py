@@ -2494,4 +2494,132 @@ class RoadIndicator(models.Model):
         return round(max(0.0, base - penalty), 1)
 
 
+class FieldInspection(models.Model):
+    """
+    Scheduled Field Inspection for GIS Facilities, Priority Locations, and Department Assets.
+    Matches DM Executive Command Center 'Schedule Field Inspection' UI Modal.
+    """
+    TEAM_CHOICES = [
+        ("Field Inspection Team", "Field Inspection Team"),
+        ("Technical Team", "Technical Team"),
+        ("Joint Inspection Team", "Joint Inspection Team"),
+    ]
+
+    STATUS_CHOICES = [
+        ("scheduled", "scheduled"),
+        ("postponed", "postponed"),
+        ("in_progress", "in_progress"),
+        ("completed", "completed"),
+        ("cancelled", "cancelled"),
+    ]
+
+    title = models.CharField(max_length=255, verbose_name="Inspection Title")
+    facility = models.ForeignKey(Facility, on_delete=models.SET_NULL, null=True, blank=True, related_name="field_inspections")
+    location_name = models.CharField(max_length=255, blank=True, null=True, verbose_name="Location / Entity Name")
+    department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True)
+    department_code = models.CharField(max_length=50, default="HEALTH", verbose_name="Department Code")
+    district = models.ForeignKey(District, on_delete=models.SET_NULL, null=True, blank=True)
+    block = models.ForeignKey(Block, on_delete=models.SET_NULL, null=True, blank=True)
+
+    inspection_purpose = models.TextField(blank=True, null=True, verbose_name="Inspection Purpose")
+    purpose = models.TextField(blank=True, null=True, verbose_name="Purpose / Checklist")
+    preferred_date = models.DateField(blank=True, null=True, verbose_name="Preferred Date")
+    scheduled_date = models.DateField(blank=True, null=True, verbose_name="Scheduled Inspection Date")
+    scheduled_time = models.TimeField(blank=True, null=True, verbose_name="Scheduled Time")
+
+    inspection_team = models.CharField(max_length=100, choices=TEAM_CHOICES, default="Field Inspection Team", verbose_name="Inspection Team")
+    inspector_name = models.CharField(max_length=150, blank=True, null=True, verbose_name="Assigned Inspector / Officer")
+    inspector_designation = models.CharField(max_length=150, blank=True, null=True, verbose_name="Inspector Designation")
+    instructions = models.TextField(blank=True, null=True, verbose_name="Instructions / Notes for Field Team")
+    remarks = models.TextField(blank=True, null=True, verbose_name="Inspection Remarks / Notes")
+
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="scheduled")
+    coverage_gap_score = models.FloatField(default=0.0, verbose_name="Coverage Gap Score (%)")
+    priority_level = models.CharField(max_length=10, default="P1")
+
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "ddss_field_inspection"
+        verbose_name = "Field Inspection"
+        verbose_name_plural = "Field Inspections"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"[{self.status}] ID #{self.id} - {self.location_name}"
+
+
+class InterventionProposal(models.Model):
+    """
+    Propose Intervention Model for DM Executive Command Center Priorities Tab.
+    Matches exact UI Modal in screenshots.
+    """
+    INTERVENTION_TYPE_CHOICES = [
+        ("Infrastructure improvement", "Infrastructure improvement"),
+        ("Additional staff", "Additional staff"),
+        ("Equipment", "Equipment"),
+        ("Repair / maintenance", "Repair / maintenance"),
+        ("New facility / expansion", "New facility / expansion"),
+        ("Service improvement", "Service improvement"),
+        ("Connectivity / accessibility", "Connectivity / accessibility"),
+        ("Safety / hazard mitigation", "Safety / hazard mitigation"),
+        ("Other", "Other"),
+    ]
+
+    TIMELINE_CHOICES = [
+        ("15 days", "15 days"),
+        ("30 days", "30 days"),
+        ("60 days", "60 days"),
+        ("90 days", "90 days"),
+        ("6 months", "6 months"),
+        ("1 year", "1 year"),
+    ]
+
+    STATUS_CHOICES = [
+        ("PROPOSED", "Proposed"),
+        ("UNDER_REVIEW", "Under Review"),
+        ("APPROVED", "Approved"),
+        ("REJECTED", "Rejected"),
+        ("IN_PROGRESS", "In Progress"),
+        ("COMPLETED", "Completed"),
+        ("CANCELLED", "Cancelled"),
+    ]
+
+    title = models.CharField(max_length=255, verbose_name="Proposal Title")
+    facility = models.ForeignKey(Facility, on_delete=models.SET_NULL, null=True, blank=True, related_name="intervention_proposals")
+    location_name = models.CharField(max_length=255, blank=True, null=True, verbose_name="Location / Entity Name")
+    facility_type = models.CharField(max_length=100, default="Headquarters", verbose_name="Facility Type")
+    
+    department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True)
+    department_code = models.CharField(max_length=50, default="HEALTH", verbose_name="Department Code")
+    district = models.ForeignKey(District, on_delete=models.SET_NULL, null=True, blank=True)
+    block = models.ForeignKey(Block, on_delete=models.SET_NULL, null=True, blank=True)
+
+    intervention_type = models.CharField(max_length=100, choices=INTERVENTION_TYPE_CHOICES, default="Infrastructure improvement", verbose_name="Intervention Type")
+    description = models.TextField(blank=True, null=True, verbose_name="Intervention Description / Need")
+    
+    estimated_cost = models.DecimalField(max_digits=14, decimal_places=2, default=0.00, verbose_name="Estimated Cost (INR)")
+    expected_timeline = models.CharField(max_length=50, default="30 days", verbose_name="Expected Timeline")
+    
+    coverage_gap_score = models.FloatField(default=0.0, verbose_name="Coverage Gap Score (%)")
+    priority_level = models.CharField(max_length=10, default="P1")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="PROPOSED")
+    remarks = models.TextField(blank=True, null=True, verbose_name="Remarks / Authority Notes")
+
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "ddss_intervention_proposal"
+        verbose_name = "Intervention Proposal"
+        verbose_name_plural = "Intervention Proposals"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"[{self.status}] ID #{self.id} - {self.intervention_type} @ {self.location_name}"
+
+
 

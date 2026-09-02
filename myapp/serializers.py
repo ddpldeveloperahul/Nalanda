@@ -23,6 +23,8 @@ from myapp.models import (
     NotificationTemplate,
     NotificationDispatchLog,
     GapScore,
+    FieldInspection,
+    InterventionProposal,
     Proposal,
     BudgetApproval,
     ProjectExecution,
@@ -1940,6 +1942,38 @@ class FeedbackResponseSerializer(serializers.ModelSerializer):
     class Meta:
         model = FeedbackResponse
         fields = "__all__"
+
+
+class FieldInspectionSerializer(serializers.ModelSerializer):
+    facility_name = serializers.SerializerMethodField(read_only=True)
+    department_name = serializers.CharField(source="department.name", read_only=True, default=None)
+    district_name = serializers.CharField(source="district.name", read_only=True, default=None)
+    block_name = serializers.CharField(source="block.name", read_only=True, default=None)
+
+    class Meta:
+        model = FieldInspection
+        fields = "__all__"
+
+    def get_facility_name(self, obj):
+        if obj.facility:
+            return obj.facility.name
+        return obj.location_name
+
+
+class InterventionProposalSerializer(serializers.ModelSerializer):
+    facility_name = serializers.SerializerMethodField(read_only=True)
+    department_name = serializers.CharField(source="department.name", read_only=True, default=None)
+    district_name = serializers.CharField(source="district.name", read_only=True, default=None)
+    block_name = serializers.CharField(source="block.name", read_only=True, default=None)
+
+    class Meta:
+        model = InterventionProposal
+        fields = "__all__"
+
+    def get_facility_name(self, obj):
+        if obj.facility:
+            return obj.facility.name
+        return obj.location_name
 
 
 

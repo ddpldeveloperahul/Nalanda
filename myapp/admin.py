@@ -9,7 +9,7 @@ from myapp.models import (
     GISCatalogEntry, GISDatasetVersionHistory, GISDataProvenance, GISProcessingJob, GISLayerFeature,
     Complaint, ComplaintCategory, ComplaintStatus, ComplaintEvidence, ComplaintPriority, ComplaintTimeline,
     ProjectExecution, SiteDiary, MeasurementBook, ProjectBill, ExecutionRisk, Report, Employee, EmployeeInvitation,
-    StateBudget, DepartmentBudget, DistrictAllocation, SchemeMaster, FinancialLedgerEntry, ProposalFundRelease, ProjectExpenditure
+    StateBudget, DepartmentBudget, DistrictAllocation, SchemeMaster, FinancialLedgerEntry, ProposalFundRelease, ProjectExpenditure,FieldInspection
 )
 
 try:
@@ -568,3 +568,13 @@ class WaterFacilityIndicatorAdmin(admin.ModelAdmin):
 class RoadIndicatorAdmin(admin.ModelAdmin):
     list_display = ["id", "road_name", "block", "road_length_km", "accessibility_status", "bridge_gap_count"]
 
+
+
+@admin.register(FieldInspection)
+class FieldInspectionAdmin(admin.ModelAdmin):
+    list_display = ["id", "location_name", "department_code", "scheduled_date", "scheduled_time", "status", "inspection_team", "remarks"]
+    list_filter = ["status", "department_code", "scheduled_date", "inspection_team"]
+    search_fields = ["id", "location_name", "inspection_team", "remarks", "instructions"]
+    readonly_fields = ["created_at", "updated_at"]
+    ordering = ["-scheduled_date", "-created_at"]
+    
